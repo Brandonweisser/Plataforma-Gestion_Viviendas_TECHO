@@ -1,18 +1,35 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login con:", { email, password });
+    setError("");
+    try {
+      const response = await fetch("http://localhost:3001/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        localStorage.setItem("token", data.token); // Guarda el token
+        navigate("/home");
+      } else {
+        setError(data.message || "Correo o contraseña incorrectos.");
+      }
+    } catch (err) {
+      setError("Error de conexión con el servidor.");
+    }
   };
-
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-100 to-blue-300">
-      {/* Columna del formulario */}
       <div className="flex flex-col justify-center w-full max-w-md bg-white rounded-r-2xl shadow-xl p-8">
         <h1 className="text-2xl font-bold text-center text-blue-700 mb-6">
           Plataforma Gestión de Viviendas
@@ -54,6 +71,9 @@ export default function Login() {
               </button>
             </div>
           </div>
+          {error && (
+            <div className="text-red-500 text-sm text-center">{error}</div>
+          )}
           <button
             type="submit"
             className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md transition"
@@ -68,7 +88,6 @@ export default function Login() {
           </a>
         </p>
       </div>
-      {/* Columna de la imagen */}
       <div className="hidden md:flex flex-1 items-center justify-center">
         <img
           src="https://cl.techo.org/wp-content/uploads/sites/9/2021/11/Thumbnail-1024x538.png"
