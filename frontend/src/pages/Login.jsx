@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { login as loginApi } from "../services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -12,20 +13,11 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      const response = await fetch("http://localhost:3001/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        localStorage.setItem("token", data.token); // Guarda el token
-        navigate("/home");
-      } else {
-        setError(data.message || "Correo o contraseña incorrectos.");
-      }
+      const data = await loginApi({ email, password });
+      localStorage.setItem("token", data.token);
+      navigate("/home");
     } catch (err) {
-      setError("Error de conexión con el servidor.");
+      setError(err.message || "Error de conexión con el servidor.");
     }
   };
   return (
@@ -90,9 +82,13 @@ export default function Login() {
           </button>
         <p className="text-center text-sm text-gray-600 mt-6">
           ¿Olvidaste tu contraseña?{" "}
-          <a href="#" className="text-blue-600 hover:underline">
+          <button
+            type="button"
+            onClick={() => navigate("/recuperar")}
+            className="text-blue-600 hover:underline"
+          >
             Recuperar acceso
-          </a>
+          </button>
         </p>
       </div>
       <div className="hidden md:flex flex-1 items-center justify-center">

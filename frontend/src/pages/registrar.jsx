@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { registerUser } from "../services/api";
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -23,26 +24,15 @@ export default function Registro() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:3001/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Ajusta el payload si tu API espera otras llaves (p. ej., 'nombre')
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-          navigate("/home");
-        } else {
-          navigate("/"); // Redirige al login si no retorna token
-        }
+      const data = await registerUser({ name, email, password });
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        navigate("/home");
       } else {
-        setError(data.message || "No se pudo crear la cuenta.");
+        navigate("/");
       }
     } catch (err) {
-      setError("Error de conexión con el servidor.");
+      setError(err.message || "Error de conexión con el servidor.");
     } finally {
       setLoading(false);
     }
