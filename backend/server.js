@@ -1,46 +1,27 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const jwt = require("jsonwebtoken");
+import express from 'express'
+import cors from 'cors'
+import { supabase } from './supabaseClient.js'
 
-const app = express();
-const PORT = 3001;
-const SECRET = "tu_clave_secreta"; // Cambia esto por algo seguro
+const app = express()
+app.use(cors())
+app.use(express.json())
 
-app.use(cors());
-app.use(bodyParser.json());
+const PORT = process.env.PORT || 3001
 
-// Usuario de prueba
-const usuarioDemo = {
-  email: "admin@techo.org",
-  password: "123456"
-};
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 
-// Endpoint de login
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
-  if (email === usuarioDemo.email && password === usuarioDemo.password) {
-    // Genera token
-    const token = jwt.sign({ email }, SECRET, { expiresIn: "2h" });
-    res.json({ success: true, token });
-  } else {
-    res.json({ success: false, message: "Correo o contraseña incorrectos." });
-  }
-});
+app.post('/usuarios', async (req, res) => {
+  const { nombre, email, rol, auth_id } = req.body
 
-// Endpoint protegido de ejemplo
-app.get("/api/protegido", (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ message: "No autorizado" });
   try {
-    const token = auth.split(" ")[1];
-    jwt.verify(token, SECRET);
-    res.json({ message: "Acceso permitido" });
-  } catch {
-    res.status(401).json({ message: "Token inválido" });
-  }
-});
+    const { data, error } = await supabase
+      .from('usuarios')
+      .insert([{ nombre, email, rol, auth_id }]) // auth_id es opcional si quieres relacionarlo con Supabase Auth
 
-app.listen(PORT, () => {
-  console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
-});
+    if (error) throw error
+
+    res.json({ success: true, data })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
