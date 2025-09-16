@@ -8,12 +8,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Recupera sesión guardada
     const savedUser = localStorage.getItem("user");
-    if (savedUser) {
+    const savedToken = localStorage.getItem("token");
+    
+    if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
     }
   }, []);
 
   const login = (userData) => {
+    console.log("🔄 AuthContext - Saving user data:", userData); // Debug
+    console.log("🔄 AuthContext - User role specifically:", userData?.rol); // Debug específico
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
   };
@@ -21,6 +25,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
   };
 
   return (

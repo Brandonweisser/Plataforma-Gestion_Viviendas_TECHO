@@ -1,23 +1,57 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { login as loginApi } from "../services/api";
+import { login as loginApi, getMe } from "../services/api";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
+    
     try {
-      const data = await loginApi({ email, password });
-      localStorage.setItem("token", data.token);
+      // 1. Hacer login y obtener token
+      const loginData = await loginApi({ email, password });
+      console.log("🔐 Login response:", loginData); // Debug
+      localStorage.setItem("token", loginData.token);
+      
+      // 2. Obtener información del usuario
+      try {
+        const userData = await getMe();
+        console.log("👤 User data from /api/me:", userData); // Debug
+        console.log("👤 Specific user role:", userData.data?.rol); // Debug específico del rol
+        
+        // 3. Guardar en el contexto con datos completos
+        const userToSave = {
+          email: email,
+          token: loginData.token,
+          ...userData.data
+        };
+        console.log("💾 Saving to context:", userToSave); // Debug
+        login(userToSave);
+      } catch (userError) {
+        console.error("❌ Error getting user data:", userError); // Debug
+        console.error("❌ Error details:", userError.message); // Debug
+        console.error("❌ Error status:", userError.status); // Debug
+        // En lugar de fallback, mostramos el error para debuggear
+        throw new Error(`No se pudieron obtener los datos del usuario: ${userError.message}`);
+      }
+      
+      // 4. Navegar al home
       navigate("/home");
     } catch (err) {
+      console.error("🚨 Login error:", err); // Debug
       setError(err.message || "Error de conexión con el servidor.");
+    } finally {
+      setIsLoading(false);
     }
   };
   return (
@@ -68,9 +102,14 @@ export default function Login() {
           )}
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md transition"
+            disabled={isLoading}
+            className={`w-full py-2 px-4 ${
+              isLoading 
+                ? "bg-gray-400 cursor-not-allowed" 
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white rounded-lg font-semibold shadow-md transition`}
           >
-            Iniciar sesión
+            {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
           </button>
         </form>
         <button

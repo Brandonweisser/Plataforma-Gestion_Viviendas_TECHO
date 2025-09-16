@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerUser } from "../services/api";
+import { registerUser, getMe } from "../services/api";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Registro() {
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,9 +26,30 @@ export default function Registro() {
 
     setLoading(true);
     try {
+      // 1. Registrar usuario
       const data = await registerUser({ name, email, password });
+      
       if (data.token) {
+        // 2. Guardar token
         localStorage.setItem("token", data.token);
+        
+        // 3. Obtener información del usuario y actualizar contexto
+        try {
+          const userData = await getMe();
+          login({
+            email: email,
+            name: name,
+            ...userData.data
+          });
+        } catch (userError) {
+          // Si no podemos obtener los datos del usuario, usamos datos básicos
+          login({
+            email: email,
+            name: name,
+            token: data.token
+          });
+        }
+        
         navigate("/home");
       } else {
         navigate("/");

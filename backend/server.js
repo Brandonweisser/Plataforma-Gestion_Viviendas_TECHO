@@ -156,14 +156,21 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/me', verifyToken, async (req, res) => {
   try {
     const userId = req.user?.sub
+    console.log('🔍 /api/me - userId from token:', userId)
+    console.log('🔍 /api/me - req.user:', req.user)
+    
     const { data, error } = await supabase
       .from('usuarios')
-      .select('id, nombre, email, rol, created_at')
-      .eq('id', userId)
+      .select('uid, nombre, email, rol')
+      .eq('uid', userId)
       .single()
+    
+    console.log('🔍 /api/me - supabase query result:', { data, error })
+    
     if (error) throw error
     res.json({ success: true, data })
   } catch (e) {
+    console.error('❌ Error en /api/me:', e)
     res.status(500).json({ success: false, message: 'No se pudo obtener el usuario' })
   }
 })
