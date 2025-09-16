@@ -81,6 +81,13 @@ export default function Login() {
             Iniciar sesión
           </button>
         </form>
+        <button
+            type="button"
+            onClick={() => navigate("/registro")}
+            className="w-full mt-2 py-2 px-4 bg-white text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg font-semibold shadow-sm transition"
+          >
+            Crear cuenta
+          </button>
         <p className="text-center text-sm text-gray-600 mt-6">
           ¿Olvidaste tu contraseña?{" "}
           <a href="#" className="text-blue-600 hover:underline">
