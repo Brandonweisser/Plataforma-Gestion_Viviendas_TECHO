@@ -87,7 +87,7 @@ export default function Registro() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="Tu nombre"
               required
             />
@@ -101,7 +101,7 @@ export default function Registro() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="ejemplo@correo.com"
               required
             />
@@ -116,7 +116,7 @@ export default function Registro() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
+                className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
                 placeholder="••••••••"
                 required
                 minLength={6}
@@ -141,7 +141,7 @@ export default function Registro() {
                 type={showConfirm ? "text" : "password"}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
+                className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
                 placeholder="••••••••"
                 required
                 minLength={6}
