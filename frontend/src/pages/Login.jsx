@@ -1,6 +1,8 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { dashboardPathFor } from "../utils/roles";
 import { login as loginApi, getMe } from "../services/api";
+import { collectLoginValidation, decodeJwt } from "../utils/validation";
 import { AuthContext } from "../context/AuthContext";
 
 export default function Login() {
@@ -15,13 +17,21 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    // Validaciones cliente antes de llamar API
+    const validationErrors = collectLoginValidation({ email, password });
+    if (validationErrors.length) {
+      setError(validationErrors[0]);
+      return; // No continuar si hay error
+    }
     setIsLoading(true);
     
     try {
       // 1. Hacer login y obtener token
-      const loginData = await loginApi({ email, password });
+  const loginData = await loginApi({ email, password });
       console.log("🔐 Login response:", loginData); // Debug
       localStorage.setItem("token", loginData.token);
+  // Decodificar rol inmediatamente (optimiza UX si /api/me falla)
+  const decoded = decodeJwt(loginData.token);
       
       // 2. Obtener información del usuario
       try {
@@ -33,20 +43,24 @@ export default function Login() {
         const userToSave = {
           email: email,
           token: loginData.token,
+          role: decoded?.role || userData.data?.rol,
           ...userData.data
         };
         console.log("💾 Saving to context:", userToSave); // Debug
         login(userToSave);
+        // Guardamos el rol efectivo para usar en la redirección
+        var effectiveRole = userToSave.role;
       } catch (userError) {
         console.error("❌ Error getting user data:", userError); // Debug
         console.error("❌ Error details:", userError.message); // Debug
         console.error("❌ Error status:", userError.status); // Debug
         // En lugar de fallback, mostramos el error para debuggear
-        throw new Error(`No se pudieron obtener los datos del usuario: ${userError.message}`);
+  throw new Error(`No se pudieron obtener los datos del usuario: ${userError.message}`);
       }
       
-      // 4. Navegar al home
-      navigate("/home");
+    // 4. Redirigir según rol
+  const target = dashboardPathFor(effectiveRole || decoded?.role);
+    navigate(target);
     } catch (err) {
       console.error("🚨 Login error:", err); // Debug
       setError(err.message || "Error de conexión con el servidor.");
@@ -62,10 +76,11 @@ export default function Login() {
         </h1>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">
               Correo electrónico
             </label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -75,11 +90,12 @@ export default function Login() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
               Contraseña
             </label>
             <div className="relative">
               <input
+                id="login-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

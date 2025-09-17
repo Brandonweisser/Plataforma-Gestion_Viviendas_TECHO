@@ -1,7 +1,9 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { registerUser, getMe } from "../services/api";
+import { collectRegisterValidation, decodeJwt } from "../utils/validation";
 import { AuthContext } from "../context/AuthContext";
+import { dashboardPathFor } from "../utils/roles";
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -18,27 +20,30 @@ export default function Registro() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
-    if (password !== confirm) {
-      setError("Las contraseñas no coinciden.");
+    const validationErrors = collectRegisterValidation({ name, email, password, confirm });
+    if (validationErrors.length) {
+      setError(validationErrors[0]);
       return;
     }
 
     setLoading(true);
     try {
       // 1. Registrar usuario
-      const data = await registerUser({ name, email, password });
+  const data = await registerUser({ name, email, password });
       
       if (data.token) {
         // 2. Guardar token
         localStorage.setItem("token", data.token);
-        
+        const decoded = decodeJwt(data.token);
         // 3. Obtener información del usuario y actualizar contexto
+        let effectiveRole = decoded?.role;
         try {
           const userData = await getMe();
+          effectiveRole = decoded?.role || userData.data?.rol;
           login({
             email: email,
             name: name,
+            role: effectiveRole,
             ...userData.data
           });
         } catch (userError) {
@@ -46,16 +51,21 @@ export default function Registro() {
           login({
             email: email,
             name: name,
-            token: data.token
+            token: data.token,
+            role: effectiveRole
           });
         }
-        
-        navigate("/home");
+        const target = dashboardPathFor(effectiveRole);
+  navigate(target);
       } else {
         navigate("/");
       }
     } catch (err) {
-      setError(err.message || "Error de conexión con el servidor.");
+      if (err.status === 409) {
+        setError("El correo ya está registrado");
+      } else {
+        setError(err.message || "Error de conexión con el servidor.");
+      }
     } finally {
       setLoading(false);
     }
@@ -69,10 +79,11 @@ export default function Registro() {
         </h1>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="reg-name" className="block text-sm font-medium text-gray-700 mb-1">
               Nombre
             </label>
             <input
+              id="reg-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -82,10 +93,11 @@ export default function Registro() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="reg-email" className="block text-sm font-medium text-gray-700 mb-1">
               Correo electrónico
             </label>
             <input
+              id="reg-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -95,11 +107,12 @@ export default function Registro() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="reg-password" className="block text-sm font-medium text-gray-700 mb-1">
               Contraseña
             </label>
             <div className="relative">
               <input
+                id="reg-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -119,11 +132,12 @@ export default function Registro() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="reg-confirm" className="block text-sm font-medium text-gray-700 mb-1">
               Confirmar contraseña
             </label>
             <div className="relative">
               <input
+                id="reg-confirm"
                 type={showConfirm ? "text" : "password"}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
