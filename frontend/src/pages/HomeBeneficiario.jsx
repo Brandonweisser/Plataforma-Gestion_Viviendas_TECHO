@@ -1,9 +1,10 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
 import { StatCard } from "../components/ui/StatCard";
 import { SectionPanel } from "../components/ui/SectionPanel";
+import { DashboardLayout } from "../components/ui/DashboardLayout";
 import { 
   HomeModernIcon,
   WrenchScrewdriverIcon,
@@ -19,21 +20,6 @@ import {
 export default function HomeBeneficiario() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [theme, setTheme] = useState(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
-    if (stored) return stored;
-    // fallback prefer scheme
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
-    return 'light';
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   const handleLogout = () => {
     logout();
@@ -123,42 +109,15 @@ export default function HomeBeneficiario() {
   };
 
   return (
-  <div className="min-h-screen flex flex-col bg-gradient-to-b from-techo-blue-50 via-white to-white dark:from-techo-gray-900 dark:via-techo-gray-900 dark:to-techo-gray-900">
-      {/* Header / Navbar */}
-  <header className="relative z-20 shadow-sm backdrop-blur bg-white/85 dark:bg-techo-gray-800/80 border-b border-techo-gray-100 dark:border-techo-gray-700">
-        <div className="app-container flex items-center justify-between py-3">
-          <div className="flex items-center gap-3">
-            <img src="/LOGO-TECHO-COLOR-768x768.png" alt="Logo Techo" className="h-10 w-10 object-contain" />
-            <div>
-              <h1 className="text-base sm:text-lg font-semibold text-techo-blue-700 leading-tight">Mi Hogar</h1>
-              <p className="text-[11px] text-techo-gray-500 uppercase tracking-wide">Portal Beneficiario</p>
-            </div>
-          </div>
-            <div className="flex items-center gap-3">
-              <button onClick={toggleTheme} aria-label="Cambiar tema" className="btn-outline p-2 h-9 w-9 flex items-center justify-center !px-0">
-                {theme === 'dark' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                    <path d="M12 3.75a.75.75 0 01.75.75 7.5 7.5 0 007.5 7.5.75.75 0 010 1.5 9 9 0 01-9-9 .75.75 0 01.75-.75z" />
-                    <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75 8.25 8.25 0 008.25 8.25.75.75 0 010 1.5A9.75 9.75 0 1111.25 3a.75.75 0 01.75-.75zm-7.5 9.75a8.25 8.25 0 0015.51 3.318A9.75 9.75 0 018.932 4.74 8.25 8.25 0 004.5 12z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                    <path d="M12 18.75a6.75 6.75 0 100-13.5 6.75 6.75 0 000 13.5z" />
-                    <path fillRule="evenodd" d="M12 1.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V2.25A.75.75 0 0112 1.5zm0 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 16.5zm10.5-4.5a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zM7.5 12a.75.75 0 01-.75.75H5.25a.75.75 0 010-1.5H6.75A.75.75 0 017.5 12zm11.03 6.53a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.94 0a.75.75 0 010 1.06L7.53 20.65a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM18.47 4.47a.75.75 0 010 1.06L17.41 6.59a.75.75 0 11-1.06-1.06L17.41 4.47a.75.75 0 011.06 0zM8.53 4.47a.75.75 0 010 1.06L7.47 6.59a.75.75 0 11-1.06-1.06L7.47 4.47a.75.75 0 011.06 0z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </button>
-            <div className="text-right">
-              <p className="text-xs text-techo-gray-500">Hola, <span className="font-semibold text-techo-blue-700">{user?.nombre || user?.name || user?.email || "Beneficiario"}</span></p>
-              <p className="text-[11px] text-techo-gray-400">Rol: {user?.rol || "beneficiario"}</p>
-            </div>
-            <button onClick={handleLogout} className="btn-outline text-xs px-3 py-1.5">Cerrar sesión</button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 app-container w-full py-8" aria-label="Panel principal beneficiario">
+    <DashboardLayout
+      title="Mi Hogar"
+      subtitle="Portal Beneficiario"
+      user={user || {}}
+      onLogout={handleLogout}
+      accent="blue"
+      footer={`© ${new Date().getFullYear()} TECHO Chile · Plataforma Beneficiarios`}
+    >
+      <div aria-label="Panel principal beneficiario" className="w-full">
         <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-2xl">
             <h2 className="text-3xl sm:text-4xl font-bold text-gradient-brand mb-2 dark:text-transparent">Bienvenido a tu hogar</h2>
@@ -236,21 +195,21 @@ export default function HomeBeneficiario() {
               <div className="space-y-4">
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-techo-gray-500 mb-2">Detalles generales</h4>
-                  <ul className="space-y-2">
-                    <li><span className="font-medium">Dirección:</span> Calle Falsa 123, Comuna X</li>
-                    <li><span className="font-medium">Tipo:</span> Casa Básica</li>
-                    <li><span className="font-medium">Metros cuadrados:</span> 42 m²</li>
-                    <li><span className="font-medium">Fecha de entrega:</span> 15 de marzo, 2023</li>
+                  <ul className="space-y-2 text-techo-gray-700 dark:text-techo-gray-200">
+                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Dirección:</span> Calle Falsa 123, Comuna X</li>
+                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Tipo:</span> Casa Básica</li>
+                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Metros cuadrados:</span> 42 m²</li>
+                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Fecha de entrega:</span> 15 de marzo, 2023</li>
                   </ul>
                 </div>
               </div>
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-techo-gray-500 mb-2">Contacto de emergencia</h4>
-                <ul className="space-y-2">
-                  <li><span className="font-medium">Técnico asignado:</span> Ana Gómez</li>
-                  <li><span className="font-medium">Teléfono:</span> +56 9 1234 5678</li>
-                  <li><span className="font-medium">Email:</span> ana@correo.cl</li>
-                  <li><span className="font-medium">Horario:</span> Lun-Vie 8:00-18:00</li>
+                <ul className="space-y-2 text-techo-gray-700 dark:text-techo-gray-200">
+                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Técnico asignado:</span> Ana Gómez</li>
+                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Teléfono:</span> +56 9 1234 5678</li>
+                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Email:</span> ana@correo.cl</li>
+                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Horario:</span> Lun-Vie 8:00-18:00</li>
                 </ul>
               </div>
             </div>
@@ -275,11 +234,7 @@ export default function HomeBeneficiario() {
             </ul>
           </SectionPanel>
         </div>
-      </main>
-
-      <footer className="mt-16 border-t border-techo-gray-100 dark:border-techo-gray-700 bg-white/60 dark:bg-techo-gray-800/70 backdrop-blur py-6 text-center text-[11px] text-techo-gray-500 dark:text-techo-gray-400">
-        <div className="app-container">© {new Date().getFullYear()} TECHO Chile · Plataforma Beneficiarios · Tema: {theme === 'dark' ? 'Oscuro' : 'Claro'}</div>
-      </footer>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

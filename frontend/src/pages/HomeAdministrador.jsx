@@ -1,196 +1,79 @@
 import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { StatCard } from "../components/ui/StatCard";
+import { ActionCard } from "../components/ui/ActionCard";
+import { SectionPanel } from "../components/ui/SectionPanel";
+import { DashboardLayout } from "../components/ui/DashboardLayout";
+import {
+  UsersIcon,
+  HomeModernIcon,
+  WrenchScrewdriverIcon,
+  ChartBarIcon,
+  Cog6ToothIcon,
+  ClipboardDocumentListIcon
+} from '@heroicons/react/24/outline';
 
 export default function HomeAdministrador() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const handleLogout = () => { logout(); navigate("/"); };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
-
+  const iconSize = 'h-6 w-6';
   const adminSections = [
-    {
-      title: "👥 Gestión de Usuarios",
-      description: "Crear, editar y eliminar cuentas de técnicos y beneficiarios",
-      icon: "👥",
-      color: "bg-blue-500 hover:bg-blue-600",
-      badge: "23 activos",
-      action: () => console.log("Gestión de usuarios")
-    },
-    {
-      title: "🏠 Gestión de Viviendas",
-      description: "Administrar todas las viviendas, asignar beneficiarios y técnicos",
-      icon: "🏠",
-      color: "bg-green-500 hover:bg-green-600",
-      badge: "89 casas",
-      action: () => console.log("Gestión de viviendas")
-    },
-    {
-      title: "📊 Reportes Ejecutivos",
-      description: "Dashboard completo con métricas y KPIs del sistema",
-      icon: "📊",
-      color: "bg-purple-500 hover:bg-purple-600",
-      badge: "Tiempo real",
-      action: () => console.log("Reportes generales")
-    },
-    {
-      title: "🔧 Supervisión de Incidencias",
-      description: "Monitorear todas las incidencias y asignaciones de técnicos",
-      icon: "🔧",
-      color: "bg-orange-500 hover:bg-orange-600",
-      badge: "23 abiertas",
-      action: () => console.log("Gestión de incidencias")
-    },
-    {
-      title: "⚙️ Configuración del Sistema",
-      description: "Ajustes globales, permisos y configuraciones avanzadas",
-      icon: "⚙️",
-      color: "bg-gray-500 hover:bg-gray-600",
-      badge: "Admin only",
-      action: () => console.log("Configuración")
-    },
-    {
-      title: "📋 Centro de Asignaciones",
-      description: "Asignar técnicos a zonas, viviendas e incidencias específicas",
-      icon: "📋",
-      color: "bg-indigo-500 hover:bg-indigo-600",
-      badge: "12 pendientes",
-      action: () => console.log("Asignaciones")
-    }
+    { title: "Gestión de Usuarios", description: "Crear, editar y bloquear cuentas del sistema", badge: "23 activos", action: () => console.log('Usuarios'), icon: <UsersIcon className={iconSize} />, accent: 'blue' },
+    { title: "Gestión de Viviendas", description: "Administrar viviendas, asignar beneficiarios y técnicos", badge: "89 casas", action: () => console.log('Viviendas'), icon: <HomeModernIcon className={iconSize} />, accent: 'green' },
+    { title: "Reportes Ejecutivos", description: "KPIs y métricas en tiempo real del sistema", badge: "Tiempo real", action: () => console.log('Reportes'), icon: <ChartBarIcon className={iconSize} />, accent: 'purple' },
+    { title: "Supervisión de Incidencias", description: "Monitorear incidencias y asignaciones críticas", badge: "23 abiertas", action: () => console.log('Incidencias'), icon: <WrenchScrewdriverIcon className={iconSize} />, accent: 'orange' },
+    { title: "Configuración del Sistema", description: "Permisos, parámetros y ajustes globales", badge: "Admin only", action: () => console.log('Config'), icon: <Cog6ToothIcon className={iconSize} />, accent: 'indigo' },
+    { title: "Centro de Asignaciones", description: "Asignar técnicos y gestionar cargas de trabajo", badge: "12 pendientes", action: () => console.log('Asignaciones'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'cyan' }
+  ];
+
+  const recentActivity = [
+    { id: 1, text: 'Nueva vivienda registrada por Juan Pérez', color: 'bg-green-500', time: 'Hace 2 horas' },
+    { id: 2, text: 'Incidencia reportada en Vivienda #45', color: 'bg-orange-500', time: 'Hace 4 horas' },
+    { id: 3, text: 'Técnico asignado a incidencia #123', color: 'bg-blue-500', time: 'Hace 6 horas' }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navbar */}
-      <nav className="bg-blue-600 text-white px-6 py-4 shadow-lg">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold">TECHO - Panel Administrador</h1>
-            <p className="text-blue-100 text-sm">Sistema de Gestión de Viviendas</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-sm">Hola, <b className="text-blue-300">{user?.nombre || user?.name || user?.email || "Administrador"}</b></span>
-              <p className="text-xs text-blue-200">Rol: {user?.rol || "administrador"}</p>
-            </div>
-            <button
-              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded text-sm transition-colors"
-              onClick={handleLogout}
-            >
-              Cerrar sesión
-            </button>
-          </div>
+    <DashboardLayout
+      title="Panel Administrador"
+      subtitle="Sistema de Gestión de Viviendas"
+      user={user || {}}
+      onLogout={handleLogout}
+      accent="blue"
+      footer={`© ${new Date().getFullYear()} TECHO – Panel Administrador`}
+    >
+      <div className="space-y-10" role="region" aria-label="Contenido principal administrador">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-semibold tracking-tight text-techo-gray-800 dark:text-white">Panel de Control</h2>
+          <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Administra todos los aspectos del sistema.</p>
         </div>
-      </nav>
-
-      {/* Dashboard Content */}
-      <main className="p-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Panel de Control</h2>
-          <p className="text-gray-600">Administra todos los aspectos del sistema de gestión de viviendas</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <StatCard icon={<UsersIcon className={iconSize} />} label="Total Usuarios" value="125" subtitle="Activos" accent='blue' />
+          <StatCard icon={<HomeModernIcon className={iconSize} />} label="Viviendas" value="89" subtitle="Registradas" accent='green' />
+            <StatCard icon={<WrenchScrewdriverIcon className={iconSize} />} label="Incidencias" value="23" subtitle="Abiertas" accent='orange' />
+          <StatCard icon={<ChartBarIcon className={iconSize} />} label="Satisfacción" value="95%" subtitle="Global" accent='purple' />
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
-                👥
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800">125</p>
-                <p className="text-gray-600">Total Usuarios</p>
-              </div>
-            </div>
+        <SectionPanel title="Herramientas de Administración" description="Accesos rápidos a módulos críticos" as="section">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {adminSections.map((s, i) => (
+              <ActionCard key={i} title={s.title} description={s.description} badge={s.badge} onClick={s.action} icon={s.icon} accent={s.accent} />
+            ))}
           </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
-                🏠
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800">89</p>
-                <p className="text-gray-600">Viviendas</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-orange-100 text-orange-600 mr-4">
-                🔧
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800">23</p>
-                <p className="text-gray-600">Incidencias Abiertas</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
-                📊
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800">95%</p>
-                <p className="text-gray-600">Satisfacción</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {adminSections.map((section, index) => (
-            <div key={index} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-l-4 border-blue-500">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-gray-800">{section.title}</h3>
-                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                    {section.badge}
-                  </span>
-                </div>
-                <p className="text-gray-600 mb-4">{section.description}</p>
-                <button
-                  onClick={section.action}
-                  className={`w-full ${section.color} text-white py-3 px-4 rounded transition-colors font-medium`}
-                >
-                  Acceder al Panel
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Recent Activity */}
-        <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="p-6 border-b">
-            <h3 className="text-xl font-semibold text-gray-800">Actividad Reciente</h3>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-600">Nueva vivienda registrada por Juan Pérez</span>
-                <span className="text-sm text-gray-400">Hace 2 horas</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span className="text-gray-600">Incidencia reportada en Vivienda #45</span>
-                <span className="text-sm text-gray-400">Hace 4 horas</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-600">Técnico asignado a incidencia #123</span>
-                <span className="text-sm text-gray-400">Hace 6 horas</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+        </SectionPanel>
+        <SectionPanel title="Actividad Reciente" description="Últimos eventos del sistema" as="section">
+          <ul className="divide-y divide-techo-gray-100 dark:divide-techo-gray-800" aria-label="Lista de actividad reciente">
+            {recentActivity.map(item => (
+              <li key={item.id} className="flex items-center gap-3 py-3">
+                <span aria-hidden className={`h-2 w-2 rounded-full ${item.color}`}></span>
+                <span className="flex-1 text-sm text-techo-gray-600 dark:text-techo-gray-300">{item.text}</span>
+                <time className="text-[11px] text-techo-gray-400 dark:text-techo-gray-500" dateTime="2024-01-15">{item.time}</time>
+              </li>
+            ))}
+          </ul>
+        </SectionPanel>
+      </div>
+    </DashboardLayout>
   );
 }

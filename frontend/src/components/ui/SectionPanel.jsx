@@ -18,7 +18,7 @@ export function SectionPanel({ title, description, children, actions, as = 'sect
         </div>
         {actions && <div className="flex gap-2 relative">{actions}</div>}
       </div>
-      <div className={`p-5 relative ${isHighlight ? 'bg-white/70 backdrop-blur-sm rounded-b-xl' : ''}`}>
+      <div className={`p-5 relative ${isHighlight ? 'bg-white/70 backdrop-blur-sm rounded-b-xl' : ''} text-techo-gray-700 dark:text-techo-gray-200`}>
         {children}
       </div>
       {isHighlight && <span aria-hidden className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-techo-blue-500 via-techo-cyan-400 to-techo-accent-400 rounded-l-xl" />}

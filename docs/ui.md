@@ -69,5 +69,87 @@ Props: `title`, `description`, `actions`, `as`.
 - Añadir test visual (Storybook) para componentes UI.
 - Integrar internacionalización (i18n) para textos fijos.
 
+## Variantes por Rol (Administrador / Técnico / Beneficiario)
+
+Se reutiliza el mismo sistema de componentes con acentos de color para diferenciar contexto funcional sin romper consistencia.
+
+### Colores de Acento
+Usados vía prop `accent` en `StatCard` y `ActionCard`:
+- `blue` (administración / usuarios)
+- `green` (viviendas / estado positivo)
+- `orange` (incidencias / técnico operativo)
+- `red` (crítico / urgente)
+- `purple` (analítica / reportes ejecutivos)
+- `indigo` (configuración / parámetros avanzados)
+- `cyan` (asignaciones / coordinación)
+- `teal` (comunicación / interacción)
+
+### Ejemplos
+```
+<StatCard icon={<UsersIcon />} label="Total Usuarios" value="125" accent="blue" />
+<ActionCard title="Incidencias Críticas" urgent accent="red" ... />
+<SectionPanel title="Incidencias Urgentes" variant="highlight">...</SectionPanel>
+```
+
+### Modo Oscuro
+- Se controla con `localStorage('theme')` y la clase raíz `dark`.
+- Cada página de dashboard incluye un botón toggle (Sun/Moon heroicons).
+- Componentes utilizan utilidades `dark:*` y variantes suaves (`bg-<color>-500/15`).
+
+### Accesibilidad Adicional
+- Listas de actividad e incidencias usan `<ul>` + `<li>` con `aria-label` en contenedores críticos.
+- Badges de prioridad con contraste y tamaños mínimos (11px) manteniendo legibilidad.
+- Uso de `time` para marcas temporales.
+
+### Extensión Rápida a Nuevos Roles
+1. Definir acento principal (ej: coordinación => `accent="cyan"`).
+2. Reutilizar `StatCard` y `ActionCard` pasando `accent` adecuado.
+3. Para panel destacado usar `SectionPanel variant="highlight"` (aplica gradiente y barra vertical).
+4. Agregar toggle de tema si la vista no hereda layout global.
+
+---
+Actualizado: Roles Admin y Técnico integrados con sistema (sept 2025).
+
+## Layout Global
+`DashboardLayout` centraliza cabecera (título, subtítulo, usuario, toggle tema y logout), área principal y pie de página.
+
+Uso:
+```
+<DashboardLayout
+	title="Panel Técnico"
+	subtitle="Área de trabajo operativo"
+	user={user}
+	onLogout={handleLogout}
+	accent="orange"
+>
+	{...contenido...}
+</DashboardLayout>
+```
+
+Beneficios:
+- Unifica espaciados verticales (`space-y-10`).
+- Gestiona modo oscuro vía `ThemeContext`.
+- Facilita añadir breadcrumbs o global actions en el futuro.
+
+## PriorityBadge
+Componente para mostrar prioridades con colores consistentes dark/light.
+
+Props: `level` ('Alta'|'Media'|'Baja'), `small` (boolean).
+
+Ejemplo:
+```
+<PriorityBadge level="Alta" />
+<PriorityBadge level="Media" small />
+```
+
+Mapeo de colores:
+- Alta: rojo semántico.
+- Media: amarillo.
+- Baja: verde.
+
+## ThemeContext
+Encapsula `theme` y `toggleTheme`; aplica clase `dark` al `<html>` y persiste en `localStorage`.
+Se envuelve la app en `<ThemeProvider>` (ver `ThemeContext.jsx`).
+
 ---
 Cualquier duda o mejora futura puede documentarse aquí para mantener coherencia visual.

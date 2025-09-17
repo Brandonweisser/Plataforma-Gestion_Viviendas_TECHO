@@ -2,7 +2,15 @@ import React, { createContext, useState, useEffect } from "react";
 import { decodeJwt } from "../utils/validation";
 import { normalizeRole } from "../utils/roles";
 
-export const AuthContext = createContext();
+// Provide safe defaults so that accidental usage outside the provider
+// doesn't immediately throw due to destructuring undefined. We still log a warning.
+export const AuthContext = createContext({
+  user: null,
+  role: null,
+  isAuthenticated: false,
+  login: () => console.warn("AuthContext.login called outside provider"),
+  logout: () => console.warn("AuthContext.logout called outside provider")
+});
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);

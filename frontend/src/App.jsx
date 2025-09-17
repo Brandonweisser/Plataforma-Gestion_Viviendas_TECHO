@@ -1,6 +1,5 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Registro from "./pages/registrar";
 import Home from "./pages/Home";
@@ -13,8 +12,7 @@ import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
         <Routes>
           {/* Públicas */}
           <Route path="/" element={<Login />} />
@@ -43,6 +41,5 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
   );
 }
