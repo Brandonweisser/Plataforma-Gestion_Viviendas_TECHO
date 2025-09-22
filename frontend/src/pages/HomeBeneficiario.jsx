@@ -1,10 +1,11 @@
-import React, { useContext } from 'react'
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../../context/AuthContext";
-import { ActionCard } from "../../components/ui/ActionCard";
-import { StatCard } from "../../components/ui/StatCard";
-import { SectionPanel } from "../../components/ui/SectionPanel";
-import { DashboardLayout } from "../../components/ui/DashboardLayout";
+import { AuthContext } from "../context/AuthContext";
+import { ActionCard } from "../components/ui/ActionCard";
+import { StatCard } from "../components/ui/StatCard";
+import { SectionPanel } from "../components/ui/SectionPanel";
+import { DashboardLayout } from "../components/ui/DashboardLayout";
+import { BeneficiarioDashboard } from "./beneficiario/BeneficiarioDashboard"
 import { 
   HomeModernIcon,
   WrenchScrewdriverIcon,
@@ -17,7 +18,7 @@ import {
   CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 
-export default function BeneficiarioDashboard() {
+export default function HomeBeneficiario() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -28,15 +29,15 @@ export default function BeneficiarioDashboard() {
 
   const iconSize = 'h-6 w-6';
   const beneficiarioSections = [
-    // {
-    //   title: "Estado de Mi Vivienda",
-    //   description: "Ver información detallada, historial y condición actual de mi hogar",
-    //   icon: <HomeIcon className={iconSize} />,
-    //   color: "bg-green-500 hover:bg-green-600",
-    //   badge: "Activa",
-    //   urgent: false,
-    //   action: () => console.log("Ver mi vivienda")
-    // },
+    {
+      title: "Estado de Mi Vivienda",
+      description: "Ver información detallada, historial y condición actual de mi hogar",
+      icon: <HomeIcon className={iconSize} />,
+      color: "bg-green-500 hover:bg-green-600",
+      badge: "Activa",
+      urgent: false,
+      action: () => console.log("Ver mi vivienda")
+    },
     {
       title: "Reportar Problema Urgente",
       description: "Reportar emergencias o problemas que requieren atención inmediata",

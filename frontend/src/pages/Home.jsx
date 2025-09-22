@@ -2,9 +2,9 @@ import React, { useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 //Home original
-import HomeAdministrador from "./HomeAdministrador";
-import HomeBeneficiario from "./HomeBeneficiario";
-import HomeTecnico from "./HomeTecnico";
+// import HomeAdministrador from "./HomeAdministrador";
+// import HomeBeneficiario from "./HomeBeneficiario";
+// import HomeTecnico from "./HomeTecnico";
 //Con dashboard
 import AdminDashboard from "./admin/AdminDashboard";
 import TecnicoDashboard from "./tecnico/TecnicoDashboard";

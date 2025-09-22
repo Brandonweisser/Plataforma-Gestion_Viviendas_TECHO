@@ -13,33 +13,34 @@ import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 export default function App() {
   return (
     <BrowserRouter>
-        <Routes>
-          {/* Públicas */}
-          <Route path="/" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
+      <Routes>
+        {/* Públicas */}
+        <Route path="/" element={<Login />} />
+        <Route path="/registro" element={<Registro />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Auth genérico */}
-          <Route element={<ProtectedRoute />}> 
-            <Route path="/home" element={<Home />} />
+        {/* Auth genérico */}
+        <Route element={<ProtectedRoute />}>
+          {/* Punto de entrada común */}
+          <Route path="/home" element={<Home />} />
+
+          {/* Dashboards específicos */}
+          <Route element={<RoleRoute allowed={["administrador"]} />}>
+            <Route path="/admin" element={<HomeAdministrador />} />
           </Route>
 
-            {/* Rutas por rol */}
-          <Route element={<ProtectedRoute />}> 
-            <Route element={<RoleRoute allowed={["administrador"]} />}> 
-              <Route path="/admin" element={<HomeAdministrador />} />
-            </Route>
-            <Route element={<RoleRoute allowed={["tecnico"]} />}> 
-              <Route path="/tecnico" element={<HomeTecnico />} />
-            </Route>
-            <Route element={<RoleRoute allowed={["beneficiario"]} />}> 
-              <Route path="/beneficiario" element={<HomeBeneficiario />} />
-            </Route>
+          <Route element={<RoleRoute allowed={["tecnico"]} />}>
+            <Route path="/tecnico" element={<HomeTecnico />} />
           </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+          <Route element={<RoleRoute allowed={["beneficiario"]} />}>
+            <Route path="/beneficiario" element={<HomeBeneficiario />} />
+          </Route>
+        </Route>
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
