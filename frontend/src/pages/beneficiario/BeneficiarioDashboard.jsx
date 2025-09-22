@@ -1,10 +1,10 @@
-import React, { useContext } from "react";
+import React, { useContext } from 'react'
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
-import { ActionCard } from "../components/ui/ActionCard";
-import { StatCard } from "../components/ui/StatCard";
-import { SectionPanel } from "../components/ui/SectionPanel";
-import { DashboardLayout } from "../components/ui/DashboardLayout";
+import { AuthContext } from "../../context/AuthContext";
+import { ActionCard } from "../../components/ui/ActionCard";
+import { StatCard } from "../../components/ui/StatCard";
+import { SectionPanel } from "../../components/ui/SectionPanel";
+import { DashboardLayout } from "../../components/ui/DashboardLayout";
 import { 
   HomeModernIcon,
   WrenchScrewdriverIcon,
@@ -17,7 +17,7 @@ import {
   CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 
-export default function HomeBeneficiario() {
+export default function BeneficiarioDashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 

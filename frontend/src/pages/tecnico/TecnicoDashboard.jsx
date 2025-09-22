@@ -1,10 +1,10 @@
-import React, { useContext } from "react";
+import React, { useContext } from 'react'
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
-import { StatCard } from "../components/ui/StatCard";
-import { ActionCard } from "../components/ui/ActionCard";
-import { SectionPanel } from "../components/ui/SectionPanel";
-import { DashboardLayout } from "../components/ui/DashboardLayout";
+import { AuthContext } from "../../context/AuthContext";
+import { StatCard } from "../../components/ui/StatCard";
+import { ActionCard } from "../../components/ui/ActionCard";
+import { SectionPanel } from "../../components/ui/SectionPanel";
+import { DashboardLayout } from "../../components/ui/DashboardLayout";
 import {
   ClipboardDocumentListIcon,
   ExclamationTriangleIcon,
@@ -18,7 +18,7 @@ import {
   PhoneIcon
 } from '@heroicons/react/24/outline';
 
-export default function HomeTecnico() {
+export default function TecnicoDashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const handleLogout = () => { logout(); navigate("/"); };

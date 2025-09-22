@@ -1,9 +1,14 @@
 import React, { useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+//Home original
 import HomeAdministrador from "./HomeAdministrador";
 import HomeBeneficiario from "./HomeBeneficiario";
 import HomeTecnico from "./HomeTecnico";
+//Con dashboard
+import AdminDashboard from "./admin/AdminDashboard";
+import TecnicoDashboard from "./tecnico/TecnicoDashboard";
+import BeneficiarioDashboard from "./beneficiario/BeneficiarioDashboard";
 
 export default function Home() {
   const { user, logout } = useContext(AuthContext);
@@ -34,17 +39,36 @@ export default function Home() {
   console.log("🏠 Home - Detected role:", userRole); // Debug
   console.log("🏠 Home - Raw rol property:", user?.rol); // Debug
   
+  //switch original con redireccion a paginas separadas
+
+  // switch (userRole) {
+  //   case "administrador":
+  //   case "admin":
+  //     return <HomeAdministrador />;
+    
+  //   case "tecnico":
+  //   case "técnico":
+  //     return <HomeTecnico />;
+    
+  //   case "beneficiario":
+  //   default:
+  //     return <HomeBeneficiario />;
+  // }
+
+  // Modelo HOME Universal, ajustable segun usuario.
+  // Veamos que podemos hacer, BANKAI!!
+
   switch (userRole) {
     case "administrador":
     case "admin":
-      return <HomeAdministrador />;
-    
+      return <AdminDashboard user={user} />;
+      
     case "tecnico":
     case "técnico":
-      return <HomeTecnico />;
-    
+      return <TecnicoDashboard user={user} />;
     case "beneficiario":
+      return <BeneficiarioDashboard user={user} />;
     default:
-      return <HomeBeneficiario />;
+      return <p>Usuario no encontrado</p>
   }
 }
