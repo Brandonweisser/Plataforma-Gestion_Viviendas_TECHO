@@ -434,21 +434,53 @@ app.get('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiar
     let enriched = incs || []
     if (includeMedia && Array.isArray(enriched) && enriched.length) {
       const ids = enriched.map(i => i.id_incidencia)
-      const { data: mediaRows, error: em } = await supabase
-        .from('media')
-        .select('id, entidad, entidad_id, url, metadata_json, created_at')
-        .in('entidad_id', ids)
-        .eq('entidad', 'incidencia')
-      if (!em) {
+      // Intento esquema A (entidad/entidad_id)
+      let mediaRows = null
+      let mediaError = null
+      let schemaVariant = 'A'
+      try {
+        const rA = await supabase
+          .from('media')
+          .select('id, entidad, entidad_id, url, metadata_json, created_at')
+          .in('entidad_id', ids)
+          .eq('entidad', 'incidencia')
+        if (rA.error) throw rA.error
+        mediaRows = rA.data
+      } catch (eA) {
+        mediaError = eA
+        schemaVariant = 'B'
+      }
+      if (schemaVariant === 'B') {
+        // Intento esquema B (incidencia_id, path, mime, bytes)
+        try {
+          const rB = await supabase
+            .from('media')
+            .select('id, incidencia_id, path, mime, bytes, created_at')
+            .in('incidencia_id', ids)
+          if (rB.error) throw rB.error
+          mediaRows = (rB.data || []).map(m => {
+            // Derivar URL pública a partir de path
+            let url = null
+            if (m.path) {
+              try {
+                const pub = supabase.storage.from('incidencias').getPublicUrl(m.path)
+                url = pub?.data?.publicUrl || pub?.publicUrl || null
+              } catch (_) { /* ignore */ }
+            }
+            return { id: m.id, entidad: 'incidencia', entidad_id: m.incidencia_id, url, metadata_json: { mime: m.mime, bytes: m.bytes, path: m.path }, created_at: m.created_at }
+          })
+        } catch (eB) {
+          console.warn('media retrieval failed both variants:', mediaError?.message, eB?.message)
+        }
+      }
+      if (Array.isArray(mediaRows)) {
         const bucketed = {}
-        for (const m of mediaRows || []) {
+        for (const m of mediaRows) {
           const key = m.entidad_id
-          if (!bucketed[key]) bucketed[key] = []
-          bucketed[key].push(m)
+            if (!bucketed[key]) bucketed[key] = []
+            bucketed[key].push(m)
         }
         enriched = enriched.map(i => ({ ...i, media: bucketed[i.id_incidencia] || [] }))
-      } else {
-        console.warn('media table not available; returning incidencias without media:', em?.message)
       }
     }
 
@@ -711,17 +743,38 @@ app.post('/api/beneficiario/incidencias/:id/media', verifyToken, authorizeRole([
         .upload(key, f.buffer, { contentType: f.mimetype || 'application/octet-stream', upsert: false })
       if (eup) throw eup
 
-      const { data: pub } = supabase.storage.from('incidencias').getPublicUrl(up.path)
-      const url = pub?.publicUrl
-
-      const meta = { mimetype: f.mimetype, size: f.size, name: f.originalname }
-      const { data: row, error: em } = await supabase
-        .from('media')
-        .insert([{ entidad: 'incidencia', entidad_id: incidenciaId, url, metadata_json: meta }])
-        .select('id, url, metadata_json, created_at')
-        .single()
-      if (em) throw em
-      uploaded.push(row)
+      // Insert into schema variant A (entidad/url) if exists, else variant B (incidencia_id/path)
+      let inserted = null
+      let variantAError = null
+      try {
+        const pub = supabase.storage.from('incidencias').getPublicUrl(up.path)
+        const url = pub?.data?.publicUrl || pub?.publicUrl || null
+        const meta = { mimetype: f.mimetype, size: f.size, name: f.originalname }
+        const rA = await supabase
+          .from('media')
+          .insert([{ entidad: 'incidencia', entidad_id: incidenciaId, url, metadata_json: meta }])
+          .select('id, url, metadata_json, created_at')
+          .single()
+        if (rA.error) throw rA.error
+        inserted = rA.data
+      } catch (eA) {
+        variantAError = eA
+      }
+      if (!inserted) {
+        try {
+          const rB = await supabase
+            .from('media')
+            .insert([{ incidencia_id: incidenciaId, path: up.path, mime: f.mimetype, bytes: f.size, uploaded_by: beneficiarioUid }])
+            .select('id, incidencia_id, path, mime, bytes, created_at')
+            .single()
+          if (rB.error) throw rB.error
+          inserted = rB.data
+        } catch (eB) {
+          console.error('Upload failed variant A and B:', variantAError?.message, eB?.message)
+          throw eB
+        }
+      }
+      uploaded.push(inserted)
     }
 
     return res.status(201).json({ success: true, data: uploaded })
@@ -756,15 +809,41 @@ app.get('/api/beneficiario/incidencias/:id/media', verifyToken, authorizeRole(['
       return res.status(404).json({ success: false, message: 'Incidencia no encontrada' })
     }
 
-    const { data: mediaRows, error: em } = await supabase
-      .from('media')
-      .select('id, url, metadata_json, created_at')
-      .eq('entidad', 'incidencia')
-      .eq('entidad_id', incidenciaId)
-      .order('id', { ascending: false })
-    if (em) throw em
-
-    return res.json({ success: true, data: mediaRows || [] })
+    // Try variant A
+    let rows = null
+    let variantAErr = null
+    try {
+      const rA = await supabase
+        .from('media')
+        .select('id, entidad, entidad_id, url, metadata_json, created_at')
+        .eq('entidad', 'incidencia')
+        .eq('entidad_id', incidenciaId)
+        .order('id', { ascending: false })
+      if (rA.error) throw rA.error
+      rows = rA.data
+    } catch (eA) {
+      variantAErr = eA
+    }
+    if (!rows) {
+      try {
+        const rB = await supabase
+          .from('media')
+          .select('id, incidencia_id, path, mime, bytes, created_at')
+          .eq('incidencia_id', incidenciaId)
+          .order('id', { ascending: false })
+        if (rB.error) throw rB.error
+        rows = (rB.data || []).map(m => {
+          let url = null
+          if (m.path) {
+            try { const pub = supabase.storage.from('incidencias').getPublicUrl(m.path); url = pub?.data?.publicUrl || pub?.publicUrl || null } catch (_) {}
+          }
+          return { id: m.id, entidad: 'incidencia', entidad_id: m.incidencia_id, url, metadata_json: { path: m.path, mime: m.mime, bytes: m.bytes }, created_at: m.created_at }
+        })
+      } catch (eB) {
+        console.warn('GET media variants failed:', variantAErr?.message, eB?.message)
+      }
+    }
+    return res.json({ success: true, data: rows || [] })
   } catch (e) {
     console.error('GET /api/beneficiario/incidencias/:id/media error:', e)
     return res.status(500).json({ success: false, message: 'Error al listar archivos' })
