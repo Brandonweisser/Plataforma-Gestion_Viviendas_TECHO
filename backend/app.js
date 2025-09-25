@@ -5,6 +5,8 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { supabase } from './supabaseClient.js'
 import dotenv from 'dotenv'
+import multer from 'multer'
+import { randomUUID } from 'crypto'
 
 dotenv.config()
 
@@ -222,6 +224,588 @@ app.get('/api/tecnico/health', verifyToken, authorizeRole(['tecnico','administra
 })
 app.get('/api/beneficiario/health', verifyToken, authorizeRole(['beneficiario','administrador']), (_req, res) => {
   res.json({ success: true, area: 'beneficiario', status: 'ok' })
+})
+
+// Compute incidencia priority on the server to avoid user-influenced bias
+function computePriority(categoriaRaw, descripcionRaw) {
+  const categoria = (categoriaRaw || '').toString().toLowerCase()
+  const desc = (descripcionRaw || '').toString().toLowerCase()
+
+  // Immediate danger to safety
+  const danger = [ 'gas', 'fuego', 'incend', 'chispa', 'humo', 'corto', 'electrocut', 'explosi' ]
+  if (danger.some(k => desc.includes(k))) return 'alta'
+  if (categoria.includes('eléctrico') || categoria.includes('electrico')) {
+    if (/(corto|chispa|humo|olor|quemado)/.test(desc)) return 'alta'
+    return 'media'
+  }
+
+  // Water/plumbing
+  const waterHigh = [ 'inund', 'sin agua', 'alcantarill', 'rebalse' ]
+  if (waterHigh.some(k => desc.includes(k))) return 'alta'
+  if (categoria.includes('plomer') || categoria.includes('agua') || /fuga|goteo|filtraci[óo]n|desag[üu]e/.test(desc)) {
+    return /fuga|goteo|filtraci[óo]n/.test(desc) ? 'media' : 'media'
+  }
+
+  // Structure
+  if (categoria.includes('estructura') || /techo|muro|pared|grieta|colaps/.test(desc)) {
+    if (/grieta|colaps|agujero|ca[ií]do/.test(desc)) return 'alta'
+    if (/techo|humedad|goteo|filtraci[óo]n/.test(desc)) return 'media'
+  }
+
+  // Sanitary critical
+  if (/(bañ|sanitari|letrin)/.test(desc) && /(sin|no funciona|rebalse)/.test(desc)) return 'alta'
+
+  // Cosmetic/minor cues → baja
+  if (/(pintura|rasgu|mueble|bisagra|cerradura|puerta|ventana)/.test(desc)) return 'baja'
+
+  // Default
+  return 'media'
+}
+
+// Multer config (memory storage) for small image uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 }, // 5MB, max 5 files
+})
+
+// ------------------------------------------------------------
+// Fase 2: Endpoints Beneficiario (lectura básica)
+// 1) Obtener vivienda asignada + flags de recepción/incidencias
+app.get('/api/beneficiario/vivienda', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    if (!beneficiarioUid) return res.status(401).json({ success: false, message: 'No autenticado' })
+
+    // Vivienda del beneficiario
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, id_proyecto, direccion, estado, beneficiario_uid')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // Proyecto
+    let proyecto = null
+    if (viv.id_proyecto != null) {
+      const { data: p, error: ep } = await supabase
+        .from('proyecto')
+        .select('id_proyecto, nombre, viviendas_count')
+        .eq('id_proyecto', viv.id_proyecto)
+        .maybeSingle()
+      if (ep) throw ep
+      proyecto = p
+    }
+
+    // Recepción activa (borrador/enviada)
+    const { data: recepActiva, error: era } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado, fecha_creada, fecha_enviada, observaciones_count')
+      .eq('id_vivienda', viv.id_vivienda)
+      .in('estado', ['borrador', 'enviada'])
+      .order('id', { ascending: false })
+      .limit(1)
+    if (era) throw era
+
+    const activa = Array.isArray(recepActiva) && recepActiva.length ? recepActiva[0] : null
+    const tiene_recepcion_activa = !!activa
+    // Política inicial: se pueden crear incidencias si la recepción fue enviada o revisada
+    let puede_incidencias = false
+    if (activa && (activa.estado === 'enviada')) puede_incidencias = true
+    // También permitir si ya existe alguna recepción revisada (histórica)
+    if (!puede_incidencias) {
+      const { data: recRev, error: errv } = await supabase
+        .from('vivienda_recepcion')
+        .select('id')
+        .eq('id_vivienda', viv.id_vivienda)
+        .eq('estado', 'revisada')
+        .limit(1)
+      if (errv) throw errv
+      puede_incidencias = Array.isArray(recRev) && recRev.length > 0
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        vivienda: viv,
+        proyecto,
+        recepcion_activa: activa,
+        flags: { tiene_recepcion_activa, puede_incidencias }
+      }
+    })
+  } catch (e) {
+    console.error('GET /api/beneficiario/vivienda error:', e)
+    return res.status(500).json({ success: false, message: 'Error al obtener la vivienda' })
+  }
+})
+
+// 2) Obtener resumen de recepción (vista) de la vivienda del beneficiario
+app.get('/api/beneficiario/recepcion', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // Última recepción (de la vista resumen)
+    const { data: resumen, error: er } = await supabase
+      .from('vista_recepcion_resumen')
+      .select('*')
+      .eq('id_vivienda', viv.id_vivienda)
+      .order('id', { ascending: false })
+      .limit(1)
+    if (er) throw er
+
+    return res.json({ success: true, data: Array.isArray(resumen) && resumen.length ? resumen[0] : null })
+  } catch (e) {
+    console.error('GET /api/beneficiario/recepcion error:', e)
+    return res.status(500).json({ success: false, message: 'Error al obtener la recepción' })
+  }
+})
+
+// 3) Obtener ítems de la última recepción del beneficiario
+app.get('/api/beneficiario/recepcion/items', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // Última recepción (sin importar estado)
+    const { data: receps, error: erc } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado, fecha_creada, fecha_enviada, fecha_revisada, observaciones_count')
+      .eq('id_vivienda', viv.id_vivienda)
+      .order('id', { ascending: false })
+      .limit(1)
+    if (erc) throw erc
+
+    const recepcion = Array.isArray(receps) && receps.length ? receps[0] : null
+    if (!recepcion) return res.json({ success: true, data: null })
+
+    const { data: items, error: ei } = await supabase
+      .from('vivienda_recepcion_item')
+      .select('id, categoria, item, ok, comentario, fotos_json, orden')
+      .eq('recepcion_id', recepcion.id)
+      .order('categoria', { ascending: true })
+      .order('orden', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+    if (ei) throw ei
+
+    return res.json({ success: true, data: { recepcion, items: items || [] } })
+  } catch (e) {
+    console.error('GET /api/beneficiario/recepcion/items error:', e)
+    return res.status(500).json({ success: false, message: 'Error al obtener los ítems de recepción' })
+  }
+})
+
+// 4) Listar incidencias de la vivienda del beneficiario
+app.get('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const limitReq = parseInt(req.query.limit, 10)
+    const limit = Number.isFinite(limitReq) ? Math.min(Math.max(limitReq, 1), 100) : 50
+    const includeMedia = String(req.query.includeMedia || '').toLowerCase() === '1'
+
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: incs, error: ei } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, fecha_reporte, id_usuario_tecnico')
+      .eq('id_vivienda', viv.id_vivienda)
+      .order('id_incidencia', { ascending: false })
+      .limit(limit)
+    if (ei) throw ei
+
+    let enriched = incs || []
+    if (includeMedia && Array.isArray(enriched) && enriched.length) {
+      const ids = enriched.map(i => i.id_incidencia)
+      const { data: mediaRows, error: em } = await supabase
+        .from('media')
+        .select('id, entidad, entidad_id, url, metadata_json, created_at')
+        .in('entidad_id', ids)
+        .eq('entidad', 'incidencia')
+      if (!em) {
+        const bucketed = {}
+        for (const m of mediaRows || []) {
+          const key = m.entidad_id
+          if (!bucketed[key]) bucketed[key] = []
+          bucketed[key].push(m)
+        }
+        enriched = enriched.map(i => ({ ...i, media: bucketed[i.id_incidencia] || [] }))
+      } else {
+        console.warn('media table not available; returning incidencias without media:', em?.message)
+      }
+    }
+
+    return res.json({ success: true, data: enriched })
+  } catch (e) {
+    console.error('GET /api/beneficiario/incidencias error:', e)
+    return res.status(500).json({ success: false, message: 'Error al obtener las incidencias' })
+  }
+})
+
+// ------------------------------------------------------------
+// Fase 3: Crear/editar (recepción e incidencias)
+
+// 5) Crear recepción en borrador (si no existe una activa)
+app.post('/api/beneficiario/recepcion', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // ¿Existe activa?
+    const { data: activas, error: ea } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado, fecha_creada, fecha_enviada, observaciones_count')
+      .eq('id_vivienda', viv.id_vivienda)
+      .in('estado', ['borrador', 'enviada'])
+      .order('id', { ascending: false })
+      .limit(1)
+    if (ea) throw ea
+    const activa = Array.isArray(activas) && activas.length ? activas[0] : null
+    if (activa) return res.json({ success: true, data: activa, message: 'Ya existe una recepción activa' })
+
+    // Crear borrador
+    const { data: creada, error: ec } = await supabase
+      .from('vivienda_recepcion')
+      .insert([{ id_vivienda: viv.id_vivienda, beneficiario_uid: beneficiarioUid, estado: 'borrador' }])
+      .select('id, estado, fecha_creada')
+      .single()
+    if (ec) throw ec
+    return res.status(201).json({ success: true, data: creada })
+  } catch (e) {
+    console.error('POST /api/beneficiario/recepcion error:', e)
+    return res.status(500).json({ success: false, message: 'Error al crear la recepción' })
+  }
+})
+
+// 6) Guardar ítems del borrador (reemplaza todos los ítems por los enviados)
+// Body esperado: { items: [{ categoria, item, ok, comentario, orden, fotos? }] }
+app.post('/api/beneficiario/recepcion/items', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const items = Array.isArray(req.body?.items) ? req.body.items : null
+    if (!items) return res.status(400).json({ success: false, message: 'items requerido' })
+
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: receps, error: er } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado')
+      .eq('id_vivienda', viv.id_vivienda)
+      .eq('estado', 'borrador')
+      .order('id', { ascending: false })
+      .limit(1)
+    if (er) throw er
+    const recepcion = Array.isArray(receps) && receps.length ? receps[0] : null
+    if (!recepcion) return res.status(409).json({ success: false, message: 'No hay borrador activo; crea la recepción primero' })
+
+    // Reemplazar todos los ítems del borrador
+    const { error: edel } = await supabase
+      .from('vivienda_recepcion_item')
+      .delete()
+      .eq('recepcion_id', recepcion.id)
+    if (edel) throw edel
+
+    if (items.length > 0) {
+      const rows = items.map((it) => ({
+        recepcion_id: recepcion.id,
+        categoria: String(it.categoria || ''),
+        item: String(it.item || ''),
+        ok: Boolean(it.ok),
+        comentario: it.comentario ?? null,
+        fotos_json: Array.isArray(it.fotos) ? it.fotos : undefined,
+        orden: Number.isFinite(it.orden) ? it.orden : null
+      }))
+      const { error: eins } = await supabase
+        .from('vivienda_recepcion_item')
+        .insert(rows)
+      if (eins) throw eins
+    }
+
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('POST /api/beneficiario/recepcion/items error:', e)
+    return res.status(500).json({ success: false, message: 'Error al guardar los ítems' })
+  }
+})
+
+// 7) Enviar recepción (cierra borrador): calcula observaciones_count y pasa a 'enviada'
+app.post('/api/beneficiario/recepcion/enviar', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: receps, error: er } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado')
+      .eq('id_vivienda', viv.id_vivienda)
+      .eq('estado', 'borrador')
+      .order('id', { ascending: false })
+      .limit(1)
+    if (er) throw er
+    const recepcion = Array.isArray(receps) && receps.length ? receps[0] : null
+    if (!recepcion) return res.status(409).json({ success: false, message: 'No hay borrador activo; crea la recepción primero' })
+
+    const { count, error: eagg } = await supabase
+      .from('vivienda_recepcion_item')
+      .select('*', { count: 'exact', head: true })
+      .eq('recepcion_id', recepcion.id)
+      .eq('ok', false)
+    if (eagg) throw eagg
+    const observaciones = typeof count === 'number' ? count : 0
+
+    const { data: updated, error: eupd } = await supabase
+      .from('vivienda_recepcion')
+      .update({ estado: 'enviada', fecha_enviada: new Date().toISOString(), observaciones_count: observaciones })
+      .eq('id', recepcion.id)
+      .select('id, estado, fecha_enviada, observaciones_count')
+      .single()
+    if (eupd) throw eupd
+
+    return res.json({ success: true, data: updated })
+  } catch (e) {
+    console.error('POST /api/beneficiario/recepcion/enviar error:', e)
+    return res.status(500).json({ success: false, message: 'Error al enviar la recepción' })
+  }
+})
+
+// 8) Crear incidencia (si la política lo permite)
+// Body esperado: { descripcion, categoria }
+app.post('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { descripcion, categoria } = req.body || {}
+    if (!descripcion || typeof descripcion !== 'string' || descripcion.trim().length < 3) {
+      return res.status(400).json({ success: false, message: 'Descripción inválida' })
+    }
+
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // Política: permitir si hay recepción enviada o existe alguna revisada
+    let permitido = false
+    const { data: recEnv, error: e1 } = await supabase
+      .from('vivienda_recepcion')
+      .select('id')
+      .eq('id_vivienda', viv.id_vivienda)
+      .eq('estado', 'enviada')
+      .limit(1)
+    if (e1) throw e1
+    permitido = Array.isArray(recEnv) && recEnv.length > 0
+    if (!permitido) {
+      const { data: recRev, error: e2 } = await supabase
+        .from('vivienda_recepcion')
+        .select('id')
+        .eq('id_vivienda', viv.id_vivienda)
+        .eq('estado', 'revisada')
+        .limit(1)
+      if (e2) throw e2
+      permitido = Array.isArray(recRev) && recRev.length > 0
+    }
+    if (!permitido) return res.status(409).json({ success: false, message: 'Aún no puedes crear incidencias (recepción no enviada/revisada)' })
+
+    // Prioridad automática por reglas sencillas (server-side)
+    const prioridadAuto = computePriority(categoria, descripcion)
+
+    // Insertar
+    const nowIso = new Date().toISOString()
+    const record = {
+      id_vivienda: viv.id_vivienda,
+      id_usuario_reporta: beneficiarioUid,
+      descripcion: descripcion.trim(),
+      estado: 'abierta',
+      categoria: categoria || null,
+      prioridad: prioridadAuto,
+      fecha_reporte: nowIso
+    }
+    const { data: nueva, error: eins } = await supabase
+      .from('incidencias')
+      .insert([record])
+      .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, fecha_reporte')
+      .single()
+    if (eins) throw eins
+
+    return res.status(201).json({ success: true, data: nueva })
+  } catch (e) {
+    console.error('POST /api/beneficiario/incidencias error:', e)
+    const msg = e?.message || 'Error al crear la incidencia'
+    return res.status(500).json({ success: false, message: msg })
+  }
+})
+
+// Subir fotos para una incidencia del beneficiario (multipart/form-data, field: files[])
+app.post('/api/beneficiario/incidencias/:id/media', verifyToken, authorizeRole(['beneficiario','administrador']), upload.array('files', 5), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const incidenciaId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(incidenciaId)) return res.status(400).json({ success: false, message: 'ID inválido' })
+
+    // Validate ownership
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: inc, error: einc } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda')
+      .eq('id_incidencia', incidenciaId)
+      .maybeSingle()
+    if (einc) throw einc
+    if (!inc || inc.id_vivienda !== viv.id_vivienda) {
+      return res.status(404).json({ success: false, message: 'Incidencia no encontrada' })
+    }
+
+    const files = req.files || []
+    if (!files.length) return res.status(400).json({ success: false, message: 'No se adjuntaron archivos' })
+
+    const uploaded = []
+    for (const f of files) {
+      const ext = (f.originalname || '').split('.').pop()?.toLowerCase() || 'jpg'
+      const key = `${incidenciaId}/${randomUUID()}.${ext}`
+      const { data: up, error: eup } = await supabase
+        .storage
+        .from('incidencias')
+        .upload(key, f.buffer, { contentType: f.mimetype || 'application/octet-stream', upsert: false })
+      if (eup) throw eup
+
+      const { data: pub } = supabase.storage.from('incidencias').getPublicUrl(up.path)
+      const url = pub?.publicUrl
+
+      const meta = { mimetype: f.mimetype, size: f.size, name: f.originalname }
+      const { data: row, error: em } = await supabase
+        .from('media')
+        .insert([{ entidad: 'incidencia', entidad_id: incidenciaId, url, metadata_json: meta }])
+        .select('id, url, metadata_json, created_at')
+        .single()
+      if (em) throw em
+      uploaded.push(row)
+    }
+
+    return res.status(201).json({ success: true, data: uploaded })
+  } catch (e) {
+    console.error('POST /api/beneficiario/incidencias/:id/media error:', e)
+    return res.status(500).json({ success: false, message: 'Error al subir archivos' })
+  }
+})
+
+// Listar fotos de una incidencia del beneficiario
+app.get('/api/beneficiario/incidencias/:id/media', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const incidenciaId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(incidenciaId)) return res.status(400).json({ success: false, message: 'ID inválido' })
+
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: inc, error: einc } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda')
+      .eq('id_incidencia', incidenciaId)
+      .maybeSingle()
+    if (einc) throw einc
+    if (!inc || inc.id_vivienda !== viv.id_vivienda) {
+      return res.status(404).json({ success: false, message: 'Incidencia no encontrada' })
+    }
+
+    const { data: mediaRows, error: em } = await supabase
+      .from('media')
+      .select('id, url, metadata_json, created_at')
+      .eq('entidad', 'incidencia')
+      .eq('entidad_id', incidenciaId)
+      .order('id', { ascending: false })
+    if (em) throw em
+
+    return res.json({ success: true, data: mediaRows || [] })
+  } catch (e) {
+    console.error('GET /api/beneficiario/incidencias/:id/media error:', e)
+    return res.status(500).json({ success: false, message: 'Error al listar archivos' })
+  }
+})
+
+// ------------------------------------------------------------
+// Endpoint técnico: marcar una recepción como revisada (transición enviada -> revisada)
+// Permite que el beneficiario luego pueda crear una nueva recepción (borrador) porque deja de estar activa.
+app.post('/api/tecnico/recepcion/:id/revisar', verifyToken, authorizeRole(['tecnico','administrador']), async (req, res) => {
+  try {
+    const recepcionId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(recepcionId)) {
+      return res.status(400).json({ success: false, message: 'ID inválido' })
+    }
+
+    // Obtener recepción
+    const { data: rec, error: er } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado')
+      .eq('id', recepcionId)
+      .maybeSingle()
+    if (er) throw er
+    if (!rec) return res.status(404).json({ success: false, message: 'Recepción no encontrada' })
+    if (rec.estado !== 'enviada') {
+      return res.status(409).json({ success: false, message: 'Solo se pueden revisar recepciones en estado enviada' })
+    }
+
+    const { data: updated, error: eupd } = await supabase
+      .from('vivienda_recepcion')
+      .update({ estado: 'revisada', fecha_revisada: new Date().toISOString() })
+      .eq('id', recepcionId)
+      .select('id, estado, fecha_revisada')
+      .single()
+    if (eupd) throw eupd
+
+    return res.json({ success: true, data: updated })
+  } catch (e) {
+    console.error('POST /api/tecnico/recepcion/:id/revisar error:', e)
+    return res.status(500).json({ success: false, message: 'Error al marcar revisada' })
+  }
 })
 
 export { app, normalizeRole, isStrongPassword, loginLimiter }

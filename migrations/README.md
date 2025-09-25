@@ -1,3 +1,28 @@
+Migrations – Plataforma Gestión de Viviendas
+===========================================
+
+Ejecútalas en tu instancia de Supabase (SQL Editor) en orden. Todas son idempotentes.
+
+001_beneficiario_schema.sql
+- Crea tablas de recepción, vista resumen, y ajustes iniciales.
+
+002_fix_incidencias_identity.sql
+- Asegura autoincrement en incidencias.id_incidencia.
+
+003_incidencias_tecnico_nullable.sql
+- Permite NULL en incidencias.id_usuario_tecnico.
+
+004_media_storage.sql (nuevo)
+- Crea tabla public.media si no existe.
+- Nota: Crea manualmente un bucket de Storage llamado "incidencias" y habilita acceso público (o define políticas) para ver las imágenes por URL pública.
+
+Cómo ejecutar
+- Copia el contenido del archivo .sql en el SQL Editor de Supabase y ejecuta.
+- Repite para el siguiente archivo.
+
+Verificación rápida
+- SELECT 1 FROM media;  -- debería existir la tabla
+- En Storage > Buckets, debería existir el bucket "incidencias".
 # Migraciones – Módulo Beneficiario
 
 ## Estrategia

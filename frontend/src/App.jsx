@@ -8,6 +8,7 @@ import Unauthorized from "./pages/Unauthorized";
 import HomeAdministrador from "./pages/HomeAdministrador";
 import HomeTecnico from "./pages/HomeTecnico";
 import HomeBeneficiario from "./pages/HomeBeneficiario";
+import BeneficiarioDashboard from "./pages/beneficiario/Dashboard";
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 
 export default function App() {
@@ -33,7 +34,10 @@ export default function App() {
               <Route path="/tecnico" element={<HomeTecnico />} />
             </Route>
             <Route element={<RoleRoute allowed={["beneficiario"]} />}> 
+              {/* UI pulida conectada al backend */}
               <Route path="/beneficiario" element={<HomeBeneficiario />} />
+              {/* Vista técnica/debug con JSON crudo */}
+              <Route path="/beneficiario/debug" element={<BeneficiarioDashboard />} />
             </Route>
           </Route>
 

@@ -36,7 +36,7 @@ BEGIN
   ) THEN
     ALTER TABLE incidencias
       ADD CONSTRAINT incidencias_prioridad_chk
-      CHECK (prioridad IS NULL OR prioridad IN (''baja'',''media'',''alta''));
+      CHECK (prioridad IS NULL OR prioridad IN ('baja','media','alta'));
   END IF;
 END;$$;
 
@@ -136,20 +136,20 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_views WHERE viewname='vista_recepcion_resumen'
   ) THEN
-    EXECUTE $$CREATE VIEW vista_recepcion_resumen AS
+    EXECUTE 'CREATE VIEW vista_recepcion_resumen AS
       SELECT r.id,
              r.id_vivienda,
              r.beneficiario_uid,
              r.estado,
              r.observaciones_count,
-             COUNT(i.id)                    AS total_items,
+             COUNT(i.id) AS total_items,
              COUNT(*) FILTER (WHERE NOT i.ok) AS items_con_problema,
              r.fecha_creada,
              r.fecha_enviada,
              r.fecha_revisada
       FROM vivienda_recepcion r
       LEFT JOIN vivienda_recepcion_item i ON i.recepcion_id = r.id
-      GROUP BY r.id$$;
+      GROUP BY r.id';
   END IF;
 END;$$;
 
@@ -169,8 +169,8 @@ COMMIT;
    - Una recepción (vivienda_recepcion) representa un formulario completo.
    - Cada ítem del checklist se serializa como fila en vivienda_recepcion_item con categoria + item.
    - Fotos: dos estrategias posibles:
-       a) Guardar rutas en fotos_json dentro de vivienda_recepcion_item (ya soportado).
-       b) Guardar cada foto como fila en media con recepcion_item_id (más flexible a futuro). Puedes usar ambas si quieres transición.
+     a) Guardar rutas en fotos_json dentro de vivienda_recepcion_item (ya soportado).
+     b) Guardar cada foto como fila en media con recepcion_item_id (más flexible a futuro). Puedes usar ambas si quieres transición.
    - Incidencias mantienen ahora categoria y prioridad.
    - Unique parcial evita dos recepciones activas simultáneas para la misma vivienda.
 ============================================================= */

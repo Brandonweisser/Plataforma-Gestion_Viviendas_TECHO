@@ -1,10 +1,12 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
 import { StatCard } from "../components/ui/StatCard";
 import { SectionPanel } from "../components/ui/SectionPanel";
 import { DashboardLayout } from "../components/ui/DashboardLayout";
+import CardIncidencia from "../components/CardIncidencia";
+import { beneficiarioApi } from "../services/api";
 import { 
   HomeModernIcon,
   WrenchScrewdriverIcon,
@@ -20,6 +22,79 @@ import {
 export default function HomeBeneficiario() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [vivData, setVivData] = useState(null); // { vivienda, proyecto, recepcion_activa, flags }
+  const [incidencias, setIncidencias] = useState([]);
+  const fileInputRef = React.useRef(null);
+  const [uploadTarget, setUploadTarget] = useState(null);
+  const [detailInc, setDetailInc] = useState(null);
+
+  // Modal estado
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ descripcion: "", categoria: "" });
+  const [modalFiles, setModalFiles] = useState([]); // imágenes seleccionadas en el modal
+  const [creating, setCreating] = useState(false);
+
+  async function loadData() {
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const v = await beneficiarioApi.vivienda();
+      setVivData(v.data || null);
+    } catch (e) {
+      setError(e.message || "No se pudo cargar la vivienda");
+    }
+    try {
+      const incs = await beneficiarioApi.listarIncidencias(10)
+      setIncidencias(Array.isArray(incs.data) ? incs.data : [])
+    } catch (e) {
+      // No bloqueamos toda la vista si falla media; mostramos aviso pequeño
+      setError(prev => prev || "Error al obtener las incidencias")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  const activeReportsCount = useMemo(() => {
+    return (incidencias || []).filter(i => (i.estado || '').toLowerCase() !== 'cerrada').length;
+  }, [incidencias]);
+
+  const viviendaId = vivData?.vivienda?.id_vivienda ? `#${vivData.vivienda.id_vivienda}` : "—";
+  const viviendaEstado = vivData?.vivienda?.estado || "—";
+  const tecnicoNombre = "Sin asignar"; // No tenemos aún endpoint para técnico asignado
+
+  function openIncidenciaModal(defaults = {}) {
+    setForm({ descripcion: defaults.descripcion || "", categoria: defaults.categoria || "" });
+    setModalFiles([])
+    setModalOpen(true);
+  }
+
+  async function submitIncidencia(e) {
+    e?.preventDefault();
+    if (!form.descripcion || form.descripcion.trim().length < 3) {
+      setError("Describe el problema (al menos 3 caracteres)");
+      return;
+    }
+    setCreating(true); setError("");
+    try {
+      const r = await beneficiarioApi.crearIncidencia({ descripcion: form.descripcion.trim(), categoria: form.categoria || null });
+      const nueva = r?.data
+      if (nueva?.id_incidencia && modalFiles.length) {
+        try { await beneficiarioApi.subirMediaIncidencia(nueva.id_incidencia, modalFiles); setSuccess('Incidencia creada y fotos subidas'); } catch (e) { setError(e.message || 'Error subiendo fotos') }
+      }
+      setModalOpen(false);
+  setForm({ descripcion: "", categoria: "" });
+      setModalFiles([])
+      await loadData();
+    } catch (e) {
+      setError(e.message || "No se pudo crear la incidencia");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const handleLogout = () => {
     logout();
@@ -33,27 +108,27 @@ export default function HomeBeneficiario() {
       description: "Ver información detallada, historial y condición actual de mi hogar",
       icon: <HomeIcon className={iconSize} />,
       color: "bg-green-500 hover:bg-green-600",
-      badge: "Activa",
+      badge: vivData?.flags?.tiene_recepcion_activa ? "Activa" : "Sin recepción",
       urgent: false,
-      action: () => console.log("Ver mi vivienda")
+      action: () => window.alert("Pronto: detalle de vivienda")
     },
     {
       title: "Reportar Problema Urgente",
       description: "Reportar emergencias o problemas que requieren atención inmediata",
       icon: <ExclamationTriangleIcon className={iconSize} />,
-      color: "bg-red-5r00 hover:bg-red-600",
+      color: "bg-red-500 hover:bg-red-600",
       badge: "24/7",
       urgent: true,
-      action: () => console.log("Reportar problema")
+  action: () => openIncidenciaModal()
     },
     {
       title: "Historial de Mis Reportes",
       description: "Ver todos mis reportes anteriores, seguimiento y resoluciones",
       icon: <ClipboardDocumentListIcon className={iconSize} />,
       color: "bg-blue-500 hover:bg-blue-600",
-      badge: "3 activos",
+      badge: `${activeReportsCount} activos`,
       urgent: false,
-      action: () => console.log("Ver mis reportes")
+      action: () => window.alert("Pronto: historial completo")
     },
     {
       title: "Contacto con Mi Técnico",
@@ -84,29 +159,18 @@ export default function HomeBeneficiario() {
     }
   ];
 
-  const recentReports = [
-    { id: 1, type: "Eléctrico", status: "En progreso", date: "2024-01-15", priority: "Media" },
-    { id: 2, type: "Plomería", status: "Completado", date: "2024-01-10", priority: "Alta" },
-    { id: 3, type: "Estructural", status: "Pendiente", date: "2024-01-08", priority: "Baja" }
-  ];
+  const recentReports = useMemo(() => {
+    return (incidencias || []).slice(0, 5).map((it) => ({
+      id: it.id_incidencia,
+      type: it.categoria || 'General',
+      status: (it.estado || '').replace(/^./, c => c.toUpperCase()),
+      date: (it.fecha_reporte || '').split('T')[0] || '',
+      priority: (it.prioridad || '').replace(/^./, c => c.toUpperCase()) || '—',
+      raw: it
+    }));
+  }, [incidencias]);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "En progreso": return "bg-yellow-100 text-yellow-800";
-      case "Completado": return "bg-green-100 text-green-800";
-      case "Pendiente": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "Alta": return "text-red-600";
-      case "Media": return "text-yellow-600";
-      case "Baja": return "text-green-600";
-      default: return "text-gray-600";
-    }
-  };
+  // colores de status/prioridad ahora los maneja CardIncidencia
 
   return (
     <DashboardLayout
@@ -117,6 +181,15 @@ export default function HomeBeneficiario() {
       accent="blue"
       footer={`© ${new Date().getFullYear()} TECHO Chile · Plataforma Beneficiarios`}
     >
+      {error && (
+        <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
+      )}
+      {success && (
+        <div className="mb-4 p-3 rounded bg-emerald-50 text-emerald-700 text-sm border border-emerald-200">{success}</div>
+      )}
+      {loading && (
+        <div className="mb-4 p-3 rounded bg-blue-50 text-blue-700 text-sm border border-blue-200">Cargando…</div>
+      )}
       <div aria-label="Panel principal beneficiario" className="w-full">
         <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-2xl">
@@ -124,16 +197,16 @@ export default function HomeBeneficiario() {
             <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Administra tu vivienda y reporta cualquier problema que necesite atención.</p>
           </div>
           <div className="flex gap-3 flex-wrap">
-            <button className="btn-primary text-xs">Reportar problema</button>
+            <button className="btn-primary text-xs" onClick={() => openIncidenciaModal()}>Reportar problema</button>
             <button className="btn-outline text-xs">Ver guías</button>
           </div>
         </div>
 
         {/* Stats */}
         <section aria-label="Indicadores rápidos" className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          <StatCard icon={<HomeModernIcon className="h-6 w-6" />} label="Vivienda" value="#127" subtitle="Estado: Bueno" />
-          <StatCard icon={<WrenchScrewdriverIcon className="h-6 w-6" />} label="Reportes activos" value="2" subtitle="En seguimiento" />
-          <StatCard icon={<UserCircleIcon className="h-6 w-6" />} label="Técnico" value="Ana Gómez" subtitle="Asignado" />
+          <StatCard icon={<HomeModernIcon className="h-6 w-6" />} label="Vivienda" value={viviendaId} subtitle={`Estado: ${viviendaEstado}`} />
+          <StatCard icon={<WrenchScrewdriverIcon className="h-6 w-6" />} label="Reportes activos" value={String(activeReportsCount)} subtitle="En seguimiento" />
+          <StatCard icon={<UserCircleIcon className="h-6 w-6" />} label="Técnico" value={tecnicoNombre} subtitle="Asignado" />
         </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -162,19 +235,15 @@ export default function HomeBeneficiario() {
             as="section"
             className="h-full flex flex-col"
           >
-            <ul className="space-y-4 divide-y divide-techo-gray-100" aria-label="Listado de reportes recientes">
+            <ul className="space-y-4" aria-label="Listado de reportes recientes">
               {recentReports.map((report) => (
-                <li key={report.id} className="pt-4 first:pt-0"> 
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-techo-gray-800">Problema {report.type}</span>
-                      <span className="text-[11px] uppercase tracking-wide text-techo-gray-500">Reporte #{report.id} · {report.date}</span>
-                    </div>
-                    <div className="text-right min-w-[110px]">
-                      <span className={`badge ${getStatusColor(report.status)} mb-1`}>{report.status}</span>
-                      <p className={`text-[11px] font-medium ${getPriorityColor(report.priority)}`}>Prioridad: {report.priority}</p>
-                    </div>
-                  </div>
+                <li key={report.id} className="pt-2 first:pt-0">
+                  <CardIncidencia
+                    incidencia={report.raw}
+                    onOpen={(inc) => setDetailInc(inc)}
+                    allowUpload={false}
+                    onUploadClick={(inc) => { setUploadTarget(inc); fileInputRef.current?.click(); }}
+                  />
                 </li>
               ))}
             </ul>
@@ -195,6 +264,111 @@ export default function HomeBeneficiario() {
               <div className="space-y-4">
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-techo-gray-500 mb-2">Detalles generales</h4>
+                {/* hidden input for quick uploads */}
+                <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={async (e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (!files.length || !uploadTarget) return
+                  try {
+                    setError(""); setLoading(true)
+                    await beneficiarioApi.subirMediaIncidencia(uploadTarget.id_incidencia, files)
+                    setSuccess('Fotos subidas correctamente')
+                    await loadData()
+                  } catch (err) {
+                    setError(err.message || 'No se pudieron subir las fotos')
+                  } finally {
+                    setLoading(false); setUploadTarget(null); e.target.value = ''
+                  }
+                }} />
+
+                {/* Modal detalle incidencia */}
+                {detailInc && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <h3 className="text-lg font-semibold">Detalle reporte #{detailInc.id_incidencia}</h3>
+                        <button className="btn-outline" onClick={() => setDetailInc(null)}>Cerrar</button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <p className="text-sm mb-2"><span className="font-medium">Estado:</span> {detailInc.estado}</p>
+                          <p className="text-sm mb-2"><span className="font-medium">Categoría:</span> {detailInc.categoria || '—'}</p>
+                          <p className="text-sm mb-2"><span className="font-medium">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
+                          <p className="text-sm mb-2"><span className="font-medium">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
+                          <p className="text-sm"><span className="font-medium">Descripción:</span><br />{detailInc.descripcion}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium mb-2">Fotos</p>
+                          <div className="flex flex-wrap gap-2">
+                            {Array.isArray(detailInc.media) && detailInc.media.length > 0 ? (
+                              detailInc.media.map(m => (
+                                <img key={m.id || m.url} src={m.url} alt="foto" className="h-24 w-24 object-cover rounded border" />
+                              ))
+                            ) : (
+                              <p className="text-sm text-techo-gray-500">Sin fotos</p>
+                            )}
+                          </div>
+                          <div className="mt-3">
+                            <button className="btn-primary btn-sm" onClick={() => { setUploadTarget(detailInc); fileInputRef.current?.click(); }}>Agregar fotos</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal crear incidencia */}
+                {isModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+                      <h3 className="text-lg font-semibold mb-4">Reportar problema</h3>
+                      <form onSubmit={submitIncidencia} className="space-y-4">
+                        <div>
+                          <label className="block text-sm mb-1">Descripción</label>
+                          <textarea
+                            className="w-full border rounded px-3 py-2 resize-none"
+                            rows={3}
+                            value={form.descripcion}
+                            onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                            placeholder="Describe el problema…"
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="block text-sm mb-1">Categoría</label>
+                            <select
+                              className="w-full border rounded px-3 py-2"
+                              value={form.categoria}
+                              onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                            >
+                              <option value="">(Selecciona)</option>
+                              <option value="Eléctrico">Eléctrico</option>
+                              <option value="Plomería">Plomería</option>
+                              <option value="Estructura">Estructura</option>
+                              <option value="Otro">Otro</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm mb-1">Fotos (opcional)</label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => setModalFiles(Array.from(e.target.files || []).slice(0,5))}
+                            />
+                            {modalFiles.length > 0 && (
+                              <p className="text-xs text-techo-gray-500 mt-1">{modalFiles.length} archivo(s) seleccionado(s)</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button type="button" className="btn-outline" onClick={() => setModalOpen(false)} disabled={creating}>Cancelar</button>
+                          <button type="submit" className="btn-primary" disabled={creating}>{creating ? 'Enviando…' : 'Crear incidencia'}</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
                   <ul className="space-y-2 text-techo-gray-700 dark:text-techo-gray-200">
                     <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Dirección:</span> Calle Falsa 123, Comuna X</li>
                     <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Tipo:</span> Casa Básica</li>
