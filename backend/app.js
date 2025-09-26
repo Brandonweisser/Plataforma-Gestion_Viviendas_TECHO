@@ -269,6 +269,28 @@ const upload = multer({
 })
 
 // ------------------------------------------------------------
+// Historial (Fase 1) helper
+async function logIncidenciaEvent({ incidenciaId, actorUid, actorRol, tipo, estadoAnterior = null, estadoNuevo = null, diff = null, comentario = null, metadata = null }) {
+  try {
+    const payload = {
+      incidencia_id: incidenciaId,
+      actor_uid: actorUid || null,
+      actor_rol: actorRol || null,
+      tipo_evento: tipo,
+      estado_anterior: estadoAnterior,
+      estado_nuevo: estadoNuevo,
+      datos_diff: diff ? JSON.stringify(diff) : null,
+      comentario: comentario || null,
+      metadata: metadata ? JSON.stringify(metadata) : null
+    }
+    const { error } = await supabase.from('incidencia_historial').insert([payload])
+    if (error) console.warn('No se pudo registrar historial incidencia', error.message)
+  } catch (e) {
+    console.warn('Error inesperado registrando historial', e.message)
+  }
+}
+
+// ------------------------------------------------------------
 // Fase 2: Endpoints Beneficiario (lectura básica)
 // 1) Obtener vivienda asignada + flags de recepción/incidencias
 app.get('/api/beneficiario/vivienda', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
@@ -413,7 +435,15 @@ app.get('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiar
     const beneficiarioUid = req.user?.sub
     const limitReq = parseInt(req.query.limit, 10)
     const limit = Number.isFinite(limitReq) ? Math.min(Math.max(limitReq, 1), 100) : 50
+    const offsetReq = parseInt(req.query.offset, 10)
+    const offset = Number.isFinite(offsetReq) && offsetReq >= 0 ? offsetReq : 0
     const includeMedia = String(req.query.includeMedia || '').toLowerCase() === '1'
+    // Filtros opcionales
+    const estadoFilter = (req.query.estado || '').toString().trim()
+    const categoriaFilter = (req.query.categoria || '').toString().trim()
+    const prioridadFilter = (req.query.prioridad || '').toString().trim()
+    const searchRaw = (req.query.search || '').toString().trim()
+    const search = searchRaw.length >= 2 ? searchRaw : ''
 
     const { data: viv, error: ev } = await supabase
       .from('viviendas')
@@ -423,12 +453,27 @@ app.get('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiar
     if (ev) throw ev
     if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
 
-    const { data: incs, error: ei } = await supabase
+    // Construir query base con filtros (dos copias: count + data)
+    let baseCount = supabase
+      .from('incidencias')
+      .select('id_incidencia', { count: 'exact', head: true })
+      .eq('id_vivienda', viv.id_vivienda)
+    let baseData = supabase
       .from('incidencias')
       .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, fecha_reporte, id_usuario_tecnico')
       .eq('id_vivienda', viv.id_vivienda)
+
+    if (estadoFilter) { baseCount = baseCount.eq('estado', estadoFilter); baseData = baseData.eq('estado', estadoFilter) }
+    if (categoriaFilter) { baseCount = baseCount.eq('categoria', categoriaFilter); baseData = baseData.eq('categoria', categoriaFilter) }
+    if (prioridadFilter) { baseCount = baseCount.eq('prioridad', prioridadFilter.toLowerCase()) ; baseData = baseData.eq('prioridad', prioridadFilter.toLowerCase()) }
+    if (search) { baseCount = baseCount.ilike('descripcion', `%${search}%`); baseData = baseData.ilike('descripcion', `%${search}%`) }
+
+    const { count: totalCount, error: countErr } = await baseCount
+    if (countErr) throw countErr
+
+    const { data: incs, error: ei } = await baseData
       .order('id_incidencia', { ascending: false })
-      .limit(limit)
+      .range(offset, offset + limit - 1)
     if (ei) throw ei
 
     let enriched = incs || []
@@ -484,7 +529,7 @@ app.get('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficiar
       }
     }
 
-    return res.json({ success: true, data: enriched })
+    return res.json({ success: true, data: enriched, meta: { limit, offset, total: totalCount || 0, hasMore: (offset + enriched.length) < (totalCount || 0), filters: { estado: estadoFilter || null, categoria: categoriaFilter || null, prioridad: prioridadFilter || null, search: search || null } } })
   } catch (e) {
     console.error('GET /api/beneficiario/incidencias error:', e)
     return res.status(500).json({ success: false, message: 'Error al obtener las incidencias' })
@@ -675,8 +720,8 @@ app.post('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficia
     }
     if (!permitido) return res.status(409).json({ success: false, message: 'Aún no puedes crear incidencias (recepción no enviada/revisada)' })
 
-    // Prioridad automática por reglas sencillas (server-side)
-    const prioridadAuto = computePriority(categoria, descripcion)
+  // Prioridad automática por reglas sencillas (server-side)
+  const prioridadAuto = computePriority(categoria, descripcion)
 
     // Insertar
     const nowIso = new Date().toISOString()
@@ -687,6 +732,8 @@ app.post('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficia
       estado: 'abierta',
       categoria: categoria || null,
       prioridad: prioridadAuto,
+      prioridad_origen: prioridadAuto,
+      prioridad_final: prioridadAuto,
       fecha_reporte: nowIso
     }
     const { data: nueva, error: eins } = await supabase
@@ -695,6 +742,11 @@ app.post('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficia
       .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, fecha_reporte')
       .single()
     if (eins) throw eins
+
+    // Registrar historial (creada)
+    try {
+      await logIncidenciaEvent({ incidenciaId: nueva.id_incidencia, actorUid: beneficiarioUid, actorRol: 'beneficiario', tipo: 'creada', estadoNuevo: 'abierta', diff: { prioridad: prioridadAuto } })
+    } catch (_) { /* ignore historial failure */ }
 
     return res.status(201).json({ success: true, data: nueva })
   } catch (e) {
@@ -777,6 +829,10 @@ app.post('/api/beneficiario/incidencias/:id/media', verifyToken, authorizeRole([
       uploaded.push(inserted)
     }
 
+    // Historial: media agregada
+    if (uploaded.length) {
+      try { await logIncidenciaEvent({ incidenciaId: incidenciaId, actorUid: beneficiarioUid, actorRol: 'beneficiario', tipo: 'media_agregada', metadata: { count: uploaded.length } }) } catch (_) {}
+    }
     return res.status(201).json({ success: true, data: uploaded })
   } catch (e) {
     console.error('POST /api/beneficiario/incidencias/:id/media error:', e)
@@ -888,3 +944,776 @@ app.post('/api/tecnico/recepcion/:id/revisar', verifyToken, authorizeRole(['tecn
 })
 
 export { app, normalizeRole, isStrongPassword, loginLimiter }
+
+// ------------------------------------------------------------
+// Endpoints técnicos y de historial (añadidos al final para mantener exports arriba)
+// Asignar técnico
+app.post('/api/tecnico/incidencias/:id/asignar', verifyToken, authorizeRole(['tecnico','administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const tecnicoUid = req.user?.sub
+    const { data: inc, error: ei } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, id_usuario_tecnico, estado')
+      .eq('id_incidencia', id)
+      .maybeSingle()
+    if (ei) throw ei
+    if (!inc) return res.status(404).json({ success: false, message: 'Incidencia no encontrada' })
+    if (inc.id_usuario_tecnico === tecnicoUid) return res.json({ success: true, message: 'Ya asignada a este técnico' })
+    const { error: uu } = await supabase
+      .from('incidencias')
+      .update({ id_usuario_tecnico: tecnicoUid, fecha_asignada: new Date().toISOString() })
+      .eq('id_incidencia', id)
+    if (uu) throw uu
+    await logIncidenciaEvent({ incidenciaId: id, actorUid: tecnicoUid, actorRol: 'tecnico', tipo: 'asignacion', diff: { id_usuario_tecnico: tecnicoUid } })
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('POST /api/tecnico/incidencias/:id/asignar error:', e)
+    return res.status(500).json({ success: false, message: 'Error asignando' })
+  }
+})
+
+// Cambiar estado
+app.post('/api/tecnico/incidencias/:id/estado', verifyToken, authorizeRole(['tecnico','administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const { nuevo_estado, comentario } = req.body || {}
+    const allowed = ['abierta','en_proceso','en_espera','resuelta','cerrada','descartada']
+    if (!allowed.includes(nuevo_estado)) return res.status(400).json({ success: false, message: 'Estado no permitido' })
+    const { data: inc, error: ei } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, estado')
+      .eq('id_incidencia', id)
+      .maybeSingle()
+    if (ei) throw ei
+    if (!inc) return res.status(404).json({ success: false, message: 'Incidencia no encontrada' })
+    if (inc.estado === nuevo_estado) return res.json({ success: true, message: 'Sin cambios' })
+    const updateCols = { estado: nuevo_estado }
+    const now = new Date().toISOString()
+    if (nuevo_estado === 'en_proceso') updateCols.fecha_en_proceso = now
+    if (nuevo_estado === 'resuelta') updateCols.fecha_resuelta = now
+    if (nuevo_estado === 'cerrada') updateCols.fecha_cerrada = now
+    const { error: ue } = await supabase
+      .from('incidencias')
+      .update(updateCols)
+      .eq('id_incidencia', id)
+    if (ue) throw ue
+    await logIncidenciaEvent({ incidenciaId: id, actorUid: req.user?.sub, actorRol: 'tecnico', tipo: 'estado_cambiado', estadoAnterior: inc.estado, estadoNuevo: nuevo_estado, comentario: comentario || null })
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('POST /api/tecnico/incidencias/:id/estado error:', e)
+    return res.status(500).json({ success: false, message: 'Error cambiando estado' })
+  }
+})
+
+// Listado global de incidencias (técnico) con filtros y paginación
+// Query params: limit, offset, estado, categoria, prioridad, search, asignacion (mine|unassigned|all), includeMedia=1
+app.get('/api/tecnico/incidencias', verifyToken, authorizeRole(['tecnico','administrador']), async (req, res) => {
+  try {
+    const tecnicoUid = req.user?.sub
+    const limitReq = parseInt(req.query.limit, 10)
+    const limit = Number.isFinite(limitReq) ? Math.min(Math.max(limitReq, 1), 100) : 50
+    const offsetReq = parseInt(req.query.offset, 10)
+    const offset = Number.isFinite(offsetReq) && offsetReq >= 0 ? offsetReq : 0
+    const includeMedia = String(req.query.includeMedia || '').toLowerCase() === '1'
+    const estadoFilter = (req.query.estado || '').toString().trim()
+    const categoriaFilter = (req.query.categoria || '').toString().trim()
+    const prioridadFilter = (req.query.prioridad || '').toString().trim().toLowerCase()
+    const searchRaw = (req.query.search || '').toString().trim()
+    const search = searchRaw.length >= 2 ? searchRaw : ''
+    const asignacion = (req.query.asignacion || 'all').toString()
+
+    let baseCount = supabase
+      .from('incidencias')
+      .select('id_incidencia', { count: 'exact', head: true })
+    let baseData = supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, fecha_reporte, id_usuario_tecnico')
+
+    if (estadoFilter) { baseCount = baseCount.eq('estado', estadoFilter); baseData = baseData.eq('estado', estadoFilter) }
+    if (categoriaFilter) { baseCount = baseCount.eq('categoria', categoriaFilter); baseData = baseData.eq('categoria', categoriaFilter) }
+    if (prioridadFilter) { baseCount = baseCount.eq('prioridad', prioridadFilter); baseData = baseData.eq('prioridad', prioridadFilter) }
+    if (search) { baseCount = baseCount.ilike('descripcion', `%${search}%`); baseData = baseData.ilike('descripcion', `%${search}%`) }
+    if (asignacion === 'mine') { baseCount = baseCount.eq('id_usuario_tecnico', tecnicoUid); baseData = baseData.eq('id_usuario_tecnico', tecnicoUid) }
+    else if (asignacion === 'unassigned') { baseCount = baseCount.is('id_usuario_tecnico', null); baseData = baseData.is('id_usuario_tecnico', null) }
+
+    const { count: totalCount, error: countErr } = await baseCount
+    if (countErr) throw countErr
+    const { data: incs, error: eList } = await baseData
+      .order('prioridad', { ascending: true }) // baja<media<alta? si queremos priorizar al revés lo cambiamos
+      .order('id_incidencia', { ascending: false })
+      .range(offset, offset + limit - 1)
+    if (eList) throw eList
+
+    let enriched = incs || []
+    if (includeMedia && enriched.length) {
+      const ids = enriched.map(i => i.id_incidencia)
+      let mediaRows = null
+      let mediaError = null
+      let schemaVariant = 'A'
+      try {
+        const rA = await supabase
+          .from('media')
+          .select('id, entidad, entidad_id, url, metadata_json, created_at')
+          .in('entidad_id', ids)
+          .eq('entidad', 'incidencia')
+        if (rA.error) throw rA.error
+        mediaRows = rA.data
+      } catch (eA) {
+        mediaError = eA
+        schemaVariant = 'B'
+      }
+      if (schemaVariant === 'B') {
+        try {
+          const rB = await supabase
+            .from('media')
+            .select('id, incidencia_id, path, mime, bytes, created_at')
+            .in('incidencia_id', ids)
+          if (rB.error) throw rB.error
+          mediaRows = (rB.data || []).map(m => {
+            let url = null
+            if (m.path) {
+              try { const pub = supabase.storage.from('incidencias').getPublicUrl(m.path); url = pub?.data?.publicUrl || pub?.publicUrl || null } catch(_) {}
+            }
+            return { id: m.id, entidad: 'incidencia', entidad_id: m.incidencia_id, url, metadata_json: { mime: m.mime, bytes: m.bytes, path: m.path }, created_at: m.created_at }
+          })
+        } catch (eB) {
+          console.warn('media retrieval tecnico failed both variants:', mediaError?.message, eB?.message)
+        }
+      }
+      if (Array.isArray(mediaRows)) {
+        const bucketed = {}
+        for (const m of mediaRows) { if (!bucketed[m.entidad_id]) bucketed[m.entidad_id] = []; bucketed[m.entidad_id].push(m) }
+        enriched = enriched.map(i => ({ ...i, media: bucketed[i.id_incidencia] || [] }))
+      }
+    }
+
+    return res.json({ success: true, data: enriched, meta: { limit, offset, total: totalCount || 0, hasMore: (offset + enriched.length) < (totalCount || 0) } })
+  } catch (e) {
+    console.error('GET /api/tecnico/incidencias error:', e)
+    return res.status(500).json({ success: false, message: 'Error al listar incidencias' })
+  }
+})
+
+// Detalle de incidencia para técnico (incluye media básica). Para historial usar endpoint ya existente.
+app.get('/api/tecnico/incidencias/:id', verifyToken, authorizeRole(['tecnico','administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const { data: inc, error: ei } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda, descripcion, estado, categoria, prioridad, prioridad_origen, prioridad_final, fecha_reporte, id_usuario_tecnico')
+      .eq('id_incidencia', id)
+      .maybeSingle()
+    if (ei) throw ei
+    if (!inc) return res.status(404).json({ success: false, message: 'No encontrada' })
+
+    // Media (variant detection)
+    let mediaRows = []
+    try {
+      const rA = await supabase
+        .from('media')
+        .select('id, entidad, entidad_id, url, metadata_json, created_at')
+        .eq('entidad', 'incidencia')
+        .eq('entidad_id', id)
+      if (rA.error) throw rA.error
+      mediaRows = rA.data || []
+    } catch (eA) {
+      try {
+        const rB = await supabase
+          .from('media')
+          .select('id, incidencia_id, path, mime, bytes, created_at')
+          .eq('incidencia_id', id)
+        if (rB.error) throw rB.error
+        mediaRows = (rB.data || []).map(m => {
+          let url = null
+          if (m.path) { try { const pub = supabase.storage.from('incidencias').getPublicUrl(m.path); url = pub?.data?.publicUrl || pub?.publicUrl || null } catch(_) {} }
+          return { id: m.id, entidad: 'incidencia', entidad_id: id, url, metadata_json: { mime: m.mime, bytes: m.bytes, path: m.path }, created_at: m.created_at }
+        })
+      } catch (eB) {
+        console.warn('Media detail variants failed', eA?.message, eB?.message)
+      }
+    }
+
+    return res.json({ success: true, data: { ...inc, media: mediaRows } })
+  } catch (e) {
+    console.error('GET /api/tecnico/incidencias/:id error:', e)
+    return res.status(500).json({ success: false, message: 'Error obteniendo detalle' })
+  }
+})
+
+// Obtener historial (beneficiario dueño o técnico/admin)
+app.get('/api/incidencias/:id/historial', verifyToken, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const userRole = normalizeRole(req.user?.role)
+    if (userRole === 'beneficiario') {
+      // Verificar que la incidencia pertenece a su vivienda
+      const { data: inc, error: eI } = await supabase
+        .from('incidencias')
+        .select('id_incidencia, id_vivienda')
+        .eq('id_incidencia', id)
+        .maybeSingle()
+      if (eI) throw eI
+      if (!inc) return res.status(404).json({ success: false, message: 'No encontrada' })
+      const { data: viv, error: eV } = await supabase
+        .from('viviendas')
+        .select('id_vivienda, beneficiario_uid')
+        .eq('id_vivienda', inc.id_vivienda)
+        .maybeSingle()
+      if (eV) throw eV
+      if (!viv || viv.beneficiario_uid !== req.user?.sub) return res.status(403).json({ success: false, message: 'No autorizado' })
+    }
+    const { data: hist, error: eh } = await supabase
+      .from('incidencia_historial')
+      .select('id, tipo_evento, actor_uid, actor_rol, estado_anterior, estado_nuevo, datos_diff, comentario, metadata, created_at')
+      .eq('incidencia_id', id)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (eh) throw eh
+    return res.json({ success: true, data: hist || [] })
+  } catch (e) {
+    console.error('GET /api/incidencias/:id/historial error:', e)
+    return res.status(500).json({ success: false, message: 'Error obteniendo historial' })
+  }
+})
+
+// ------------------------------------------------------------
+// POSVENTA – Fase 1 (Beneficiario) MVP
+// Supuestos: vivienda.estado = 'entregada' habilita el formulario (si no, permitimos mientras exista vivienda - TODO revisar estados reales)
+
+// GET formulario posventa activo (borrador o enviada) + items
+app.get('/api/beneficiario/posventa/form', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, estado')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: forms, error: ef } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado, fecha_creada, fecha_enviada, items_no_ok_count, observaciones_count, template_version')
+      .eq('id_vivienda', viv.id_vivienda)
+      .in('estado', ['borrador','enviada'])
+      .order('id', { ascending: false })
+      .limit(1)
+    if (ef) throw ef
+    const form = Array.isArray(forms) && forms.length ? forms[0] : null
+    if (!form) return res.json({ success: true, data: null })
+
+    const { data: items, error: ei } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id, categoria, item, ok, severidad, comentario, fotos_json, crear_incidencia, incidencia_id, orden')
+      .eq('form_id', form.id)
+      .order('categoria', { ascending: true })
+      .order('orden', { ascending: true, nullsFirst: true })
+      .order('id', { ascending: true })
+    if (ei) throw ei
+
+    return res.json({ success: true, data: { form, items: items || [] } })
+  } catch (e) {
+    console.error('GET /api/beneficiario/posventa/form error:', e)
+    return res.status(500).json({ success: false, message: 'Error al obtener formulario posventa' })
+  }
+})
+
+// Crear nuevo formulario posventa en borrador (si no hay uno activo)
+app.post('/api/beneficiario/posventa/form', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, estado, tipo_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    // Política mínima: permitir si la vivienda existe. (TODO: limitar a estado='entregada' si corresponde)
+    const { data: activos, error: ea } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado')
+      .eq('id_vivienda', viv.id_vivienda)
+      .in('estado', ['borrador','enviada'])
+      .limit(1)
+    if (ea) throw ea
+    if (Array.isArray(activos) && activos.length) {
+      const activo = activos[0]
+      // Si es borrador y sin items, intentar repoblar
+      if (activo.estado === 'borrador') {
+        const { count: itemCount, error: eCnt } = await supabase
+          .from('vivienda_postventa_item')
+          .select('id', { count: 'exact', head: true })
+          .eq('form_id', activo.id)
+        if (eCnt) throw eCnt
+        if (!itemCount) {
+          // Resolver template y repoblar
+            let templateId = null
+            if (viv.tipo_vivienda) {
+              const { data: tEsp, error: eT } = await supabase
+                .from('postventa_template')
+                .select('id')
+                .eq('tipo_vivienda', viv.tipo_vivienda)
+                .eq('activo', true)
+                .order('version', { ascending: false })
+                .limit(1)
+              if (eT) throw eT
+              if (Array.isArray(tEsp) && tEsp.length) templateId = tEsp[0].id
+            }
+            if (!templateId) {
+              const { data: tGen, error: eG } = await supabase
+                .from('postventa_template')
+                .select('id')
+                .is('tipo_vivienda', null)
+                .eq('activo', true)
+                .order('version', { ascending: false })
+                .limit(1)
+              if (eG) throw eG
+              if (Array.isArray(tGen) && tGen.length) templateId = tGen[0].id
+            }
+            if (templateId) {
+              const { data: tItems, error: eTi } = await supabase
+                .from('postventa_template_item')
+                .select('categoria, item, orden, severidad_sugerida')
+                .eq('template_id', templateId)
+                .order('orden', { ascending: true })
+              if (eTi) throw eTi
+              if (Array.isArray(tItems) && tItems.length) {
+                const rows = tItems.map(it => ({
+                  form_id: activo.id,
+                  categoria: it.categoria,
+                  item: it.item,
+                  ok: true,
+                  severidad: null,
+                  comentario: null,
+                  fotos_json: [],
+                  crear_incidencia: true,
+                  orden: it.orden ?? null
+                }))
+                const { error: eIns } = await supabase
+                  .from('vivienda_postventa_item')
+                  .insert(rows)
+                if (eIns) console.error('Repopulate items error', eIns)
+              }
+            }
+        }
+      }
+      return res.json({ success: true, data: activo, message: 'Ya existe un formulario activo' })
+    }
+    // Elegir template: primero por tipo_vivienda activo, luego genérico activo
+    let templateId = null
+    let itemsSeeded = 0
+    if (templateId) {
+      const { data: tEsp, error: eT } = await supabase
+        .from('postventa_template')
+        .select('id')
+        .eq('tipo_vivienda', viv.tipo_vivienda)
+        .eq('activo', true)
+        .order('version', { ascending: false })
+        .limit(1)
+      if (eT) throw eT
+      if (Array.isArray(tEsp) && tEsp.length) templateId = tEsp[0].id
+    }
+    if (!templateId) {
+      const { data: tGen, error: eG } = await supabase
+        .from('postventa_template')
+        .select('id')
+        .is('tipo_vivienda', null)
+        .eq('activo', true)
+        .order('version', { ascending: false })
+        .limit(1)
+      if (eG) throw eG
+      if (Array.isArray(tGen) && tGen.length) templateId = tGen[0].id
+    }
+
+  // Crear form
+  const insertForm = { id_vivienda: viv.id_vivienda, beneficiario_uid: beneficiarioUid, estado: 'borrador', template_version: 1 }
+    const { data: creado, error: ec } = await supabase
+      .from('vivienda_postventa_form')
+      .insert([insertForm])
+      .select('id, estado, fecha_creada, template_version')
+      .single()
+          if (!cnt) console.warn('Advertencia: no se encontraron items insertados para el formulario posventa', creado.id)
+          itemsSeeded = cnt || 0
+
+    // Poblar items desde template
+    if (templateId) {
+      const { data: tItems, error: eTi } = await supabase
+        .from('postventa_template_item')
+    if (!itemsSeeded) {
+      return res.status(409).json({ success: false, message: 'No se poblaron ítems: revisa templates (genérico o por tipo_vivienda) y vuelve a intentar.' , data: { form: creado } })
+    }
+    return res.status(201).json({ success: true, data: { ...creado, items_seeded: itemsSeeded } })
+        .order('orden', { ascending: true })
+      if (eTi) throw eTi
+      if (Array.isArray(tItems) && tItems.length) {
+        const rows = tItems.map(it => ({
+          form_id: creado.id,
+          categoria: it.categoria,
+          item: it.item,
+          ok: true,
+          severidad: null,
+          comentario: null,
+          fotos_json: [], // JSONB array
+          crear_incidencia: true,
+          orden: it.orden ?? null
+        }))
+        const { error: eIns } = await supabase
+          .from('vivienda_postventa_item')
+          .insert(rows)
+        if (eIns) {
+          console.error('No se pudieron insertar items template posventa', eIns)
+        } else {
+          // Verificación rápida de que se insertaron
+          const { count: cnt, error: eCount } = await supabase
+            .from('vivienda_postventa_item')
+            .select('id', { count: 'exact', head: true })
+            .eq('form_id', creado.id)
+          if (eCount) console.warn('Error contando items posventa recién insertados', eCount.message)
+          if (!cnt) console.warn('Advertencia: no se encontraron items insertados para el formulario posventa', creado.id)
+        }
+      }
+    } else {
+      console.warn('Formulario posventa creado sin templateId (no se poblaron items). Verificar templates activos.')
+    }
+
+    return res.status(201).json({ success: true, data: creado })
+  } catch (e) {
+    console.error('POST /api/beneficiario/posventa/form error:', e)
+    return res.status(500).json({ success: false, message: 'Error al crear formulario posventa' })
+  }
+})
+
+// Guardar items (reemplaza todos) – sólo en borrador
+// Actualizar sólo estado (ok, severidad, comentario, crear_incidencia) de items existentes (NO agregar/quitar)
+app.post('/api/beneficiario/posventa/form/items', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const updates = Array.isArray(req.body?.items) ? req.body.items : null
+    if (!updates) return res.status(400).json({ success: false, message: 'items requerido' })
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+    const { data: formRows, error: ef } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado')
+      .eq('id_vivienda', viv.id_vivienda)
+      .eq('estado', 'borrador')
+      .limit(1)
+    if (ef) throw ef
+    const form = Array.isArray(formRows) && formRows.length ? formRows[0] : null
+    if (!form) return res.status(409).json({ success: false, message: 'No hay formulario en borrador' })
+
+    // Obtener ids existentes para validar
+    const { data: existingItems, error: exErr } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id')
+      .eq('form_id', form.id)
+    if (exErr) throw exErr
+    const existingIds = new Set((existingItems || []).map(i => i.id))
+
+    const batched = []
+    for (const u of updates) {
+      if (!u || !existingIds.has(u.id)) continue // ignorar items no válidos
+      const row = {
+        ok: typeof u.ok === 'boolean' ? u.ok : undefined,
+        severidad: u.ok ? null : (u.severidad || null),
+        comentario: u.comentario || null,
+        crear_incidencia: u.ok ? false : (u.crear_incidencia === false ? false : true)
+      }
+      // Limpieza de undefined
+      Object.keys(row).forEach(k => { if (row[k] === undefined) delete row[k] })
+      batched.push({ id: u.id, data: row })
+    }
+
+    for (const b of batched) {
+      const { error: ue } = await supabase
+        .from('vivienda_postventa_item')
+        .update(b.data)
+        .eq('id', b.id)
+      if (ue) throw ue
+    }
+    return res.json({ success: true, updated: batched.length })
+  } catch (e) {
+    console.error('POST /api/beneficiario/posventa/form/items error:', e)
+    return res.status(500).json({ success: false, message: 'Error al actualizar items posventa' })
+  }
+})
+
+// Subir foto para item posventa específico (similar a incidencias) field: file
+app.post('/api/beneficiario/posventa/form/items/:id/foto', verifyToken, authorizeRole(['beneficiario','administrador']), upload.single('file'), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const itemId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(itemId)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const { data: item, error: eIt } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id, form_id, fotos_json')
+      .eq('id', itemId)
+      .maybeSingle()
+    if (eIt) throw eIt
+    if (!item) return res.status(404).json({ success: false, message: 'Item no encontrado' })
+    const { data: form, error: eFo } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, id_vivienda, estado')
+      .eq('id', item.form_id)
+      .maybeSingle()
+    if (eFo) throw eFo
+    if (!form || form.estado !== 'borrador') return res.status(409).json({ success: false, message: 'No editable' })
+    const { data: viv, error: eV } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, beneficiario_uid')
+      .eq('id_vivienda', form.id_vivienda)
+      .maybeSingle()
+    if (eV) throw eV
+    if (!viv || viv.beneficiario_uid !== beneficiarioUid) return res.status(403).json({ success: false, message: 'No autorizado' })
+    const f = req.file
+    if (!f) return res.status(400).json({ success: false, message: 'Archivo requerido' })
+    const ext = (f.originalname || '').split('.').pop()?.toLowerCase() || 'jpg'
+    const key = `posventa/${form.id}/${itemId}/${randomUUID()}.${ext}`
+    const { data: up, error: eup } = await supabase
+      .storage.from('incidencias') // reutilizamos bucket
+      .upload(key, f.buffer, { contentType: f.mimetype || 'application/octet-stream', upsert: false })
+    if (eup) throw eup
+    let fotos = []
+    try { fotos = Array.isArray(item.fotos_json) ? item.fotos_json : JSON.parse(item.fotos_json || '[]') } catch(_){}
+    fotos.push(key)
+    const { error: uItem } = await supabase
+      .from('vivienda_postventa_item')
+      .update({ fotos_json: fotos })
+      .eq('id', itemId)
+    if (uItem) throw uItem
+    const pub = supabase.storage.from('incidencias').getPublicUrl(key)
+    return res.json({ success: true, path: key, url: pub?.data?.publicUrl || null })
+  } catch (e) {
+    console.error('POST /api/beneficiario/posventa/form/items/:id/foto error:', e)
+    return res.status(500).json({ success: false, message: 'Error al subir foto item posventa' })
+  }
+})
+
+// Enviar formulario (cierra borrador)
+app.post('/api/beneficiario/posventa/form/enviar', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes una vivienda asignada' })
+
+    const { data: forms, error: ef } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado')
+      .eq('id_vivienda', viv.id_vivienda)
+      .eq('estado', 'borrador')
+      .order('id', { ascending: false })
+      .limit(1)
+    if (ef) throw ef
+    const form = Array.isArray(forms) && forms.length ? forms[0] : null
+    if (!form) return res.status(409).json({ success: false, message: 'No hay formulario en borrador' })
+
+    // Calcular conteos
+    const { count: noOkCount, error: eNo } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id', { count: 'exact', head: true })
+      .eq('form_id', form.id)
+      .eq('ok', false)
+    if (eNo) throw eNo
+
+    const { count: obsCount, error: eObs } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id', { count: 'exact', head: true })
+      .eq('form_id', form.id)
+      .eq('ok', false)
+      .eq('severidad', 'menor')
+    if (eObs) throw eObs
+
+    const { data: updated, error: eupd } = await supabase
+      .from('vivienda_postventa_form')
+      .update({ estado: 'enviada', fecha_enviada: new Date().toISOString(), items_no_ok_count: noOkCount || 0, observaciones_count: obsCount || 0 })
+      .eq('id', form.id)
+      .select('id, estado, fecha_enviada, items_no_ok_count, observaciones_count')
+      .single()
+    if (eupd) throw eupd
+
+    return res.json({ success: true, data: updated })
+  } catch (e) {
+    console.error('POST /api/beneficiario/posventa/form/enviar error:', e)
+    return res.status(500).json({ success: false, message: 'Error al enviar formulario posventa' })
+  }
+})
+
+// ------------------------------------------------------------
+// ADMIN – Gestión de Templates Posventa (creación básica)
+// Endpoints sencillos para permitir que un administrador cree y administre templates sin tocar SQL directo.
+
+// Listar templates (opcionalmente filtrar por tipo_vivienda o activo)
+app.get('/api/admin/posventa/templates', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const { tipo_vivienda, activo } = req.query
+    let q = supabase
+      .from('postventa_template')
+      .select('id, nombre, tipo_vivienda, version, activo, created_at')
+      .order('id', { ascending: false })
+    if (tipo_vivienda === 'null') q = q.is('tipo_vivienda', null)
+    else if (tipo_vivienda) q = q.eq('tipo_vivienda', tipo_vivienda)
+    if (activo === 'true') q = q.eq('activo', true)
+    else if (activo === 'false') q = q.eq('activo', false)
+    const { data, error } = await q
+    if (error) throw error
+    // Adjuntar items de cada template si se pide ?includeItems=1
+    if (req.query.includeItems === '1' && Array.isArray(data) && data.length) {
+      const ids = data.map(t => t.id)
+      const { data: items, error: eItems } = await supabase
+        .from('postventa_template_item')
+        .select('id, template_id, categoria, item, orden, severidad_sugerida')
+        .in('template_id', ids)
+        .order('orden', { ascending: true })
+      if (eItems) throw eItems
+      const byT = items?.reduce((m,it)=>{ (m[it.template_id]=m[it.template_id]||[]).push(it); return m }, {}) || {}
+      data.forEach(t => { t.items = byT[t.id] || [] })
+    }
+    return res.json({ success: true, data })
+  } catch (e) {
+    console.error('GET /api/admin/posventa/templates error:', e)
+    return res.status(500).json({ success: false, message: 'Error listando templates posventa' })
+  }
+})
+
+// Crear nuevo template con items
+// body: { nombre, tipo_vivienda (opcional/null), version (opcional), items: [{categoria,item,orden,severidad_sugerida}] }
+app.post('/api/admin/posventa/templates', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const { nombre, tipo_vivienda = null, version = 1, items } = req.body || {}
+    if (!nombre || typeof nombre !== 'string') return res.status(400).json({ success: false, message: 'nombre requerido' })
+    const insertT = { nombre, version: Number(version) || 1, activo: true }
+    if (tipo_vivienda) insertT.tipo_vivienda = tipo_vivienda
+    const { data: created, error: eCreate } = await supabase
+      .from('postventa_template')
+      .insert([insertT])
+      .select('id, nombre, tipo_vivienda, version, activo')
+      .single()
+    if (eCreate) throw eCreate
+    let insertedItems = 0
+    if (Array.isArray(items) && items.length) {
+      const norm = items.filter(it => it && it.categoria && it.item).map((it, idx) => ({
+        template_id: created.id,
+        categoria: it.categoria,
+        item: it.item,
+        orden: typeof it.orden === 'number' ? it.orden : (it.orden ? parseInt(it.orden,10) : (idx+1)),
+        severidad_sugerida: it.severidad_sugerida || null
+      }))
+      if (norm.length) {
+        const { error: eIns } = await supabase.from('postventa_template_item').insert(norm)
+        if (eIns) throw eIns
+        insertedItems = norm.length
+      }
+    }
+    return res.status(201).json({ success: true, data: { ...created, items_inserted: insertedItems } })
+  } catch (e) {
+    console.error('POST /api/admin/posventa/templates error:', e)
+    return res.status(500).json({ success: false, message: 'Error creando template posventa' })
+  }
+})
+
+// Activar / Desactivar template
+app.post('/api/admin/posventa/templates/:id/estado', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const { activo } = req.body || {}
+    if (typeof activo !== 'boolean') return res.status(400).json({ success: false, message: 'activo boolean requerido' })
+    const { data, error } = await supabase
+      .from('postventa_template')
+      .update({ activo })
+      .eq('id', id)
+      .select('id, nombre, tipo_vivienda, version, activo')
+      .single()
+    if (error) throw error
+    return res.json({ success: true, data })
+  } catch (e) {
+    console.error('POST /api/admin/posventa/templates/:id/estado error:', e)
+    return res.status(500).json({ success: false, message: 'Error actualizando estado template' })
+  }
+})
+
+// Clonar template a nueva versión (simple duplicado con version+1)
+app.post('/api/admin/posventa/templates/:id/clonar', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'ID inválido' })
+    const { data: tpl, error: eTpl } = await supabase
+      .from('postventa_template')
+      .select('id, nombre, tipo_vivienda, version, activo')
+      .eq('id', id)
+      .maybeSingle()
+    if (eTpl) throw eTpl
+    if (!tpl) return res.status(404).json({ success: false, message: 'Template no encontrado' })
+    const newVersion = tpl.version + 1
+    const { data: cloned, error: eClone } = await supabase
+      .from('postventa_template')
+      .insert([{ nombre: tpl.nombre + ' v' + newVersion, tipo_vivienda: tpl.tipo_vivienda, version: newVersion, activo: true }])
+      .select('id, nombre, tipo_vivienda, version, activo')
+      .single()
+    if (eClone) throw eClone
+    const { data: items, error: eItems } = await supabase
+      .from('postventa_template_item')
+      .select('categoria, item, orden, severidad_sugerida')
+      .eq('template_id', tpl.id)
+    if (eItems) throw eItems
+    if (Array.isArray(items) && items.length) {
+      const rows = items.map(it => ({ template_id: cloned.id, categoria: it.categoria, item: it.item, orden: it.orden, severidad_sugerida: it.severidad_sugerida || null }))
+      const { error: eIns } = await supabase.from('postventa_template_item').insert(rows)
+      if (eIns) throw eIns
+    }
+    return res.status(201).json({ success: true, data: cloned })
+  } catch (e) {
+    console.error('POST /api/admin/posventa/templates/:id/clonar error:', e)
+    return res.status(500).json({ success: false, message: 'Error clonando template' })
+  }
+})
+
+// Reset (borrar) formulario(s) posventa de una vivienda para que se regenere con el template actual.
+// DELETE lógico via eliminación directa (cascade items). Luego, cuando el beneficiario entre, se creará de nuevo automáticamente.
+// Parámetros: force=true para permitir borrar formularios ya 'enviada' (por defecto sólo borra 'borrador').
+app.post('/api/admin/posventa/vivienda/:id/reset', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const viviendaId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(viviendaId)) return res.status(400).json({ success: false, message: 'ID vivienda inválido' })
+    const force = req.body?.force === true || req.query.force === 'true'
+    // Seleccionar formularios existentes
+    let q = supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado')
+      .eq('id_vivienda', viviendaId)
+    if (!force) {
+      q = q.in('estado', ['borrador'])
+    }
+    const { data: forms, error: eSel } = await q
+    if (eSel) throw eSel
+    if (!forms || !forms.length) return res.status(404).json({ success: false, message: force ? 'No hay formularios para borrar' : 'No hay formularios en borrador para borrar' })
+    const ids = forms.map(f => f.id)
+    const { error: eDel } = await supabase
+      .from('vivienda_postventa_form')
+      .delete()
+      .in('id', ids)
+    if (eDel) throw eDel
+    return res.json({ success: true, deleted: ids.length, ids, force })
+  } catch (e) {
+    console.error('POST /api/admin/posventa/vivienda/:id/reset error:', e)
+    return res.status(500).json({ success: false, message: 'Error reseteando formulario posventa' })
+  }
+})

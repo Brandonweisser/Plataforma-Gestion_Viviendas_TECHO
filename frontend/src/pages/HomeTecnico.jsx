@@ -77,7 +77,7 @@ export default function HomeTecnico() {
             ))}
           </div>
         </SectionPanel>
-        <SectionPanel title="Incidencias Urgentes" description="Prioriza resoluciones críticas" as="section" variant='highlight'>
+  <SectionPanel title="Incidencias Urgentes" description="Prioriza resoluciones críticas" as="section" variant='highlight'>
           <ul className="space-y-3" aria-label="Listado de incidencias urgentes">
             {urgentIncidents.map(inc => (
               <li key={inc.id} className="card-surface p-4 flex flex-col sm:flex-row sm:items-start gap-4 border-l-4 border-orange-500 dark:border-orange-400">
@@ -88,13 +88,13 @@ export default function HomeTecnico() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${priorityColor(inc.prioridad)}`}>{inc.prioridad}</span>
-                  <button className="btn btn-primary text-xs px-3 py-1">Atender</button>
+                  <button className="btn btn-primary text-xs px-3 py-1" onClick={() => navigate('/tecnico/incidencias')}>Atender</button>
                 </div>
               </li>
             ))}
           </ul>
           <div className="mt-4 flex justify-end">
-            <button className="btn btn-secondary text-xs">Ver todas</button>
+            <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias')}>Ver todas</button>
           </div>
         </SectionPanel>
         <SectionPanel title="Agenda de Hoy" description="Actividades programadas" as="section">

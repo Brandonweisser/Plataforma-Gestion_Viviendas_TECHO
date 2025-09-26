@@ -2,7 +2,6 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
-import { StatCard } from "../components/ui/StatCard";
 import { SectionPanel } from "../components/ui/SectionPanel";
 import { DashboardLayout } from "../components/ui/DashboardLayout";
 import CardIncidencia from "../components/CardIncidencia";
@@ -46,7 +45,7 @@ export default function HomeBeneficiario() {
       setError(e.message || "No se pudo cargar la vivienda");
     }
     try {
-      const incs = await beneficiarioApi.listarIncidencias(10)
+  const incs = await beneficiarioApi.listarIncidencias(3, 0)
       setIncidencias(Array.isArray(incs.data) ? incs.data : [])
     } catch (e) {
       // No bloqueamos toda la vista si falla media; mostramos aviso pequeño
@@ -62,9 +61,10 @@ export default function HomeBeneficiario() {
     return (incidencias || []).filter(i => (i.estado || '').toLowerCase() !== 'cerrada').length;
   }, [incidencias]);
 
-  const viviendaId = vivData?.vivienda?.id_vivienda ? `#${vivData.vivienda.id_vivienda}` : "—";
+  // const viviendaId = vivData?.vivienda?.id_vivienda ? `#${vivData.vivienda.id_vivienda}` : "—"; // (ya se muestra dentro del hero)
   const viviendaEstado = vivData?.vivienda?.estado || "—";
   const tecnicoNombre = "Sin asignar"; // No tenemos aún endpoint para técnico asignado
+  const mostrarPosventa = (viviendaEstado || '').toLowerCase() === 'entregada';
 
   function openIncidenciaModal(defaults = {}) {
     setForm({ descripcion: defaults.descripcion || "", categoria: defaults.categoria || "" });
@@ -128,7 +128,7 @@ export default function HomeBeneficiario() {
       color: "bg-blue-500 hover:bg-blue-600",
       badge: `${activeReportsCount} activos`,
       urgent: false,
-      action: () => window.alert("Pronto: historial completo")
+  action: () => navigate('/beneficiario/incidencias')
     },
     {
       title: "Contacto con Mi Técnico",
@@ -148,19 +148,19 @@ export default function HomeBeneficiario() {
       urgent: false,
       action: () => console.log("Ver guías")
     },
-    {
-      title: "Programar Inspección",
-      description: "Solicitar una revisión programada de mi vivienda",
+    mostrarPosventa ? {
+      title: "Formulario Posventa",
+      description: "Checklist de evaluación después de la entrega",
       icon: <CalendarDaysIcon className={iconSize} />,
-      color: "bg-indigo-500 hover:bg-indigo-600",
-      badge: "Próxima: Mar 20",
+      color: "bg-amber-500 hover:bg-amber-600",
+      badge: "Nuevo",
       urgent: false,
-      action: () => console.log("Programar inspección")
-    }
+      action: () => navigate('/beneficiario/posventa')
+    } : null
   ];
 
   const recentReports = useMemo(() => {
-    return (incidencias || []).slice(0, 5).map((it) => ({
+    return (incidencias || []).slice(0, 3).map((it) => ({
       id: it.id_incidencia,
       type: it.categoria || 'General',
       status: (it.estado || '').replace(/^./, c => c.toUpperCase()),
@@ -191,30 +191,69 @@ export default function HomeBeneficiario() {
         <div className="mb-4 p-3 rounded bg-blue-50 text-blue-700 text-sm border border-blue-200">Cargando…</div>
       )}
       <div aria-label="Panel principal beneficiario" className="w-full">
-        <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gradient-brand mb-2 dark:text-transparent">Bienvenido a tu hogar</h2>
-            <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Administra tu vivienda y reporta cualquier problema que necesite atención.</p>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            <button className="btn-primary text-xs" onClick={() => openIncidenciaModal()}>Reportar problema</button>
-            <button className="btn-outline text-xs">Ver guías</button>
+        {/* Hero bienvenida / info vivienda */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-white border border-sky-100 shadow-sm dark:bg-slate-800 dark:border-slate-600 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
+          {/* Capa de gradiente suave (celeste→blanco→amarillo) - en dark usamos un degradado más luminoso para contraste */}
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700" />
+          {/* Halos sutiles */}
+          <div className="pointer-events-none absolute -top-8 -left-8 h-40 w-40 rounded-full bg-sky-100/70 blur-2xl mix-blend-multiply dark:bg-sky-400/20" />
+          <div className="pointer-events-none absolute -bottom-10 -right-10 h-48 w-48 rounded-full bg-amber-100/70 blur-2xl mix-blend-multiply dark:bg-amber-300/10" />
+          <div className="relative px-8 py-10 md:px-14 md:py-14">
+            <div className="flex flex-col md:flex-row md:items-center gap-10">
+              {/* Icono principal */}
+              <div className="flex-shrink-0">
+                <div className="grid place-items-center h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-100 to-white border border-sky-200 shadow-inner dark:from-sky-700/30 dark:to-slate-700 dark:border-slate-600">
+                  <HomeModernIcon className="h-16 w-16 text-sky-700 dark:text-sky-200" />
+                </div>
+              </div>
+              {/* Texto bienvenida */}
+              <div className="flex-1 min-w-0">
+                {(() => { const nombre = user?.nombre || user?.username || (user?.email ? user.email.split('@')[0] : 'Usuario'); return (
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-sky-700 via-sky-800 to-sky-600 dark:from-sky-200 dark:via-sky-100 dark:to-sky-300">Bienvenido a tu hogar, {nombre}</h2>
+                ) })()}
+                <ul className="space-y-1 text-sky-800 dark:text-slate-200 text-sm sm:text-base mb-6 leading-relaxed">
+                  <li><span className="font-semibold text-sky-900 dark:text-white">Dirección:</span> {vivData?.vivienda?.direccion || vivData?.vivienda?.direccion_principal || 'No registrada'}</li>
+                  <li><span className="font-semibold text-sky-900 dark:text-white">Estado:</span> {viviendaEstado}</li>
+                  {vivData?.vivienda?.id_vivienda && (
+                    <li><span className="font-semibold text-sky-900 dark:text-white">ID Vivienda:</span> #{vivData.vivienda.id_vivienda}</li>
+                  )}
+                </ul>
+                <div className="flex flex-wrap gap-4">
+                  <button className="btn-primary text-sm px-5 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sky-500 dark:focus:ring-offset-slate-800" onClick={() => openIncidenciaModal()}>Reportar problema</button>
+                  <button className="text-sm px-5 rounded-md bg-amber-400 hover:bg-amber-500 text-sky-900 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-400 dark:focus:ring-offset-slate-800">Ver guías</button>
+                </div>
+              </div>
+              {/* Mini KPIs */}
+              <div className="flex flex-col gap-4 w-full md:w-64">
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/95 border border-sky-100 shadow-sm dark:bg-slate-700/80 dark:border-slate-500/80 backdrop-blur">
+                  <div className="h-10 w-10 rounded-lg grid place-items-center bg-sky-100 text-sky-700 dark:bg-sky-500/30 dark:text-sky-200">
+                    <WrenchScrewdriverIcon className="h-5 w-5" />
+                  </div>
+                  <div className="leading-tight">
+                    <p className="text-[11px] font-semibold tracking-wide text-sky-700 dark:text-sky-200 uppercase">Reportes activos</p>
+                    <p className="text-xl font-bold text-sky-800 dark:text-white">{activeReportsCount}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-white/95 border border-sky-100 shadow-sm dark:bg-slate-700/80 dark:border-slate-500/80 backdrop-blur">
+                  <div className="h-10 w-10 rounded-lg grid place-items-center bg-amber-100 text-amber-600 dark:bg-amber-400/25 dark:text-amber-300">
+                    <UserCircleIcon className="h-5 w-5" />
+                  </div>
+                  <div className="leading-tight">
+                    <p className="text-[11px] font-semibold tracking-wide text-amber-600 dark:text-amber-300 uppercase">Técnico</p>
+                    <p className="text-sm font-medium text-sky-800 dark:text-white">{tecnicoNombre}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Stats */}
-        <section aria-label="Indicadores rápidos" className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          <StatCard icon={<HomeModernIcon className="h-6 w-6" />} label="Vivienda" value={viviendaId} subtitle={`Estado: ${viviendaEstado}`} />
-          <StatCard icon={<WrenchScrewdriverIcon className="h-6 w-6" />} label="Reportes activos" value={String(activeReportsCount)} subtitle="En seguimiento" />
-          <StatCard icon={<UserCircleIcon className="h-6 w-6" />} label="Técnico" value={tecnicoNombre} subtitle="Asignado" />
-        </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Acciones principales */}
           <section aria-label="Acciones principales" className="xl:col-span-2">
             <h3 className="sr-only">Acciones principales</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {beneficiarioSections.map((section, index) => (
+              {beneficiarioSections.filter(Boolean).map((section, index) => (
                 <ActionCard
                   key={index}
                   title={section.title}
@@ -248,7 +287,7 @@ export default function HomeBeneficiario() {
               ))}
             </ul>
             <div className="mt-6">
-              <button className="btn-primary w-full text-sm">Ver todos los reportes</button>
+              <button className="btn-primary w-full text-sm" onClick={() => navigate('/beneficiario/incidencias')}>Ver todos los reportes</button>
             </div>
           </SectionPanel>
         </div>
@@ -282,29 +321,29 @@ export default function HomeBeneficiario() {
 
                 {/* Modal detalle incidencia */}
                 {detailInc && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <h3 className="text-lg font-semibold">Detalle reporte #{detailInc.id_incidencia}</h3>
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-2xl p-6 md:p-7">
+                      <div className="flex items-start justify-between mb-5">
+                        <h3 className="text-lg md:text-xl font-semibold text-slate-800 dark:text-white">Detalle reporte #{detailInc.id_incidencia}</h3>
                         <button className="btn-outline" onClick={() => setDetailInc(null)}>Cerrar</button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <p className="text-sm mb-2"><span className="font-medium">Estado:</span> {detailInc.estado}</p>
-                          <p className="text-sm mb-2"><span className="font-medium">Categoría:</span> {detailInc.categoria || '—'}</p>
-                          <p className="text-sm mb-2"><span className="font-medium">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
-                          <p className="text-sm mb-2"><span className="font-medium">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
-                          <p className="text-sm"><span className="font-medium">Descripción:</span><br />{detailInc.descripcion}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 text-slate-700 dark:text-slate-200">
+                        <div className="space-y-2 text-sm leading-relaxed">
+                          <p><span className="font-medium text-slate-900 dark:text-white">Estado:</span> {detailInc.estado}</p>
+                          <p><span className="font-medium text-slate-900 dark:text-white">Categoría:</span> {detailInc.categoria || '—'}</p>
+                          <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
+                          <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
+                          <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
                         </div>
                         <div>
-                          <p className="text-sm font-medium mb-2">Fotos</p>
+                          <p className="text-sm font-medium mb-2 text-slate-800 dark:text-slate-100">Fotos</p>
                           <div className="flex flex-wrap gap-2">
                             {Array.isArray(detailInc.media) && detailInc.media.length > 0 ? (
                               detailInc.media.map(m => (
-                                <img key={m.id || m.url} src={m.url} alt="foto" className="h-24 w-24 object-cover rounded border" />
+                                <img key={m.id || m.url} src={m.url} alt="foto" className="h-24 w-24 object-cover rounded border border-slate-300 dark:border-slate-600" />
                               ))
                             ) : (
-                              <p className="text-sm text-techo-gray-500">Sin fotos</p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">Sin fotos</p>
                             )}
                           </div>
                           <div className="mt-3">
@@ -318,14 +357,14 @@ export default function HomeBeneficiario() {
 
                 {/* Modal crear incidencia */}
                 {isModalOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                      <h3 className="text-lg font-semibold mb-4">Reportar problema</h3>
-                      <form onSubmit={submitIncidencia} className="space-y-4">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-md p-6 md:p-7">
+                      <h3 className="text-lg md:text-xl font-semibold mb-5 text-slate-800 dark:text-white">Reportar problema</h3>
+                      <form onSubmit={submitIncidencia} className="space-y-5">
                         <div>
-                          <label className="block text-sm mb-1">Descripción</label>
+                          <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-200">Descripción</label>
                           <textarea
-                            className="w-full border rounded px-3 py-2 resize-none"
+                            className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 px-3 py-2 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none"
                             rows={3}
                             value={form.descripcion}
                             onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
@@ -333,11 +372,11 @@ export default function HomeBeneficiario() {
                             required
                           />
                         </div>
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 gap-4">
                           <div>
-                            <label className="block text-sm mb-1">Categoría</label>
+                            <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-200">Categoría</label>
                             <select
-                              className="w-full border rounded px-3 py-2"
+                              className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                               value={form.categoria}
                               onChange={(e) => setForm({ ...form, categoria: e.target.value })}
                             >
@@ -349,19 +388,20 @@ export default function HomeBeneficiario() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-sm mb-1">Fotos (opcional)</label>
+                            <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-200">Fotos (opcional)</label>
                             <input
                               type="file"
                               accept="image/*"
                               multiple
+                              className="text-sm text-slate-700 dark:text-slate-200 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border file:border-slate-300 dark:file:border-slate-500 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-600"
                               onChange={(e) => setModalFiles(Array.from(e.target.files || []).slice(0,5))}
                             />
                             {modalFiles.length > 0 && (
-                              <p className="text-xs text-techo-gray-500 mt-1">{modalFiles.length} archivo(s) seleccionado(s)</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{modalFiles.length} archivo(s) seleccionado(s)</p>
                             )}
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex justify-end gap-3 pt-2">
                           <button type="button" className="btn-outline" onClick={() => setModalOpen(false)} disabled={creating}>Cancelar</button>
                           <button type="submit" className="btn-primary" disabled={creating}>{creating ? 'Enviando…' : 'Crear incidencia'}</button>
                         </div>

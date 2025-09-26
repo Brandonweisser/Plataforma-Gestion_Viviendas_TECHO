@@ -9,6 +9,10 @@ import HomeAdministrador from "./pages/HomeAdministrador";
 import HomeTecnico from "./pages/HomeTecnico";
 import HomeBeneficiario from "./pages/HomeBeneficiario";
 import BeneficiarioDashboard from "./pages/beneficiario/Dashboard";
+import IncidenciasHistorial from "./pages/IncidenciasHistorial";
+import PosventaFormPage from "./pages/PosventaForm";
+import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
+import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 
 export default function App() {
@@ -32,12 +36,17 @@ export default function App() {
             </Route>
             <Route element={<RoleRoute allowed={["tecnico"]} />}> 
               <Route path="/tecnico" element={<HomeTecnico />} />
+              <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
+              <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
             </Route>
             <Route element={<RoleRoute allowed={["beneficiario"]} />}> 
               {/* UI pulida conectada al backend */}
               <Route path="/beneficiario" element={<HomeBeneficiario />} />
               {/* Vista técnica/debug con JSON crudo */}
               <Route path="/beneficiario/debug" element={<BeneficiarioDashboard />} />
+              {/* Historial completo de incidencias */}
+              <Route path="/beneficiario/incidencias" element={<IncidenciasHistorial />} />
+              <Route path="/beneficiario/posventa" element={<PosventaFormPage />} />
             </Route>
           </Route>
 
