@@ -7,6 +7,7 @@ import { supabase } from './supabaseClient.js'
 import dotenv from 'dotenv'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
+import { posventaPDFServiceAlternativo as posventaPDFService } from './services/PosventaPDFServiceAlternativo.js'
 
 dotenv.config()
 
@@ -1549,6 +1550,20 @@ app.post('/api/beneficiario/posventa/form/enviar', verifyToken, authorizeRole(['
       .single()
     if (eupd) throw eupd
 
+    // Generar PDF automáticamente en segundo plano
+    try {
+      console.log(`🔄 Generando PDF automáticamente para formulario ${form.id}...`)
+      const { buffer, filename } = await posventaPDFService.generarPDF(form.id)
+      await posventaPDFService.guardarPDFEnSupabase(form.id, buffer, filename)
+      console.log(`✅ PDF generado automáticamente: ${filename}`)
+      updated.pdf_generado = true
+      updated.pdf_filename = filename
+    } catch (pdfError) {
+      console.error('⚠️  Error generando PDF automático:', pdfError.message)
+      updated.pdf_generado = false
+      updated.pdf_error = pdfError.message
+    }
+
     return res.json({ success: true, data: updated })
   } catch (e) {
     console.error('POST /api/beneficiario/posventa/form/enviar error:', e)
@@ -1715,5 +1730,528 @@ app.post('/api/admin/posventa/vivienda/:id/reset', verifyToken, authorizeRole(['
   } catch (e) {
     console.error('POST /api/admin/posventa/vivienda/:id/reset error:', e)
     return res.status(500).json({ success: false, message: 'Error reseteando formulario posventa' })
+  }
+})
+
+// ------------------------------------------------------------
+// ENDPOINTS PARA GENERACIÓN Y GESTIÓN DE PDFs DE POSVENTA
+// ------------------------------------------------------------
+
+// Generar PDF de un formulario de posventa (automático al enviar formulario)
+app.post('/api/posventa/form/:id/generar-pdf', verifyToken, authorizeRole(['beneficiario', 'tecnico', 'administrador']), async (req, res) => {
+  try {
+    const formId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(formId)) {
+      return res.status(400).json({ success: false, message: 'ID de formulario inválido' })
+    }
+
+    // Verificar que el formulario existe y está enviado
+    const { data: form, error: formError } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado, beneficiario_uid, id_vivienda, pdf_path')
+      .eq('id', formId)
+      .single()
+
+    if (formError) throw formError
+    if (!form) {
+      return res.status(404).json({ success: false, message: 'Formulario no encontrado' })
+    }
+
+    // Verificar permisos (beneficiario solo puede generar su propio PDF)
+    const userRole = normalizeRole(req.user?.role)
+    if (userRole === 'beneficiario' && form.beneficiario_uid !== req.user?.sub) {
+      return res.status(403).json({ success: false, message: 'No autorizado para este formulario' })
+    }
+
+    // Si ya existe un PDF, devolverlo
+    if (form.pdf_path) {
+      const publicUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/formularios-pdf/${form.pdf_path}`
+      return res.json({ 
+        success: true, 
+        data: { 
+          pdf_path: form.pdf_path,
+          pdf_url: publicUrl,
+          already_exists: true
+        }
+      })
+    }
+
+    // Generar el PDF
+    console.log(`🔄 Generando PDF para formulario ${formId}...`)
+    const { buffer, filename, form: formData } = await posventaPDFService.generarPDF(formId)
+    
+    // Guardar en Supabase Storage
+    const { path, url } = await posventaPDFService.guardarPDFEnSupabase(formId, buffer, filename)
+    
+    console.log(`✅ PDF generado exitosamente: ${filename}`)
+    
+    return res.json({
+      success: true,
+      data: {
+        pdf_path: path,
+        pdf_url: url,
+        filename: filename,
+        form_id: formId,
+        beneficiario: formData.usuarios.nombre
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error generando PDF:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al generar PDF',
+      error: error.message 
+    })
+  }
+})
+
+// Descargar PDF existente
+app.get('/api/posventa/form/:id/pdf', verifyToken, authorizeRole(['beneficiario', 'tecnico', 'administrador']), async (req, res) => {
+  try {
+    const formId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(formId)) {
+      return res.status(400).json({ success: false, message: 'ID de formulario inválido' })
+    }
+
+    // Obtener información del formulario
+    const { data: form, error: formError } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado, beneficiario_uid, pdf_path, pdf_generated_at')
+      .eq('id', formId)
+      .single()
+
+    if (formError) throw formError
+    if (!form) {
+      return res.status(404).json({ success: false, message: 'Formulario no encontrado' })
+    }
+
+    // Verificar permisos
+    const userRole = normalizeRole(req.user?.role)
+    if (userRole === 'beneficiario' && form.beneficiario_uid !== req.user?.sub) {
+      return res.status(403).json({ success: false, message: 'No autorizado para este formulario' })
+    }
+
+    if (!form.pdf_path) {
+      return res.status(404).json({ success: false, message: 'PDF no generado aún' })
+    }
+
+    // Generar URL de descarga
+    const { data: urlData, error: urlError } = await supabase.storage
+      .from('formularios-pdf')
+      .createSignedUrl(form.pdf_path, 3600) // 1 hora de validez
+
+    if (urlError) throw urlError
+
+    return res.json({
+      success: true,
+      data: {
+        download_url: urlData.signedUrl,
+        pdf_path: form.pdf_path,
+        generated_at: form.pdf_generated_at,
+        expires_in: 3600
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error obteniendo PDF:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener PDF',
+      error: error.message 
+    })
+  }
+})
+
+// Lista de formularios de posventa para técnicos (con información de PDFs)
+app.get('/api/tecnico/posventa/formularios', verifyToken, authorizeRole(['tecnico', 'administrador']), async (req, res) => {
+  try {
+    const limitReq = parseInt(req.query.limit, 10)
+    const limit = Number.isFinite(limitReq) ? Math.min(Math.max(limitReq, 1), 100) : 50
+    const offsetReq = parseInt(req.query.offset, 10)
+    const offset = Number.isFinite(offsetReq) && offsetReq >= 0 ? offsetReq : 0
+    
+    // Filtros opcionales
+    const estadoFilter = (req.query.estado || '').toString().trim()
+    const searchRaw = (req.query.search || '').toString().trim()
+    const search = searchRaw.length >= 2 ? searchRaw : ''
+    const conPDF = req.query.con_pdf === 'true'
+    const sinPDF = req.query.sin_pdf === 'true'
+
+    // Query base con joins para obtener datos del beneficiario y vivienda
+    let baseQuery = supabase
+      .from('vivienda_postventa_form')
+      .select(`
+        id,
+        estado,
+        fecha_creada,
+        fecha_enviada,
+        fecha_revisada,
+        items_no_ok_count,
+        observaciones_count,
+        pdf_path,
+        pdf_generated_at,
+        viviendas!id_vivienda (
+          id_vivienda,
+          direccion,
+          tipo_vivienda,
+          proyecto:id_proyecto (
+            nombre,
+            ubicacion
+          )
+        ),
+        usuarios!beneficiario_uid (
+          uid,
+          nombre,
+          email,
+          rut
+        )
+      `, { count: 'exact' })
+
+    // Aplicar filtros
+    if (estadoFilter) {
+      baseQuery = baseQuery.eq('estado', estadoFilter)
+    }
+    
+    if (conPDF) {
+      baseQuery = baseQuery.not('pdf_path', 'is', null)
+    }
+    
+    if (sinPDF) {
+      baseQuery = baseQuery.is('pdf_path', null)
+    }
+
+    // Para búsqueda por nombre de beneficiario, necesitamos hacerlo diferente
+    if (search) {
+      // Buscar por nombre de beneficiario o dirección de vivienda
+      // Nota: Supabase no permite filtros complejos en joins, así que obtenemos todos y filtramos después
+      // En un caso real, se podría hacer con una vista o procedimiento almacenado
+    }
+
+    const { data: formularios, error: formError, count: totalCount } = await baseQuery
+      .order('fecha_enviada', { ascending: false, nullsFirst: false })
+      .order('fecha_creada', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (formError) throw formError
+
+    // Filtrar por búsqueda si es necesario (post-procesamiento)
+    let filteredFormularios = formularios || []
+    if (search) {
+      filteredFormularios = filteredFormularios.filter(form => 
+        form.usuarios?.nombre?.toLowerCase().includes(search.toLowerCase()) ||
+        form.viviendas?.direccion?.toLowerCase().includes(search.toLowerCase()) ||
+        form.usuarios?.email?.toLowerCase().includes(search.toLowerCase())
+      )
+    }
+
+    // Enriquecer con información adicional
+    const enrichedFormularios = filteredFormularios.map(form => ({
+      ...form,
+      beneficiario: {
+        uid: form.usuarios?.uid,
+        nombre: form.usuarios?.nombre,
+        email: form.usuarios?.email,
+        rut: form.usuarios?.rut
+      },
+      vivienda: {
+        id: form.viviendas?.id_vivienda,
+        direccion: form.viviendas?.direccion,
+        tipo: form.viviendas?.tipo_vivienda,
+        proyecto: form.viviendas?.proyecto?.nombre || 'Sin proyecto'
+      },
+      pdf: {
+        existe: !!form.pdf_path,
+        path: form.pdf_path,
+        generado_en: form.pdf_generated_at,
+        url_publica: form.pdf_path ? 
+          `${process.env.SUPABASE_URL}/storage/v1/object/public/formularios-pdf/${form.pdf_path}` : 
+          null
+      },
+      // Eliminar campos redundantes
+      usuarios: undefined,
+      viviendas: undefined,
+      pdf_path: undefined,
+      pdf_generated_at: undefined
+    }))
+
+    return res.json({
+      success: true,
+      data: enrichedFormularios,
+      meta: {
+        total: search ? filteredFormularios.length : (totalCount || 0),
+        limit,
+        offset,
+        hasMore: (offset + enrichedFormularios.length) < (totalCount || 0),
+        filters: {
+          estado: estadoFilter || null,
+          search: search || null,
+          con_pdf: conPDF,
+          sin_pdf: sinPDF
+        }
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error obteniendo formularios para técnico:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener formularios de posventa',
+      error: error.message 
+    })
+  }
+})
+
+// Obtener detalles de un formulario específico de posventa para técnico
+app.get('/api/tecnico/posventa/form/:id', verifyToken, authorizeRole(['tecnico', 'administrador']), async (req, res) => {
+  try {
+    const formId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(formId)) {
+      return res.status(400).json({ success: false, message: 'ID de formulario inválido' })
+    }
+
+    // Obtener datos del formulario con información completa
+    const { data: formulario, error: formError } = await supabase
+      .from('vivienda_postventa_form')
+      .select(`
+        id,
+        estado,
+        fecha_creada,
+        fecha_enviada,
+        fecha_revisada,
+        comentario_tecnico,
+        items_no_ok_count,
+        observaciones_count,
+        pdf_path,
+        pdf_generated_at,
+        viviendas!id_vivienda (
+          id_vivienda,
+          direccion,
+          tipo_vivienda,
+          fecha_entrega,
+          proyecto:id_proyecto (
+            nombre,
+            ubicacion
+          )
+        ),
+        usuarios!beneficiario_uid (
+          nombre,
+          email,
+          rut,
+          direccion
+        )
+      `)
+      .eq('id', formId)
+      .single()
+
+    if (formError) throw formError
+    if (!formulario) {
+      return res.status(404).json({ success: false, message: 'Formulario no encontrado' })
+    }
+
+    // Obtener items del formulario
+    const { data: items, error: itemsError } = await supabase
+      .from('vivienda_postventa_item')
+      .select('id, form_id, categoria, item, ok, severidad, comentario, fotos_json, crear_incidencia, incidencia_id, orden')
+      .eq('form_id', formId)
+      .order('orden')
+
+    if (itemsError) throw itemsError
+
+    return res.json({
+      success: true,
+      data: {
+        formulario: {
+          ...formulario,
+          beneficiario: formulario.usuarios,
+          vivienda: formulario.viviendas
+        },
+        items: items || []
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error obteniendo formulario específico:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener formulario',
+      error: error.message 
+    })
+  }
+})
+
+// Endpoint para que técnico marque formulario de posventa como revisado
+app.post('/api/tecnico/posventa/form/:id/revisar', verifyToken, authorizeRole(['tecnico', 'administrador']), async (req, res) => {
+  try {
+    const formId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(formId)) {
+      return res.status(400).json({ success: false, message: 'ID de formulario inválido' })
+    }
+
+    const { comentario_tecnico, generar_incidencias = true } = req.body
+
+    // Verificar que el formulario existe y está enviado
+    const { data: form, error: formError } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado, id_vivienda')
+      .eq('id', formId)
+      .single()
+
+    if (formError) throw formError
+    if (!form) {
+      return res.status(404).json({ success: false, message: 'Formulario no encontrado' })
+    }
+
+    if (form.estado !== 'enviada') {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Solo se pueden revisar formularios en estado "enviada"' 
+      })
+    }
+
+    // Actualizar estado del formulario
+    const updateData = {
+      estado: 'revisada',
+      fecha_revisada: new Date().toISOString()
+    };
+    
+    // Solo agregar comentario_tecnico si la columna existe
+    if (comentario_tecnico) {
+      updateData.comentario_tecnico = comentario_tecnico;
+    }
+    
+    const { data: updatedForm, error: updateError } = await supabase
+      .from('vivienda_postventa_form')
+      .update(updateData)
+      .eq('id', formId)
+      .select('id, estado, fecha_revisada')
+      .single()
+
+    if (updateError) throw updateError
+
+    let incidenciasCreadas = 0
+
+    // Generar incidencias automáticamente para items con problemas
+    if (generar_incidencias) {
+      const { data: itemsConProblemas, error: itemsError } = await supabase
+        .from('vivienda_postventa_item')
+        .select('id, categoria, item, severidad, comentario, crear_incidencia')
+        .eq('form_id', formId)
+        .eq('ok', false)
+        .eq('crear_incidencia', true)
+        .is('incidencia_id', null) // Solo items sin incidencia ya creada
+
+      if (itemsError) throw itemsError
+
+      if (itemsConProblemas && itemsConProblemas.length > 0) {
+        for (const item of itemsConProblemas) {
+          try {
+            const descripcion = `[Posventa] ${item.categoria} - ${item.item}${item.comentario ? `: ${item.comentario}` : ''}`
+            
+            // Determinar prioridad basada en severidad
+            let prioridad = 'media'
+            if (item.severidad === 'mayor') prioridad = 'alta'
+            else if (item.severidad === 'menor') prioridad = 'baja'
+
+            // Crear incidencia
+            const { data: nuevaIncidencia, error: incidenciaError } = await supabase
+              .from('incidencias')
+              .insert([{
+                id_vivienda: form.id_vivienda,
+                id_usuario_reporta: req.user?.sub, // El técnico que revisa
+                descripcion: descripcion,
+                estado: 'abierta',
+                categoria: item.categoria,
+                prioridad: prioridad,
+                prioridad_origen: prioridad,
+                prioridad_final: prioridad,
+                fecha_reporte: new Date().toISOString()
+              }])
+              .select('id_incidencia')
+              .single()
+
+            if (!incidenciaError && nuevaIncidencia) {
+              // Vincular item con la incidencia creada
+              await supabase
+                .from('vivienda_postventa_item')
+                .update({ incidencia_id: nuevaIncidencia.id_incidencia })
+                .eq('id', item.id)
+
+              // Registrar en historial
+              await logIncidenciaEvent({
+                incidenciaId: nuevaIncidencia.id_incidencia,
+                actorUid: req.user?.sub,
+                actorRol: 'tecnico',
+                tipo: 'creada_desde_posventa',
+                estadoNuevo: 'abierta',
+                comentario: `Generada automáticamente desde formulario de posventa #${formId}`,
+                metadata: { 
+                  postventa_form_id: formId,
+                  postventa_item_id: item.id,
+                  severidad: item.severidad 
+                }
+              })
+
+              incidenciasCreadas++
+            }
+          } catch (error) {
+            console.error(`Error creando incidencia para item ${item.id}:`, error)
+          }
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        formulario: updatedForm,
+        incidencias_creadas: incidenciasCreadas,
+        mensaje: incidenciasCreadas > 0 ? 
+          `Formulario revisado. Se crearon ${incidenciasCreadas} incidencias automáticamente.` :
+          'Formulario revisado exitosamente.'
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error revisando formulario de posventa:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al revisar formulario de posventa',
+      error: error.message 
+    })
+  }
+})
+
+// Hook automático: generar PDF cuando un formulario se envía
+// Este endpoint se puede llamar automáticamente desde el envío del formulario
+app.post('/api/internal/posventa/auto-generar-pdf/:id', async (req, res) => {
+  try {
+    const formId = parseInt(req.params.id, 10)
+    if (!Number.isFinite(formId)) {
+      return res.status(400).json({ success: false, message: 'ID inválido' })
+    }
+
+    // Verificar que el formulario está en estado 'enviada' y no tiene PDF
+    const { data: form, error: formError } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, estado, pdf_path')
+      .eq('id', formId)
+      .single()
+
+    if (formError || !form || form.estado !== 'enviada' || form.pdf_path) {
+      return res.json({ success: true, message: 'No requiere generación de PDF' })
+    }
+
+    // Generar PDF en segundo plano
+    const { buffer, filename } = await posventaPDFService.generarPDF(formId)
+    await posventaPDFService.guardarPDFEnSupabase(formId, buffer, filename)
+
+    console.log(`📄 PDF generado automáticamente para formulario ${formId}: ${filename}`)
+    
+    return res.json({ success: true, message: 'PDF generado automáticamente' })
+
+  } catch (error) {
+    console.error('❌ Error en generación automática de PDF:', error)
+    return res.json({ success: false, error: error.message })
   }
 })

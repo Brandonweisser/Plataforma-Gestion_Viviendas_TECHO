@@ -14,18 +14,32 @@ function authHeaders() {
 }
 
 async function request(path, options = {}) {
+  const token = getToken();
+  console.log('🔐 API Request - Path:', path);
+  console.log('🔐 API Request - Token presente:', !!token);
+  console.log('🔐 API Request - Token (primeros 20):', token?.substring(0, 20) + '...');
+  
   const mergedHeaders = {
     'Content-Type': 'application/json',
     ...authHeaders(),
     ...(options.headers || {})
   };
+  
+  console.log('📡 API Request - URL completa:', `${BASE_URL}${path}`);
+  console.log('📡 API Request - Headers:', mergedHeaders);
+  
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers: mergedHeaders });
+  console.log('📡 API Response - Status:', res.status, res.statusText);
+  
   const data = await res.json().catch(() => ({}));
+  console.log('📡 API Response - Data:', data);
+  
   if (!res.ok || data.success === false) {
     const message = data.message || `Error HTTP ${res.status}`;
     const error = new Error(message);
     error.status = res.status;
     error.data = data;
+    console.error('❌ API Error:', error);
     throw error;
   }
   return data;

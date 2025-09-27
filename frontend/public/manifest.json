@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "TECHO Viviendas",
+  "name": "Plataforma de Gestión de Viviendas - TECHO",
   "icons": [
     {
       "src": "favicon.ico",
@@ -8,18 +8,17 @@
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "LOGO-TECHO-COLOR-768x768.png",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "192x192 512x512 768x768",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#FF6B35",
+  "background_color": "#ffffff",
+  "description": "Sistema de gestión de viviendas para TECHO",
+  "lang": "es",
+  "scope": "/"
 }

@@ -24,19 +24,24 @@ export default function HomeTecnico() {
   const handleLogout = () => { logout(); navigate("/"); };
   const iconSize = 'h-6 w-6';
 
+  console.log('🏠 HomeTecnico - Estado de autenticación:');
+  console.log('  - user:', user);
+  console.log('  - localStorage user:', localStorage.getItem('user'));
+  console.log('  - localStorage token:', localStorage.getItem('token'));
+
   const tools = [
-    { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: '12 asignadas', action: () => console.log('Asignaciones'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
-    { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: '3 urgentes', action: () => console.log('Críticas'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
+    { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: '12 asignadas', action: () => navigate('/tecnico/incidencias'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
+    { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: '8 pendientes', action: () => navigate('/tecnico/posventa'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
+    { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: '3 urgentes', action: () => navigate('/tecnico/incidencias'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
     { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: '5 hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
-    { title: 'Centro de Reportes', description: 'Crear reportes técnicos detallados', badge: 'Nuevo', action: () => console.log('Reportes'), icon: <DocumentTextIcon className={iconSize} />, accent: 'indigo' },
     { title: 'Gestión de Inventario', description: 'Control de materiales y herramientas', badge: '85% stock', action: () => console.log('Inventario'), icon: <CubeIcon className={iconSize} />, accent: 'purple' },
     { title: 'Centro de Comunicación', description: 'Chat con actores relevantes', badge: '4 mensajes', action: () => console.log('Comunicación'), icon: <ChatBubbleBottomCenterTextIcon className={iconSize} />, accent: 'teal' }
   ];
 
   const urgentIncidents = [
-    { id: 1, vivienda: 'Casa #45', problema: 'Filtración de agua', prioridad: 'Alta', fecha: '2024-01-16' },
-    { id: 2, vivienda: 'Casa #23', problema: 'Problema eléctrico', prioridad: 'Media', fecha: '2024-01-15' },
-    { id: 3, vivienda: 'Casa #67', problema: 'Puerta dañada', prioridad: 'Baja', fecha: '2024-01-14' }
+    { id: 101, vivienda: 'Casa #45', problema: 'Filtración de agua en techo', prioridad: 'Alta', fecha: '2024-01-16', descripcion: 'Goteras importantes en habitación principal' },
+    { id: 102, vivienda: 'Casa #23', problema: 'Problema eléctrico', prioridad: 'Media', fecha: '2024-01-15', descripcion: 'Cortes intermitentes de energía' },
+    { id: 103, vivienda: 'Casa #67', problema: 'Puerta dañada', prioridad: 'Baja', fecha: '2024-01-14', descripcion: 'Puerta principal no cierra correctamente' }
   ];
   const priorityColor = (p) => ({
     'Alta': 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
@@ -80,21 +85,48 @@ export default function HomeTecnico() {
   <SectionPanel title="Incidencias Urgentes" description="Prioriza resoluciones críticas" as="section" variant='highlight'>
           <ul className="space-y-3" aria-label="Listado de incidencias urgentes">
             {urgentIncidents.map(inc => (
-              <li key={inc.id} className="card-surface p-4 flex flex-col sm:flex-row sm:items-start gap-4 border-l-4 border-orange-500 dark:border-orange-400">
+              <li 
+                key={inc.id} 
+                className="card-surface p-4 flex flex-col sm:flex-row sm:items-start gap-4 border-l-4 border-orange-500 dark:border-orange-400 hover:bg-gray-50 dark:hover:bg-techo-gray-700 transition-colors cursor-pointer group" 
+                onClick={() => {
+                  console.log('🖱️ Clic en incidencia:', inc.id);
+                  console.log('🔍 Estado antes de navegar:');
+                  console.log('  - user en contexto:', user);
+                  console.log('  - localStorage user:', localStorage.getItem('user'));
+                  console.log('  - localStorage token:', localStorage.getItem('token'));
+                  navigate(`/tecnico/incidencias/${inc.id}`);
+                }}
+              >
                 <div className="flex-1">
-                  <h4 className="font-semibold text-sm text-techo-gray-800 dark:text-white mb-0.5">{inc.vivienda}</h4>
-                  <p className="text-xs text-techo-gray-600 dark:text-techo-gray-400">{inc.problema}</p>
-                  <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400 mt-1">Reportado: {inc.fecha}</p>
+                  <h4 className="font-semibold text-sm text-techo-gray-800 dark:text-white mb-0.5 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{inc.vivienda}</h4>
+                  <p className="text-xs text-techo-gray-600 dark:text-techo-gray-400 mb-1">{inc.problema}</p>
+                  {inc.descripcion && (
+                    <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400 mb-1">{inc.descripcion}</p>
+                  )}
+                  <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400">Reportado: {inc.fecha}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${priorityColor(inc.prioridad)}`}>{inc.prioridad}</span>
-                  <button className="btn btn-primary text-xs px-3 py-1" onClick={() => navigate('/tecnico/incidencias')}>Atender</button>
+                  <button 
+                    className="btn btn-primary text-xs px-3 py-1 group-hover:bg-orange-600 group-hover:border-orange-600 transition-colors" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('🖱️ Clic en botón Ver Detalle:', inc.id);
+                      console.log('🔍 Estado antes de navegar:');
+                      console.log('  - user en contexto:', user);
+                      console.log('  - localStorage user:', localStorage.getItem('user'));
+                      console.log('  - localStorage token:', localStorage.getItem('token'));
+                      navigate(`/tecnico/incidencias/${inc.id}`);
+                    }}
+                  >
+                    Ver Detalle
+                  </button>
                 </div>
               </li>
             ))}
           </ul>
           <div className="mt-4 flex justify-end">
-            <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias')}>Ver todas</button>
+            <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias')}>Ver todas las incidencias</button>
           </div>
         </SectionPanel>
         <SectionPanel title="Agenda de Hoy" description="Actividades programadas" as="section">

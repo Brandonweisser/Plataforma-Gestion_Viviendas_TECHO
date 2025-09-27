@@ -110,7 +110,7 @@ export default function HomeBeneficiario() {
       color: "bg-green-500 hover:bg-green-600",
       badge: vivData?.flags?.tiene_recepcion_activa ? "Activa" : "Sin recepción",
       urgent: false,
-      action: () => window.alert("Pronto: detalle de vivienda")
+      action: () => navigate('/beneficiario/estado-vivienda')
     },
     {
       title: "Reportar Problema Urgente",

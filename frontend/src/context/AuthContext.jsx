@@ -8,59 +8,96 @@ export const AuthContext = createContext({
   user: null,
   role: null,
   isAuthenticated: false,
+  isLoading: true,
   login: () => console.warn("AuthContext.login called outside provider"),
   logout: () => console.warn("AuthContext.logout called outside provider")
 });
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  console.log('👤 AuthProvider - Estado actual del usuario:', user);
+  console.log('⏳ AuthProvider - isLoading:', isLoading);
 
   useEffect(() => {
+    console.log('🔍 AuthProvider - Iniciando verificación de autenticación...');
     const savedUserRaw = localStorage.getItem("user");
     const savedToken = localStorage.getItem("token");
-    if (savedToken && !savedUserRaw) {
-      // Intentar reconstruir desde token solo (mínimo role)
-      const decoded = decodeJwt(savedToken);
-      if (decoded) {
-        const rebuilt = { token: savedToken, role: decoded.role };
-        setUser(rebuilt);
-        localStorage.setItem("user", JSON.stringify(rebuilt));
-        return;
+    
+    console.log('💾 AuthProvider - savedUserRaw:', savedUserRaw);
+    console.log('🎫 AuthProvider - savedToken presente:', !!savedToken);
+    console.log('🎫 AuthProvider - savedToken (primeros 20):', savedToken?.substring(0, 20) + '...');
+    
+    try {
+      if (savedToken && !savedUserRaw) {
+        console.log('🔧 AuthProvider - Intentando reconstruir desde token...');
+        // Intentar reconstruir desde token solo (mínimo role)
+        const decoded = decodeJwt(savedToken);
+        console.log('🔓 AuthProvider - Token decodificado:', decoded);
+        if (decoded) {
+          const rebuilt = { token: savedToken, role: decoded.role };
+          console.log('✅ AuthProvider - Usuario reconstruido:', rebuilt);
+          setUser(rebuilt);
+          localStorage.setItem("user", JSON.stringify(rebuilt));
+        } else {
+          console.log('❌ AuthProvider - No se pudo decodificar el token');
+        }
+      } else if (savedUserRaw) {
+        console.log('📋 AuthProvider - Cargando usuario desde localStorage...');
+        try {
+          const parsed = JSON.parse(savedUserRaw);
+          console.log('📋 AuthProvider - Usuario parseado:', parsed);
+          // Normalizar role
+          if (parsed.role) parsed.role = normalizeRole(parsed.role);
+          if (parsed.rol) parsed.role = normalizeRole(parsed.rol);
+          console.log('✅ AuthProvider - Usuario normalizado:', parsed);
+          setUser(parsed);
+        } catch (error) {
+          console.error('❌ AuthProvider - Error parseando usuario:', error);
+          // Corrupto => limpiar
+          localStorage.removeItem("user");
+          localStorage.removeItem("token");
+        }
+      } else {
+        console.log('❌ AuthProvider - No hay usuario guardado en localStorage');
       }
-    }
-    if (savedUserRaw) {
-      try {
-        const parsed = JSON.parse(savedUserRaw);
-        // Normalizar role
-        if (parsed.role) parsed.role = normalizeRole(parsed.role);
-        if (parsed.rol) parsed.role = normalizeRole(parsed.rol);
-        setUser(parsed);
-      } catch (_) {
-        // Corrupto => limpiar
-        localStorage.removeItem("user");
-      }
+    } finally {
+      console.log('✅ AuthProvider - Carga inicial completada, estableciendo isLoading = false');
+      setIsLoading(false);
     }
   }, []);
 
   const login = (userData) => {
+    console.log('🚪 AuthContext - Ejecutando login con datos:', userData);
     const normalized = { ...userData };
     if (normalized.rol && !normalized.role) normalized.role = normalized.rol;
     normalized.role = normalizeRole(normalized.role);
+    console.log('🚪 AuthContext - Datos normalizados:', normalized);
     setUser(normalized);
     localStorage.setItem("user", JSON.stringify(normalized));
+    console.log('✅ AuthContext - Usuario logueado exitosamente');
   };
 
   const logout = () => {
+    console.log('🚪 AuthContext - Ejecutando logout...');
     setUser(null);
     localStorage.removeItem("user");
     localStorage.removeItem("token");
+    console.log('✅ AuthContext - Logout completado');
   };
 
   const isAuthenticated = !!user;
   const role = user?.role || user?.rol || null;
+  
+  console.log('🔍 AuthContext - Estado final:');
+  console.log('  - isLoading:', isLoading);
+  console.log('  - isAuthenticated:', isAuthenticated);
+  console.log('  - role:', role);
+  console.log('  - user:', user);
 
   return (
-    <AuthContext.Provider value={{ user, role, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, role, isAuthenticated, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

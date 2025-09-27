@@ -15,17 +15,34 @@ export default function IncidenciaDetalleTecnico() {
   const [comentario, setComentario] = useState('')
   const [accionMsg, setAccionMsg] = useState('')
 
+  console.log('🔍 IncidenciaDetalleTecnico - ID:', id)
+  console.log('🔍 IncidenciaDetalleTecnico - Componente cargado')
+
   async function loadAll() {
     setLoading(true); setError('')
+    console.log('📡 Iniciando carga de datos para incidencia ID:', id)
+    
     try {
+      console.log('📡 Llamando a tecnicoApi.detalleIncidencia...')
       const det = await tecnicoApi.detalleIncidencia(id)
+      console.log('✅ Detalle obtenido:', det)
       setData(det.data)
+      
+      console.log('📡 Llamando a tecnicoApi.historialIncidencia...')
       const hist = await tecnicoApi.historialIncidencia(id)
+      console.log('✅ Historial obtenido:', hist)
       setHistorial(hist.data || [])
       setNuevoEstado(det.data?.estado || '')
-    } catch (e) { setError(e.message || 'Error cargando') } finally { setLoading(false) }
+    } catch (e) { 
+      console.error('❌ Error cargando datos:', e)
+      setError(e.message || 'Error cargando') 
+    } finally { 
+      setLoading(false) 
+    }
   }
-  useEffect(() => { loadAll() // eslint-disable-next-line
+  useEffect(() => { 
+    console.log('🔄 useEffect ejecutado - cargando datos...')
+    loadAll() // eslint-disable-next-line
   }, [id])
 
   async function handleAsignar() {

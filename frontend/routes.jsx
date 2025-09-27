@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import IncidenciasHistorial from "./pages/IncidenciasHistorial";
 import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista'
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle'
+import FormularioPosventa from './pages/tecnico/FormularioPosventa'
 
 export default function AppRoutes() {
   const { user } = useContext(AuthContext);
@@ -18,6 +19,7 @@ export default function AppRoutes() {
         <Route path="/home/incidencias" element={user ? <IncidenciasHistorial /> : <Navigate to="/" replace />} />
         <Route path="/tecnico/incidencias" element={user ? <IncidenciasListaTecnico /> : <Navigate to="/" replace />} />
         <Route path="/tecnico/incidencias/:id" element={user ? <IncidenciaDetalleTecnico /> : <Navigate to="/" replace />} />
+        <Route path="/tecnico/posventa/formulario/:id" element={user ? <FormularioPosventa /> : <Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

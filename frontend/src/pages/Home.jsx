@@ -6,7 +6,7 @@ import HomeBeneficiario from "./HomeBeneficiario";
 import HomeTecnico from "./HomeTecnico";
 
 export default function Home() {
-  const { user, logout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
   // Si no hay usuario autenticado, redirigir al login

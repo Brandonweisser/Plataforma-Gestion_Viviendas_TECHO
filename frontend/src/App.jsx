@@ -9,10 +9,14 @@ import HomeAdministrador from "./pages/HomeAdministrador";
 import HomeTecnico from "./pages/HomeTecnico";
 import HomeBeneficiario from "./pages/HomeBeneficiario";
 import BeneficiarioDashboard from "./pages/beneficiario/Dashboard";
+import EstadoVivienda from "./pages/beneficiario/EstadoVivienda";
+import NuevaIncidencia from "./pages/beneficiario/NuevaIncidencia";
 import IncidenciasHistorial from "./pages/IncidenciasHistorial";
 import PosventaFormPage from "./pages/PosventaForm";
 import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
+import FormulariosPosventa from './pages/tecnico/FormulariosPosventa';
+import FormularioPosventa from './pages/tecnico/FormularioPosventa';
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 
 export default function App() {
@@ -38,10 +42,16 @@ export default function App() {
               <Route path="/tecnico" element={<HomeTecnico />} />
               <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
               <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
+              <Route path="/tecnico/posventa" element={<FormulariosPosventa />} />
+              <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
             </Route>
             <Route element={<RoleRoute allowed={["beneficiario"]} />}> 
               {/* UI pulida conectada al backend */}
               <Route path="/beneficiario" element={<HomeBeneficiario />} />
+              {/* Estado completo de la vivienda */}
+              <Route path="/beneficiario/estado-vivienda" element={<EstadoVivienda />} />
+              {/* Nueva incidencia */}
+              <Route path="/beneficiario/nueva-incidencia" element={<NuevaIncidencia />} />
               {/* Vista técnica/debug con JSON crudo */}
               <Route path="/beneficiario/debug" element={<BeneficiarioDashboard />} />
               {/* Historial completo de incidencias */}
