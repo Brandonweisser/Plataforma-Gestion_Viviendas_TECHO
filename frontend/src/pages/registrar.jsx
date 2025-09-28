@@ -10,6 +10,8 @@ export default function Registro() {
   const { login } = useContext(AuthContext);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [rut, setRut] = useState("");
+  const [direccion, setDireccion] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,7 +22,7 @@ export default function Registro() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    const validationErrors = collectRegisterValidation({ name, email, password, confirm });
+    const validationErrors = collectRegisterValidation({ name, email, password, confirm, rut });
     if (validationErrors.length) {
       setError(validationErrors[0]);
       return;
@@ -29,7 +31,7 @@ export default function Registro() {
     setLoading(true);
     try {
       // 1. Registrar usuario
-  const data = await registerUser({ name, email, password });
+      const data = await registerUser({ name, email, password, rut, direccion });
       
       if (data.token) {
         // 2. Guardar token
@@ -44,6 +46,8 @@ export default function Registro() {
             email: email,
             name: name,
             role: effectiveRole,
+            rut: rut,
+            direccion: direccion,
             ...userData.data
           });
         } catch (userError) {
@@ -52,17 +56,19 @@ export default function Registro() {
             email: email,
             name: name,
             token: data.token,
-            role: effectiveRole
+            role: effectiveRole,
+            rut: rut,
+            direccion: direccion
           });
         }
         const target = dashboardPathFor(effectiveRole);
-  navigate(target);
+        navigate(target);
       } else {
         navigate("/");
       }
     } catch (err) {
       if (err.status === 409) {
-        setError("El correo ya está registrado");
+        setError(err.message || "El correo o RUT ya está registrado");
       } else {
         setError(err.message || "Error de conexión con el servidor.");
       }
@@ -75,8 +81,11 @@ export default function Registro() {
     <div className="flex min-h-screen bg-gradient-to-br from-blue-100 to-blue-300">
       <div className="flex flex-col justify-center w-full max-w-md bg-white rounded-r-2xl shadow-xl p-8">
         <h1 className="text-2xl font-bold text-center text-blue-700 mb-6">
-          Crear cuenta
+          Registro de Beneficiario
         </h1>
+        <p className="text-sm text-gray-600 text-center mb-4">
+          Regístrate para acceder a la plataforma de gestión de tu vivienda
+        </p>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="reg-name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -104,6 +113,33 @@ export default function Registro() {
               className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="ejemplo@correo.com"
               required
+            />
+          </div>
+          <div>
+            <label htmlFor="reg-rut" className="block text-sm font-medium text-gray-700 mb-1">
+              RUT <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="reg-rut"
+              type="text"
+              value={rut}
+              onChange={(e) => setRut(e.target.value)}
+              className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="12345678-9"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="reg-direccion" className="block text-sm font-medium text-gray-700 mb-1">
+              Dirección
+            </label>
+            <input
+              id="reg-direccion"
+              type="text"
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              className="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Tu dirección (opcional)"
             />
           </div>
           <div>

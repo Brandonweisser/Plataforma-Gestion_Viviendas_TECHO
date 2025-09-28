@@ -139,10 +139,10 @@ export default function Login() {
           ¿Olvidaste tu contraseña?{" "}
           <button
             type="button"
-            onClick={() => navigate("/recuperar")}
+            onClick={() => navigate("/forgot-password")}
             className="text-blue-600 hover:underline"
           >
-            Recuperar acceso
+            ¿Olvidaste tu contraseña?
           </button>
         </p>
       </div>

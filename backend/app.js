@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { supabase } from './supabaseClient.js'
+import { sendRecoveryEmail, verifyEmailConfig } from './services/EmailService.js'
 import dotenv from 'dotenv'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
@@ -54,14 +55,95 @@ function normalizeRole(raw) {
   return map[k] || null
 }
 
+// Validación de RUT chileno
+function validateRut(rut) {
+  if (!rut || typeof rut !== 'string') return false
+  
+  // Limpiar RUT (quitar puntos y guiones)
+  const cleanRut = rut.replace(/[.-]/g, '').toLowerCase()
+  
+  // Verificar formato: 7-8 dígitos + 1 dígito verificador o 'k'
+  if (!/^[0-9]{7,8}[0-9k]$/.test(cleanRut)) return false
+  
+  const body = cleanRut.slice(0, -1)
+  const dv = cleanRut.slice(-1)
+  
+  // Calcular dígito verificador
+  let sum = 0
+  let multiplier = 2
+  
+  for (let i = body.length - 1; i >= 0; i--) {
+    sum += parseInt(body[i]) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+  
+  const remainder = sum % 11
+  const calculatedDV = remainder === 0 ? '0' : remainder === 1 ? 'k' : (11 - remainder).toString()
+  
+  return dv === calculatedDV
+}
+
+// Generar código de 6 dígitos
+function generateRecoveryCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+// Funciones para códigos de recuperación
+async function saveRecoveryCode(email, code) {
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutos
+  const { error } = await supabase
+    .from('password_recovery_codes')
+    .insert([{
+      email: email.toLowerCase(),
+      code,
+      expires_at: expiresAt.toISOString()
+    }])
+  if (error) throw error
+}
+
+async function validateRecoveryCode(email, code) {
+  const { data, error } = await supabase
+    .from('password_recovery_codes')
+    .select('id, expires_at, used')
+    .eq('email', email.toLowerCase())
+    .eq('code', code)
+    .eq('used', false)
+    .gte('expires_at', new Date().toISOString())
+    .maybeSingle()
+  
+  if (error) throw error
+  return data
+}
+
+async function markRecoveryCodeAsUsed(email, code) {
+  const { error } = await supabase
+    .from('password_recovery_codes')
+    .update({ used: true })
+    .eq('email', email.toLowerCase())
+    .eq('code', code)
+  if (error) throw error
+}
+
 // Data access helpers (use real supabase unless overridden in tests)
 async function findUserByEmail(emailLower) {
   const overrides = getOverrides()
   if (overrides.findUserByEmail) return overrides.findUserByEmail(emailLower)
   const { data, error } = await supabase
     .from('usuarios')
-    .select('uid, nombre, email, rol, password_hash')
+    .select('uid, nombre, email, rol, password_hash, rut')
     .eq('email', emailLower)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+async function findUserByRut(rut) {
+  const overrides = getOverrides()
+  if (overrides.findUserByRut) return overrides.findUserByRut(rut)
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('uid, nombre, email, rol, password_hash, rut')
+    .eq('rut', rut)
     .maybeSingle()
   if (error) throw error
   return data
@@ -85,7 +167,7 @@ async function insertUser(record) {
   const { data, error } = await supabase
     .from('usuarios')
     .insert([record])
-    .select('uid, rol')
+    .select('uid, rol, rut, direccion')
     .single()
   if (error) throw error
   return data
@@ -96,7 +178,7 @@ async function getUserById(uid) {
   if (overrides.getUserById) return overrides.getUserById(uid)
   const { data, error } = await supabase
     .from('usuarios')
-    .select('uid, nombre, email, rol')
+    .select('uid, nombre, email, rol, rut, direccion')
     .eq('uid', uid)
     .single()
   if (error) throw error
@@ -134,37 +216,87 @@ function authorizeRole(allowed = []) {
   }
 }
 
-// Registro
+// Registro (solo beneficiarios)
 app.post('/api/register', async (req, res) => {
   try {
     const nombre = req.body.nombre || req.body.name
-    const { email, password, rol } = req.body
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Faltan campos requeridos' })
+    const { email, password, rut, direccion } = req.body
+    
+    if (!nombre || !email || !password || !rut) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Faltan campos requeridos: nombre, email, contraseña y RUT son obligatorios' 
+      })
     }
+    
     if (!isStrongPassword(password)) {
-      return res.status(400).json({ success: false, message: 'Password débil: mínimo 8 caracteres, al menos una letra y un número.' })
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Contraseña débil: mínimo 8 caracteres, al menos una letra y un número.' 
+      })
     }
+    
+    // Validar formato de RUT
+    if (!validateRut(rut)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'RUT inválido. Ingrese un RUT válido (ej: 12345678-9)' 
+      })
+    }
+    
     const emailLower = email.toLowerCase()
-    const existente = await findUserByEmail(emailLower)
-    if (existente) {
-      return res.status(409).json({ success: false, message: 'El correo ya está registrado' })
+    const rutClean = rut.replace(/[.-]/g, '').toLowerCase()
+    
+    // Verificar que el email no esté registrado
+    const existingByEmail = await findUserByEmail(emailLower)
+    if (existingByEmail) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'El correo electrónico ya está registrado' 
+      })
     }
+    
+    // Verificar que el RUT no esté registrado
+    const existingByRut = await findUserByRut(rutClean)
+    if (existingByRut) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'El RUT ya está registrado' 
+      })
+    }
+    
     const password_hash = await bcrypt.hash(password, SALT_ROUNDS)
-    const rolInput = (rol || '').toLowerCase()
-    const rolMap = { admin: 'administrador', administrador: 'administrador', tecnico: 'tecnico', beneficiario: 'beneficiario' }
-    const rolValido = rolMap[rolInput] || 'beneficiario'
+    
+    // Solo permitir registro como beneficiario
+    const rolValido = 'beneficiario'
+    
     let newUid = 1
     try {
       const last = await getLastUser()
       if (last && Number.isFinite(Number(last.uid))) newUid = Number(last.uid) + 1
     } catch (_) { /* ignore */ }
-  const insertado = await insertUser({ uid: newUid, nombre, email: emailLower, rol: rolValido, password_hash })
+    
+    const insertado = await insertUser({ 
+      uid: newUid, 
+      nombre, 
+      email: emailLower, 
+      rol: rolValido, 
+      password_hash,
+      rut: rutClean,
+      direccion: direccion || null
+    })
+    
     if (!JWT_SECRET) {
-      return res.status(200).json({ success: true, token: null, message: 'Usuario creado. Falta configurar JWT_SECRET' })
+      return res.status(200).json({ 
+        success: true, 
+        token: null, 
+        message: 'Usuario creado. Falta configurar JWT_SECRET' 
+      })
     }
+    
     const token = jwt.sign({ sub: insertado.uid, role: insertado.rol }, JWT_SECRET, { expiresIn: '7d' })
-    return res.json({ success: true, token })
+    return res.json({ success: true, token, message: 'Cuenta creada exitosamente' })
+    
   } catch (error) {
     console.error('Register error:', error)
     return res.status(500).json({ success: false, message: 'Error en el servidor' })
@@ -214,6 +346,122 @@ app.get('/api/me', verifyToken, async (req, res) => {
 app.post('/api/logout', (_req, res) => {
   // En arquitectura stateless sólo indicamos al cliente que elimine el token
   return res.json({ success: true, message: 'Sesión cerrada' })
+})
+
+// Solicitar código de recuperación
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+    
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'El correo electrónico es requerido' 
+      })
+    }
+    
+    const emailLower = email.toLowerCase()
+    const usuario = await findUserByEmail(emailLower)
+    
+    if (!usuario) {
+      // Por seguridad, no revelamos si el email existe o no
+      return res.json({ 
+        success: true, 
+        message: 'Si el correo existe, recibirás un código de recuperación' 
+      })
+    }
+    
+    // Solo permitir recuperación para beneficiarios
+    if (usuario.rol !== 'beneficiario') {
+      return res.json({ 
+        success: true, 
+        message: 'Si el correo existe, recibirás un código de recuperación' 
+      })
+    }
+    
+    const code = generateRecoveryCode()
+    await saveRecoveryCode(emailLower, code)
+    await sendRecoveryEmail(emailLower, code, usuario.nombre)
+    
+    res.json({ 
+      success: true, 
+      message: 'Si el correo existe, recibirás un código de recuperación' 
+    })
+    
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error en el servidor' 
+    })
+  }
+})
+
+// Verificar código y restablecer contraseña
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Correo, código y nueva contraseña son requeridos' 
+      })
+    }
+    
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Contraseña débil: mínimo 8 caracteres, al menos una letra y un número.' 
+      })
+    }
+    
+    const emailLower = email.toLowerCase()
+    
+    // Validar código
+    const validCode = await validateRecoveryCode(emailLower, code)
+    if (!validCode) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Código inválido o expirado' 
+      })
+    }
+    
+    // Verificar que el usuario existe
+    const usuario = await findUserByEmail(emailLower)
+    if (!usuario) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Usuario no encontrado' 
+      })
+    }
+    
+    // Hash de la nueva contraseña
+    const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS)
+    
+    // Actualizar contraseña
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ password_hash: newPasswordHash })
+      .eq('email', emailLower)
+    
+    if (error) throw error
+    
+    // Marcar código como usado
+    await markRecoveryCodeAsUsed(emailLower, code)
+    
+    res.json({ 
+      success: true, 
+      message: 'Contraseña actualizada exitosamente' 
+    })
+    
+  } catch (error) {
+    console.error('Reset password error:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error en el servidor' 
+    })
+  }
 })
 
 // Role protected health endpoints

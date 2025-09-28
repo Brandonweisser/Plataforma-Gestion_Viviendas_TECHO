@@ -45,11 +45,11 @@ async function request(path, options = {}) {
   return data;
 }
 
-export async function registerUser({ name, email, password, rol }) {
+export async function registerUser({ name, email, password, rut, direccion }) {
   // El backend acepta name o nombre; enviamos ambos por claridad
   return request('/api/register', {
     method: 'POST',
-    body: JSON.stringify({ name, nombre: name, email, password, rol }),
+    body: JSON.stringify({ name, nombre: name, email, password, rut, direccion }),
   });
 }
 
@@ -62,6 +62,21 @@ export async function login({ email, password }) {
 
 export async function getMe() {
   return request('/api/me');
+}
+
+// Funciones para recuperación de contraseña
+export async function forgotPassword({ email }) {
+  return request('/api/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword({ email, code, newPassword }) {
+  return request('/api/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, newPassword }),
+  });
 }
 
 // ---------------- Beneficiario ----------------

@@ -2,6 +2,8 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Registro from "./pages/registrar";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import Unauthorized from "./pages/Unauthorized";
 // Usar las páginas completas de cada rol (antes: dashboards placeholder)
@@ -26,6 +28,8 @@ export default function App() {
           {/* Públicas */}
           <Route path="/" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Auth genérico */}
