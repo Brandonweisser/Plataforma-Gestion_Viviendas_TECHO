@@ -55,6 +55,11 @@ Una vez que ambos servidores estén ejecutándose:
 - **Contraseña:** `admin123`
 - **Funciones:** Gestión completa del sistema, usuarios, viviendas e incidencias
 
+### 🔵 **Administrador 2**
+- **Email:** `ad.min@techo.org`
+- **Contraseña:** `admin123`
+- **Funciones:** Gestión completa del sistema, usuarios, viviendas e incidencias
+
 ### 🟠 **Técnico**
 - **Email:** `tecnico@techo.org`
 - **Contraseña:** `tecnico123`

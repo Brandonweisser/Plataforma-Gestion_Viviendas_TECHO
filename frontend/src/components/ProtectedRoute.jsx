@@ -3,10 +3,20 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
 import { normalizeRole } from '../utils/roles'
 
-export function ProtectedRoute({ redirectTo = '/' }) {
-  const { isAuthenticated } = useContext(AuthContext)
-  if (!isAuthenticated) return <Navigate to={redirectTo} replace />
-  return <Outlet />
+export function ProtectedRoute({ redirectTo = '/login' }) {
+  const { isAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Cargando sesión...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to={redirectTo} replace />;
+
+  return <Outlet />;
 }
 
 export function RoleRoute({ allowed = [], fallback = '/unauthorized' }) {
