@@ -164,12 +164,12 @@ Si no solicitaste este código, puedes ignorar este correo.
 export async function sendRecoveryEmail(email, codigo, nombre = '') {
   // Si no está configurado el email, usar modo desarrollo (consola)
   if (!process.env.EMAIL_USER || process.env.EMAIL_MODE === 'development') {
-    console.log(`📧 MODO DESARROLLO - Código de recuperación:`)
+    console.log(`MODO DESARROLLO - Código de recuperación:`)
     console.log(`Para: ${email}`)
     console.log(`Código: ${codigo}`)
     console.log(`Nombre: ${nombre}`)
-  console.log(`El código expira en 5 minutos`)
-    console.log(`\n🚀 Para envío real, configura las variables de email en .env`)
+    console.log(`El código expira en 5 minutos`)
+    console.log(`\nPara envío real, configura las variables de email en .env`)
     return true
   }
 

@@ -27,6 +27,11 @@ const loginLimiter = rateLimit({
 
 const JWT_SECRET = process.env.JWT_SECRET
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10)
+// Roles permitidos para recuperación de contraseña (configurable vía env)
+const ALLOWED_RECOVERY_ROLES = (process.env.RECOVERY_ALLOWED_ROLES || 'beneficiario')
+  .split(',')
+  .map(r => r.trim().toLowerCase())
+  .filter(Boolean)
 // Password policy (puede externalizarse después)
 function isStrongPassword(pwd) {
   if (typeof pwd !== 'string') return false
@@ -312,11 +317,16 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     }
     const usuario = await findUserByEmail(email.toLowerCase())
     if (!usuario) {
+      if (process.env.DEBUG_AUTH === '1') console.log(`[LOGIN][DEBUG] Email no encontrado: ${email.toLowerCase()}`)
       return res.status(401).json({ success: false, message: 'Correo o contraseña incorrectos' })
     }
     const stored = usuario.password_hash || ''
+    if (process.env.DEBUG_AUTH === '1') {
+      console.log(`[LOGIN][DEBUG] Intento login email=${usuario.email} rol=${usuario.rol} hasHash=${stored.startsWith('$2')}`)
+    }
     const ok = stored && stored.startsWith('$2') ? await bcrypt.compare(password, stored) : false
     if (!ok) {
+      if (process.env.DEBUG_AUTH === '1') console.log('[LOGIN][DEBUG] Password mismatch (o hash ausente)')
       return res.status(401).json({ success: false, message: 'Correo o contraseña incorrectos' })
     }
     if (!JWT_SECRET) {
@@ -361,9 +371,11 @@ app.post('/api/forgot-password', async (req, res) => {
     }
     
     const emailLower = email.toLowerCase()
+    console.log(`[FORGOT] Solicitud de recuperación para: ${emailLower}`)
     const usuario = await findUserByEmail(emailLower)
     
     if (!usuario) {
+      console.log(`[FORGOT] Usuario no encontrado. (No se genera código)`)        
       // Por seguridad, no revelamos si el email existe o no
       return res.json({ 
         success: true, 
@@ -371,17 +383,21 @@ app.post('/api/forgot-password', async (req, res) => {
       })
     }
     
-    // Solo permitir recuperación para beneficiarios
-    if (usuario.rol !== 'beneficiario') {
-      return res.json({ 
-        success: true, 
-        message: 'Si el correo existe, recibirás un código de recuperación' 
+    // Validar rol permitido segun configuración
+    if (!ALLOWED_RECOVERY_ROLES.includes(usuario.rol)) {
+      console.log(`[FORGOT] Usuario encontrado con rol='${usuario.rol}' no permitido. Roles permitidos: ${ALLOWED_RECOVERY_ROLES.join(', ')}`)
+      return res.json({
+        success: true,
+        message: 'Si el correo existe, recibirás un código de recuperación'
       })
     }
     
     const code = generateRecoveryCode()
     await saveRecoveryCode(emailLower, code)
     await sendRecoveryEmail(emailLower, code, usuario.nombre)
+    if (process.env.EMAIL_MODE === 'development') {
+      console.log(`[FORGOT][DEV] Código generado y almacenado para ${emailLower}: ${code}`)
+    }
     
     res.json({ 
       success: true, 
@@ -1002,6 +1018,34 @@ app.post('/api/beneficiario/incidencias', verifyToken, authorizeRole(['beneficia
     console.error('POST /api/beneficiario/incidencias error:', e)
     const msg = e?.message || 'Error al crear la incidencia'
     return res.status(500).json({ success: false, message: msg })
+  }
+})
+
+// DEBUG: inspeccionar estados de recepción para el beneficiario (solo en dev)
+app.get('/api/beneficiario/debug/recepciones', verifyToken, authorizeRole(['beneficiario','administrador']), async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ success: false, message: 'No disponible en producción' })
+  }
+  try {
+    const beneficiarioUid = req.user?.sub
+    const { data: viv, error: ev } = await supabase
+      .from('viviendas')
+      .select('id_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (ev) throw ev
+    if (!viv) return res.status(404).json({ success: false, message: 'No tienes vivienda' })
+    const { data: receps, error: er } = await supabase
+      .from('vivienda_recepcion')
+      .select('id, estado, fecha_creada, fecha_enviada, fecha_revisada, observaciones_count')
+      .eq('id_vivienda', viv.id_vivienda)
+      .order('id', { ascending: false })
+      .limit(5)
+    if (er) throw er
+    return res.json({ success: true, data: receps || [] })
+  } catch (e) {
+    console.error('GET /api/beneficiario/debug/recepciones error:', e)
+    return res.status(500).json({ success: false, message: 'Error debug recepciones' })
   }
 })
 
