@@ -29,10 +29,11 @@ export default function Home() {
   }
 
   // Renderizar la interfaz según el rol del usuario
-  const userRole = user?.rol?.toLowerCase();
+  const userRole = (user?.role || user?.rol || '').toLowerCase();
   console.log("🏠 Home - Full user object:", user); // Debug
   console.log("🏠 Home - Detected role:", userRole); // Debug
   console.log("🏠 Home - Raw rol property:", user?.rol); // Debug
+  console.log("🏠 Home - Raw role property:", user?.role); // Debug
   
   switch (userRole) {
     case "administrador":

@@ -36,10 +36,16 @@ export function AuthProvider({ children }) {
         const decoded = decodeJwt(savedToken);
         console.log('🔓 AuthProvider - Token decodificado:', decoded);
         if (decoded) {
-          const rebuilt = { token: savedToken, role: decoded.role };
-          console.log('✅ AuthProvider - Usuario reconstruido:', rebuilt);
-          setUser(rebuilt);
-          localStorage.setItem("user", JSON.stringify(rebuilt));
+          const now = Math.floor(Date.now() / 1000);
+          if (decoded.exp && decoded.exp < now) {
+            console.warn('⏰ AuthProvider - Token expirado al reconstruir. Limpiando.');
+            localStorage.removeItem('token');
+          } else {
+            const rebuilt = { token: savedToken, role: decoded.role };
+            console.log('✅ AuthProvider - Usuario reconstruido:', rebuilt);
+            setUser(rebuilt);
+            localStorage.setItem("user", JSON.stringify(rebuilt));
+          }
         } else {
           console.log('❌ AuthProvider - No se pudo decodificar el token');
         }
@@ -51,8 +57,24 @@ export function AuthProvider({ children }) {
           // Normalizar role
           if (parsed.role) parsed.role = normalizeRole(parsed.role);
           if (parsed.rol) parsed.role = normalizeRole(parsed.rol);
-          console.log('✅ AuthProvider - Usuario normalizado:', parsed);
-          setUser(parsed);
+          // Validar expiración si existe token
+          const saved = localStorage.getItem('token');
+          if (saved) {
+            const decoded = decodeJwt(saved);
+            const now = Math.floor(Date.now() / 1000);
+            if (decoded?.exp && decoded.exp < now) {
+              console.warn('⏰ AuthProvider - Token expirado al cargar usuario. Limpiando sesión.');
+              localStorage.removeItem('user');
+              localStorage.removeItem('token');
+              setUser(null);
+            } else {
+              console.log('✅ AuthProvider - Usuario normalizado:', parsed);
+              setUser(parsed);
+            }
+          } else {
+            console.log('✅ AuthProvider - Usuario normalizado (sin token extra):', parsed);
+            setUser(parsed);
+          }
         } catch (error) {
           console.error('❌ AuthProvider - Error parseando usuario:', error);
           // Corrupto => limpiar

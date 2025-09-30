@@ -486,6 +486,287 @@ app.post('/api/reset-password', async (req, res) => {
 app.get('/api/admin/health', verifyToken, authorizeRole(['administrador']), (_req, res) => {
   res.json({ success: true, area: 'admin', status: 'ok' })
 })
+// Resumen rápido para dashboard administrador
+app.get('/api/admin/dashboard/stats', verifyToken, authorizeRole(['administrador']), async (_req, res) => {
+  try {
+    // Contar usuarios por rol
+    const { data: usuarios, error: errUsuarios } = await supabase
+      .from('usuarios')
+      .select('rol', { count: 'exact', head: false })
+    if (errUsuarios) throw errUsuarios
+    const totalUsuarios = usuarios?.length || 0
+    const rolesCount = usuarios.reduce((acc, u) => { acc[u.rol] = (acc[u.rol]||0)+1; return acc; }, {})
+
+    // Contar viviendas
+    const { count: totalViviendas, error: errViv } = await supabase
+      .from('viviendas')
+      .select('*', { count: 'exact', head: true })
+    if (errViv) throw errViv
+
+    // Contar incidencias 'abierta' / 'abiertas'
+    let incidenciasAbiertas = 0
+    if (supabase.from) {
+      const { data: incData, error: errInc } = await supabase
+        .from('incidencias')
+        .select('estado')
+      if (errInc) {
+        console.warn('dashboard stats incidencias error (continuando):', errInc.message)
+      } else {
+        incidenciasAbiertas = (incData || []).filter(i => ['abierta','open','pendiente'].includes((i.estado||'').toLowerCase())).length
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        usuarios: { total: totalUsuarios, ...rolesCount },
+        viviendas: { total: totalViviendas || 0 },
+        incidencias: { abiertas: incidenciasAbiertas }
+      }
+    })
+  } catch (e) {
+    console.error('GET /api/admin/dashboard/stats error:', e)
+    res.status(500).json({ success: false, message: 'Error obteniendo estadísticas' })
+  }
+})
+// ------------------------------
+// ADMIN API (usuarios, proyectos, viviendas)
+// ------------------------------
+// USUARIOS
+app.get('/api/admin/usuarios', verifyToken, authorizeRole(['administrador']), async (_req, res) => {
+  try {
+    const { data, error } = await supabase.from('usuarios').select('uid, nombre, email, rol').order('uid', { ascending: true })
+    if (error) throw error
+    res.json({ success: true, data })
+  } catch (e) {
+    console.error('GET /api/admin/usuarios error:', e)
+    res.status(500).json({ success: false, message: 'Error listando usuarios' })
+  }
+})
+
+app.post('/api/admin/usuarios', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const { nombre, email, rol, password } = req.body || {}
+    if (!nombre || !email || !rol || !password) return res.status(400).json({ success: false, message: 'nombre, email, rol y password son obligatorios' })
+    const { data: exists, error: errExists } = await supabase.from('usuarios').select('uid').eq('email', email.toLowerCase()).maybeSingle()
+    if (errExists) throw errExists
+    if (exists) return res.status(409).json({ success: false, message: 'Email ya registrado' })
+    const { data: last } = await supabase.from('usuarios').select('uid').order('uid', { ascending: false }).limit(1)
+    const newUid = (last && last.length ? Number(last[0].uid) + 1 : 1)
+    const password_hash = await bcrypt.hash(password, SALT_ROUNDS)
+    const { data: inserted, error: errIns } = await supabase.from('usuarios').insert([{ uid: newUid, nombre, email: email.toLowerCase(), rol, password_hash }]).select('uid, nombre, email, rol').single()
+    if (errIns) throw errIns
+    res.status(201).json({ success: true, data: inserted })
+  } catch (e) {
+    console.error('POST /api/admin/usuarios error:', e)
+    res.status(500).json({ success: false, message: 'Error creando usuario' })
+  }
+})
+
+app.put('/api/admin/usuarios/:uid', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const uid = Number(req.params.uid)
+    const { nombre, rol, password } = req.body || {}
+    const update = {}
+    if (nombre) update.nombre = nombre
+    if (rol) update.rol = rol
+    if (password) update.password_hash = await bcrypt.hash(password, SALT_ROUNDS)
+    if (!Object.keys(update).length) return res.status(400).json({ success: false, message: 'Nada que actualizar' })
+    const { data, error } = await supabase.from('usuarios').update(update).eq('uid', uid).select('uid, nombre, email, rol').maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Usuario no encontrado' })
+    res.json({ success: true, data })
+  } catch (e) {
+    console.error('PUT /api/admin/usuarios/:uid error:', e)
+    res.status(500).json({ success: false, message: 'Error actualizando usuario' })
+  }
+})
+
+app.delete('/api/admin/usuarios/:uid', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const uid = Number(req.params.uid)
+    const { error } = await supabase.from('usuarios').delete().eq('uid', uid)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/admin/usuarios/:uid error:', e)
+    res.status(500).json({ success: false, message: 'Error eliminando usuario' })
+  }
+})
+
+// PROYECTOS
+app.get('/api/admin/proyectos', verifyToken, authorizeRole(['administrador']), async (_req, res) => {
+  try {
+    const { data, error } = await supabase.from('proyecto').select('id_proyecto, nombre, ubicacion, fecha_inicio, fecha_entrega').order('id_proyecto', { ascending: true })
+    if (error) throw error
+    const proyectos = (data || []).map(p => ({ id: p.id_proyecto, nombre: p.nombre, ubicacion: p.ubicacion, fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_entrega, estado: 'activo', tecnicos: [] }))
+    res.json({ success: true, data: proyectos })
+  } catch (e) {
+    console.error('GET /api/admin/proyectos error:', e)
+    res.status(500).json({ success: false, message: 'Error listando proyectos' })
+  }
+})
+
+app.post('/api/admin/proyectos', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const { nombre, ubicacion, fecha_inicio, fecha_fin } = req.body || {}
+    if (!nombre || !ubicacion) return res.status(400).json({ success: false, message: 'Nombre y ubicación son obligatorios' })
+    const { data: last } = await supabase.from('proyecto').select('id_proyecto').order('id_proyecto', { ascending: false }).limit(1)
+    const newId = (last && last.length ? Number(last[0].id_proyecto) + 1 : 1)
+    const { error } = await supabase.from('proyecto').insert([{ id_proyecto: newId, nombre, ubicacion, fecha_inicio: fecha_inicio || null, fecha_entrega: fecha_fin || null }])
+    if (error) throw error
+    res.status(201).json({ success: true, data: { id: newId } })
+  } catch (e) {
+    console.error('POST /api/admin/proyectos error:', e)
+    res.status(500).json({ success: false, message: 'Error creando proyecto' })
+  }
+})
+
+app.put('/api/admin/proyectos/:id', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { nombre, ubicacion, fecha_inicio, fecha_fin } = req.body || {}
+    const update = {}
+    if (nombre) update.nombre = nombre
+    if (ubicacion) update.ubicacion = ubicacion
+    if (fecha_inicio !== undefined) update.fecha_inicio = fecha_inicio || null
+    if (fecha_fin !== undefined) update.fecha_entrega = fecha_fin || null
+    if (!Object.keys(update).length) return res.status(400).json({ success: false, message: 'Nada que actualizar' })
+    const { data, error } = await supabase.from('proyecto').update(update).eq('id_proyecto', id).select('id_proyecto').maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Proyecto no encontrado' })
+    res.json({ success: true, data: { id } })
+  } catch (e) {
+    console.error('PUT /api/admin/proyectos/:id error:', e)
+    res.status(500).json({ success: false, message: 'Error actualizando proyecto' })
+  }
+})
+
+app.delete('/api/admin/proyectos/:id', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { error } = await supabase.from('proyecto').delete().eq('id_proyecto', id)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/admin/proyectos/:id error:', e)
+    res.status(500).json({ success: false, message: 'Error eliminando proyecto' })
+  }
+})
+
+// VIVIENDAS
+app.get('/api/admin/viviendas', verifyToken, authorizeRole(['administrador']), async (_req, res) => {
+  try {
+    const { data, error } = await supabase.from('viviendas').select('id_vivienda, id_proyecto, direccion, estado, fecha_entrega, beneficiario_uid, tipo_vivienda').order('id_vivienda', { ascending: true })
+    if (error) throw error
+    const viviendaData = data || []
+    const proyectoIds = [...new Set(viviendaData.map(v => v.id_proyecto))]
+    const beneficiarioIds = [...new Set(viviendaData.filter(v => v.beneficiario_uid).map(v => v.beneficiario_uid))]
+    const proyectosMap = {}
+    if (proyectoIds.length) {
+      const { data: proyectos } = await supabase.from('proyecto').select('id_proyecto, nombre').in('id_proyecto', proyectoIds)
+      ;(proyectos||[]).forEach(p => proyectosMap[p.id_proyecto] = p.nombre)
+    }
+    const beneficiariosMap = {}
+    if (beneficiarioIds.length) {
+      const { data: beneficiarios } = await supabase.from('usuarios').select('uid, nombre, email').in('uid', beneficiarioIds)
+      ;(beneficiarios||[]).forEach(b => beneficiariosMap[b.uid] = { nombre: b.nombre, email: b.email })
+    }
+    const enriched = viviendaData.map(v => ({
+      id_vivienda: v.id_vivienda,
+      proyecto_id: v.id_proyecto,
+      proyecto_nombre: proyectosMap[v.id_proyecto] || null,
+      direccion: v.direccion,
+      estado: v.estado,
+      fecha_entrega: v.fecha_entrega,
+      beneficiario_uid: v.beneficiario_uid,
+      beneficiario_nombre: v.beneficiario_uid ? beneficiariosMap[v.beneficiario_uid]?.nombre : null,
+      beneficiario_email: v.beneficiario_uid ? beneficiariosMap[v.beneficiario_uid]?.email : null,
+      tipo_vivienda: v.tipo_vivienda
+    }))
+    res.json({ success: true, data: enriched })
+  } catch (e) {
+    console.error('GET /api/admin/viviendas error:', e)
+    res.status(500).json({ success: false, message: 'Error listando viviendas' })
+  }
+})
+
+app.post('/api/admin/viviendas', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const { direccion, proyecto_id, estado, fecha_entrega, beneficiario_uid, tipo_vivienda } = req.body || {}
+    if (!direccion) return res.status(400).json({ success: false, message: 'Dirección obligatoria' })
+    const { data: last } = await supabase.from('viviendas').select('id_vivienda').order('id_vivienda', { ascending: false }).limit(1)
+    const newId = (last && last.length ? Number(last[0].id_vivienda) + 1 : 1)
+    const { error } = await supabase.from('viviendas').insert([{ id_vivienda: newId, id_proyecto: proyecto_id || 1, direccion, estado: estado || 'planificada', fecha_entrega: fecha_entrega || null, beneficiario_uid: beneficiario_uid || null, tipo_vivienda: tipo_vivienda || null }])
+    if (error) throw error
+    res.status(201).json({ success: true, data: { id_vivienda: newId } })
+  } catch (e) {
+    console.error('POST /api/admin/viviendas error:', e)
+    res.status(500).json({ success: false, message: 'Error creando vivienda' })
+  }
+})
+
+app.put('/api/admin/viviendas/:id', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { direccion, proyecto_id, estado, fecha_entrega, beneficiario_uid, tipo_vivienda } = req.body || {}
+    const update = {}
+    if (direccion) update.direccion = direccion
+    if (proyecto_id !== undefined) update.id_proyecto = proyecto_id || null
+    if (estado) update.estado = estado
+    if (fecha_entrega !== undefined) update.fecha_entrega = fecha_entrega || null
+    if (beneficiario_uid !== undefined) update.beneficiario_uid = beneficiario_uid || null
+    if (tipo_vivienda !== undefined) update.tipo_vivienda = tipo_vivienda || null
+    if (!Object.keys(update).length) return res.status(400).json({ success: false, message: 'Nada que actualizar' })
+    const { data, error } = await supabase.from('viviendas').update(update).eq('id_vivienda', id).select('id_vivienda').maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Vivienda no encontrada' })
+    res.json({ success: true, data })
+  } catch (e) {
+    console.error('PUT /api/admin/viviendas/:id error:', e)
+    res.status(500).json({ success: false, message: 'Error actualizando vivienda' })
+  }
+})
+
+app.delete('/api/admin/viviendas/:id', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { error } = await supabase.from('viviendas').delete().eq('id_vivienda', id)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/admin/viviendas/:id error:', e)
+    res.status(500).json({ success: false, message: 'Error eliminando vivienda' })
+  }
+})
+
+app.post('/api/admin/viviendas/:id/asignar', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { beneficiario_uid } = req.body || {}
+    if (!beneficiario_uid) return res.status(400).json({ success: false, message: 'beneficiario_uid requerido' })
+    const { data, error } = await supabase.from('viviendas').update({ beneficiario_uid, estado: 'asignada' }).eq('id_vivienda', id).select('id_vivienda, beneficiario_uid').maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Vivienda no encontrada' })
+    res.json({ success: true, data })
+  } catch (e) {
+    console.error('POST /api/admin/viviendas/:id/asignar error:', e)
+    res.status(500).json({ success: false, message: 'Error asignando vivienda' })
+  }
+})
+
+app.post('/api/admin/viviendas/:id/desasignar', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { data, error } = await supabase.from('viviendas').update({ beneficiario_uid: null, estado: 'en_construccion' }).eq('id_vivienda', id).select('id_vivienda').maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Vivienda no encontrada' })
+    res.json({ success: true, data })
+  } catch (e) {
+    console.error('POST /api/admin/viviendas/:id/desasignar error:', e)
+    res.status(500).json({ success: false, message: 'Error desasignando vivienda' })
+  }
+})
 app.get('/api/tecnico/health', verifyToken, authorizeRole(['tecnico','administrador']), (_req, res) => {
   res.json({ success: true, area: 'tecnico', status: 'ok' })
 })

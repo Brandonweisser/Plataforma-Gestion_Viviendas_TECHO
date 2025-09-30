@@ -1,6 +1,12 @@
 import { supabase } from './supabaseClient.js'
 import bcrypt from 'bcrypt'
 
+// Script de seed controlado:
+// - Asegura creación/actualización de usuarios base.
+// - Usa el campo password_hash (no 'contraseña').
+// - Agrega un segundo beneficiario (beneficiario2@techo.org) sin vivienda asignada
+//   para pruebas de asignación en el panel administrador.
+
 async function crearUsuariosEspecificos() {
   try {
     console.log('Creando usuarios específicos para cada rol...');
@@ -27,6 +33,12 @@ async function crearUsuariosEspecificos() {
         email: 'beneficiario@techo.org',
         password: 'beneficiario123',
         rol: 'beneficiario'
+      },
+      {
+        nombre: 'Beneficiario Libre',
+        email: 'beneficiario2@techo.org',
+        password: 'beneficiario123',
+        rol: 'beneficiario'
       }
     ];
 
@@ -50,7 +62,7 @@ async function crearUsuariosEspecificos() {
             .update({
               nombre: userData.nombre,
               rol: userData.rol,
-              contraseña: password_hash
+              password_hash: password_hash
             })
             .eq('uid', existente.uid);
 
@@ -84,7 +96,7 @@ async function crearUsuariosEspecificos() {
               nombre: userData.nombre,
               email: userData.email.toLowerCase(),
               rol: userData.rol,
-              contraseña: password_hash
+              password_hash: password_hash
             }])
             .select('uid, nombre, email, rol')
             .single();
@@ -109,9 +121,12 @@ async function crearUsuariosEspecificos() {
     console.log('   Email: tecnico@techo.org'); 
     console.log('   Contraseña: tecnico123');
     console.log('');
-    console.log('🟢 BENEFICIARIO:');
-    console.log('   Email: beneficiario@techo.org');
-    console.log('   Contraseña: beneficiario123');
+  console.log('🟢 BENEFICIARIOS:');
+  console.log('   Email: beneficiario@techo.org');
+  console.log('   Contraseña: beneficiario123');
+  console.log('');
+  console.log('   Email: beneficiario2@techo.org');
+  console.log('   Contraseña: beneficiario123 (sin vivienda asignada inicialmente)');
 
   } catch (error) {
     console.error('Error general:', error);

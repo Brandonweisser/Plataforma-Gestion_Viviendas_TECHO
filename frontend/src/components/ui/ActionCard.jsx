@@ -1,11 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 /**
  * ActionCard
  * Tarjeta de acción principal para accesos rápidos.
  * Mantiene la lógica externa (onClick) sin asumir navegación.
  */
-export function ActionCard({ title, description, badge, urgent, onClick, icon, accent = 'blue', cta }) {
+export function ActionCard({ title, description, badge, urgent, onClick, to, icon, accent = 'blue', cta }) {
   const accentMap = {
     blue: 'bg-techo-blue-50 text-techo-blue-600 dark:bg-techo-blue-500/15 dark:text-techo-blue-300',
     orange: 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300',
@@ -39,13 +40,24 @@ export function ActionCard({ title, description, badge, urgent, onClick, icon, a
         <p className="text-xs text-techo-gray-500 dark:text-techo-gray-400 flex-1 mb-4 line-clamp-3">
           {description}
         </p>
-        <button
-          onClick={onClick}
-          className={`mt-auto w-full btn ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none' : 'btn-primary'}`}
-          aria-label={urgent ? `${title} - acción urgente` : title}
-        >
-          {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
-        </button>
+        {to ? (
+          <Link
+            to={to}
+            className={`mt-auto w-full btn text-center ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none' : 'btn-primary'}`}
+            aria-label={urgent ? `${title} - acción urgente` : title}
+            onClick={onClick}
+          >
+            {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
+          </Link>
+        ) : (
+          <button
+            onClick={onClick}
+            className={`mt-auto w-full btn ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none' : 'btn-primary'}`}
+            aria-label={urgent ? `${title} - acción urgente` : title}
+          >
+            {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
+          </button>
+        )}
       </div>
       {urgent && (
         <span className="absolute top-2 right-2 animate-pulse text-red-500 text-xs font-semibold" aria-hidden>URGENTE</span>

@@ -31,7 +31,7 @@ export function ProtectedRoute({ redirectTo = '/' }) {
 }
 
 export function RoleRoute({ allowed = [], fallback = '/unauthorized' }) {
-  const { role, user, isLoading } = useContext(AuthContext)
+  const { role, user, isLoading, isAuthenticated } = useContext(AuthContext)
   console.log('🛡️ RoleRoute - isLoading:', isLoading)
   console.log('🛡️ RoleRoute - role:', role)
   console.log('🛡️ RoleRoute - user:', user)
@@ -51,7 +51,19 @@ export function RoleRoute({ allowed = [], fallback = '/unauthorized' }) {
   }
   
   if (!role) {
-    console.log('❌ RoleRoute - Sin role, redirigiendo al login')
+    // Si ya está autenticado pero todavía no tenemos role (puede ser carrera al normalizar), mostramos spinner
+    if (isAuthenticated) {
+      console.log('⏳ RoleRoute - Usuario autenticado pero role todavía no disponible. Esperando...')
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Preparando permisos...</p>
+          </div>
+        </div>
+      )
+    }
+    console.log('❌ RoleRoute - Sin role y no autenticado, redirigiendo al login')
     return <Navigate to='/' replace />
   }
   const normalized = normalizeRole(role)

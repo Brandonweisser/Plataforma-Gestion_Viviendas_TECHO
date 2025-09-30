@@ -199,3 +199,83 @@ export const tecnicoApi = {
     return data
   }
 }
+
+// ---------------- Administrador ----------------
+export const adminApi = {
+  // Gestión de usuarios
+  listarUsuarios() {
+    return request('/api/admin/usuarios')
+  },
+  crearUsuario(userData) {
+    return request('/api/admin/usuarios', { method: 'POST', body: JSON.stringify(userData) })
+  },
+  actualizarUsuario(id, userData) {
+    return request(`/api/admin/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(userData) })
+  },
+  eliminarUsuario(id) {
+    return request(`/api/admin/usuarios/${id}`, { method: 'DELETE' })
+  },
+  
+  // Gestión de proyectos
+  listarProyectos() {
+    return request('/api/admin/proyectos')
+  },
+  crearProyecto(projectData) {
+    return request('/api/admin/proyectos', { method: 'POST', body: JSON.stringify(projectData) })
+  },
+  actualizarProyecto(id, projectData) {
+    return request(`/api/admin/proyectos/${id}`, { method: 'PUT', body: JSON.stringify(projectData) })
+  },
+  eliminarProyecto(id) {
+    return request(`/api/admin/proyectos/${id}`, { method: 'DELETE' })
+  },
+  
+  // Gestión de viviendas
+  listarViviendas() {
+    return request('/api/admin/viviendas')
+  },
+  crearVivienda(housingData) {
+    return request('/api/admin/viviendas', { method: 'POST', body: JSON.stringify(housingData) })
+  },
+  actualizarVivienda(id, housingData) {
+    return request(`/api/admin/viviendas/${id}`, { method: 'PUT', body: JSON.stringify(housingData) })
+  },
+  eliminarVivienda(id) {
+    return request(`/api/admin/viviendas/${id}`, { method: 'DELETE' })
+  },
+  asignarVivienda(viviendaId, beneficiarioId) {
+    return request(`/api/admin/viviendas/${viviendaId}/asignar`, { 
+      method: 'POST', 
+      body: JSON.stringify({ beneficiario_uid: beneficiarioId }) 
+    })
+  },
+  desasignarVivienda(viviendaId) {
+    return request(`/api/admin/viviendas/${viviendaId}/desasignar`, { 
+      method: 'POST' 
+    })
+  },
+  
+  // Asignación de técnicos a proyectos
+  asignarTecnicoProyecto(proyectoId, tecnicoId) {
+    return request(`/api/admin/proyectos/${proyectoId}/tecnicos`, { 
+      method: 'POST', 
+      body: JSON.stringify({ tecnico_uid: tecnicoId }) 
+    })
+  },
+  removerTecnicoProyecto(proyectoId, tecnicoId) {
+    return request(`/api/admin/proyectos/${proyectoId}/tecnicos/${tecnicoId}`, { 
+      method: 'DELETE' 
+    })
+  },
+  listarTecnicosProyecto(proyectoId) {
+    return request(`/api/admin/proyectos/${proyectoId}/tecnicos`)
+  },
+  
+  // Dashboard y estadísticas
+  obtenerEstadisticas() {
+    return request('/api/admin/dashboard/stats')
+  },
+  obtenerActividad() {
+    return request('/api/admin/dashboard/activity')
+  }
+}

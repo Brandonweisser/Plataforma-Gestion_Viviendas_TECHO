@@ -9,7 +9,7 @@ export const NORMALIZED_ROLES = {
 
 export function normalizeRole(raw) {
   if (!raw) return null
-  const key = raw.toString().toLowerCase()
+  const key = raw.toString().trim().toLowerCase()
   return NORMALIZED_ROLES[key] || null
 }
 
@@ -17,11 +17,11 @@ export function dashboardPathFor(role) {
   const r = normalizeRole(role)
   switch (r) {
     case 'administrador':
-      return '/admin'
+      return '/home'  // Cambiado de '/admin' a '/home' donde está HomeAdministrador
     case 'tecnico':
-      return '/tecnico'
+      return '/home'  // Cambiado de '/tecnico' a '/home' donde está HomeTecnico
     case 'beneficiario':
-      return '/beneficiario'
+      return '/home'  // Cambiado de '/beneficiario' a '/home' donde está HomeBeneficiario
     default:
       return '/home'
   }

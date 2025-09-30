@@ -4,23 +4,24 @@ import { AuthContext } from "./context/AuthContext";
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
-import DebugAuth from "./pages/DebugAuth";
-import TestPage from "./pages/TestPage";
+// Rutas de debug eliminadas para versión final
 import IncidenciasHistorial from "./pages/IncidenciasHistorial";
 import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import FormularioPosventa from './pages/tecnico/FormularioPosventa';
 import ViviendasTecnico from './pages/tecnico/ViviendasTecnico';
-import GestionProyectosSimple from './pages/admin/GestionProyectosSimple';
+// Versión completa de gestión de proyectos
+import GestionProyectos from './pages/admin/GestionProyectos';
 import GestionViviendas from './pages/admin/GestionViviendas';
 import AsignacionViviendas from './pages/admin/AsignacionViviendas';
-import KpisMetricas from './pages/admin/KpisMetricas';
-import HomeAdministrador from './pages/HomeAdministrador';
+import GestionUsuarios from './pages/admin/GestionUsuarios';
 
 export default function AppRoutes() {
   const { isLoading } = useContext(AuthContext);
 
-  // Evitar decisiones prematuras de rutas mientras cargamos el usuario
+  // Bandera para habilitar/deshabilitar rutas de debug rápidamente
+  // Eliminado soporte de rutas debug en versión final
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -36,35 +37,28 @@ export default function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/debug" element={<DebugAuth />} />
-        <Route path="/test" element={<TestPage />} />
+  {/* Rutas debug removidas */}
         
-        {/* Bloque protegido (requiere usuario autenticado) */}
         <Route element={<ProtectedRoute redirectTo="/" />}>
-          {/* Dashboard principal (decide contenido por rol) */}
           <Route path="/home" element={<Home />} />
           <Route path="/home/incidencias" element={<IncidenciasHistorial />} />
 
-          {/* Rutas solo técnico */}
-            <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
-              <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
-              <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
-              <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
-              <Route path="/tecnico/viviendas" element={<ViviendasTecnico />} />
-            </Route>
+          <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
+            <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
+            <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
+            <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
+            <Route path="/tecnico/viviendas" element={<ViviendasTecnico />} />
+          </Route>
 
-          {/* Rutas solo administrador (excepto KPIs que se autoverifica internamente para evitar loops) */}
           <Route element={<RoleRoute allowed={['administrador']} fallback="/home" />}>
             <Route path="/admin" element={<Navigate to="/home" replace />} />
-            <Route path="/admin/proyectos" element={<GestionProyectosSimple />} />
+            <Route path="/admin/proyectos" element={<GestionProyectos />} />
             <Route path="/admin/viviendas" element={<GestionViviendas />} />
             <Route path="/admin/asignaciones" element={<AsignacionViviendas />} />
+          <Route path="/admin/usuarios" element={<GestionUsuarios />} />
           </Route>
-          <Route path="/admin/kpis" element={<KpisMetricas />} />
-    <Route path="/admin/kpis-inline" element={<ProtectedRoute><HomeAdministrador forceShowKpis /></ProtectedRoute>} />
         </Route>
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </BrowserRouter>
