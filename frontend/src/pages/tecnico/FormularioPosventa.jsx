@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
 
 export default function FormularioPosventa() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [formulario, setFormulario] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [modoIncidencias, setModoIncidencias] = useState('separadas');
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchFormulario();
-  }, [id]);
-
-  const fetchFormulario = async () => {
+  const fetchFormulario = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       
@@ -27,9 +23,7 @@ export default function FormularioPosventa() {
           'Content-Type': 'application/json'
         }
       });
-
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response statusText:', response.statusText);
+      
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -54,12 +48,13 @@ export default function FormularioPosventa() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => { fetchFormulario(); }, [fetchFormulario]);
 
   const handleRevisarFormulario = async () => {
     const comentario = prompt('Comentario de revisión (opcional):');
     if (comentario === null) return;
-
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:3001/api/tecnico/posventa/form/${id}/revisar`, {
@@ -70,19 +65,20 @@ export default function FormularioPosventa() {
         },
         body: JSON.stringify({
           comentario_tecnico: comentario,
-          generar_incidencias: true
+          modo_incidencias: modoIncidencias
         })
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setFormulario(prev => ({ 
-          ...prev, 
-          estado: 'revisada',
-          fecha_revisada: new Date().toISOString() 
+        setFormulario(prev => ({
+          ...prev,
+          estado: data.form?.estado || 'revisada',
+          fecha_revisada: data.form?.fecha_revisada || new Date().toISOString(),
+          comentario_tecnico: data.form?.comentario_tecnico || comentario
         }));
-        alert('Formulario revisado exitosamente');
+        alert(`Formulario revisado. Incidencias creadas: ${data.incidencias.length}`);
       } else {
         alert(`Error: ${data.message}`);
       }
@@ -269,7 +265,17 @@ export default function FormularioPosventa() {
                   </div>
                 </div>
 
-                <div className="flex space-x-3">
+                <div className="flex space-x-3 items-center">
+                  {formulario.estado === 'enviada' && (
+                    <select
+                      value={modoIncidencias}
+                      onChange={e => setModoIncidencias(e.target.value)}
+                      className="border rounded-md text-sm px-2 py-1"
+                    >
+                      <option value="separadas">Incidencias Separadas</option>
+                      <option value="agrupada">Incidencia Agrupada</option>
+                    </select>
+                  )}
                   {formulario.estado === 'enviada' && (
                     <button
                       onClick={handleRevisarFormulario}

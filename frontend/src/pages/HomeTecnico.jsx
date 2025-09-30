@@ -30,6 +30,7 @@ export default function HomeTecnico() {
   console.log('  - localStorage token:', localStorage.getItem('token'));
 
   const tools = [
+    { title: 'Viviendas', description: 'Listado y entrega de viviendas', badge: 'ver', action: () => navigate('/tecnico/viviendas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
     { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: '12 asignadas', action: () => navigate('/tecnico/incidencias'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
     { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: '8 pendientes', action: () => navigate('/tecnico/posventa'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
     { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: '3 urgentes', action: () => navigate('/tecnico/incidencias'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },

@@ -1,12 +1,9 @@
 // Servicio API centralizado para el frontend
 // Create React App uses REACT_APP_* env vars; fallback to localhost for dev
+import { getToken } from './token'
 const BASE_URL = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL)
   ? process.env.REACT_APP_API_URL
   : 'http://localhost:3001';
-
-function getToken() {
-  try { return localStorage.getItem('token'); } catch { return null }
-}
 
 function authHeaders() {
   const t = getToken();
@@ -186,5 +183,19 @@ export const tecnicoApi = {
   },
   historialIncidencia(id) {
     return request(`/api/incidencias/${id}/historial`)
+  },
+  editarIncidencia(id, { descripcion, prioridad }) {
+    return request(`/api/tecnico/incidencias/${id}/editar`, { method: 'POST', body: JSON.stringify({ descripcion, prioridad }) })
+  },
+  comentarIncidencia(id, comentario) {
+    return request(`/api/tecnico/incidencias/${id}/comentar`, { method: 'POST', body: JSON.stringify({ comentario }) })
+  },
+  async subirMediaIncidencia(id, file) {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE_URL}/api/tecnico/incidencias/${id}/media`, { method: 'POST', headers: { ...authHeaders() }, body: form })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || data.success === false) { const err = new Error(data.message || 'Error subiendo media'); err.data = data; throw err }
+    return data
   }
 }

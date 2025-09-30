@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
+import { fetchHistorialIncidencia, groupEventsByDay, eventIcon } from '../services/historial'
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
@@ -29,6 +30,9 @@ export default function HomeBeneficiario() {
   const fileInputRef = React.useRef(null);
   const [uploadTarget, setUploadTarget] = useState(null);
   const [detailInc, setDetailInc] = useState(null);
+  const [historialInc, setHistorialInc] = useState([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
 
   // Modal estado
   const [isModalOpen, setModalOpen] = useState(false);
@@ -279,7 +283,15 @@ export default function HomeBeneficiario() {
                 <li key={report.id} className="pt-2 first:pt-0">
                   <CardIncidencia
                     incidencia={report.raw}
-                    onOpen={(inc) => setDetailInc(inc)}
+                    onOpen={async (inc) => {
+                      setDetailInc(inc)
+                      setHistorialInc([]); setHistMeta({ total:0, limit:50, offset:0, has_more:false })
+                      setLoadingHistorial(true)
+                      try {
+                        const r = await fetchHistorialIncidencia(inc.id_incidencia, { limit:50, offset:0 })
+                        setHistorialInc(r.events); setHistMeta(r.meta)
+                      } catch(_){} finally { setLoadingHistorial(false) }
+                    }}
                     allowUpload={false}
                     onUploadClick={(inc) => { setUploadTarget(inc); fileInputRef.current?.click(); }}
                   />
@@ -334,6 +346,39 @@ export default function HomeBeneficiario() {
                           <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
                           <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
                           <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
+                          <div className='mt-4'>
+                            <p className='font-medium text-slate-900 dark:text-white mb-1'>Historial</p>
+                            {loadingHistorial && <p className='text-xs text-slate-500'>Cargando historial…</p>}
+                            {!loadingHistorial && historialInc.length === 0 && <p className='text-xs text-slate-500'>Sin eventos</p>}
+                            {!loadingHistorial && historialInc.length>0 && groupEventsByDay(historialInc).map(g => (
+                              <div key={g.day} className='mb-2'>
+                                <div className='text-[11px] font-semibold text-slate-500 mb-1'>{g.day}</div>
+                                <ul className='space-y-1'>
+                                  {g.events.map(ev => (
+                                    <li key={ev.id} className='text-[11px] flex justify-between gap-2 border-b border-slate-100 dark:border-slate-700 py-1'>
+                                      <div>
+                                        <span className='mr-1'>{eventIcon(ev.tipo_evento)}</span>
+                                        <span className='font-semibold'>{ev.tipo_evento}</span>
+                                        {ev.estado_anterior && ev.estado_nuevo && <span className='ml-1'>({ev.estado_anterior}→{ev.estado_nuevo})</span>}
+                                        {ev.comentario && <span className='italic ml-1 text-slate-500'>“{ev.comentario}”</span>}
+                                      </div>
+                                      <time className='text-slate-400'>{(ev.created_at||'').replace('T',' ').substring(11,16)}</time>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                            {histMeta.has_more && !loadingHistorial && (
+                              <button className='btn-outline btn-xs mt-1' onClick={async ()=>{
+                                setLoadingHistorial(true)
+                                try {
+                                  const next = await fetchHistorialIncidencia(detailInc.id_incidencia, { limit: histMeta.limit, offset: histMeta.offset + histMeta.limit })
+                                  setHistorialInc(prev => [...prev, ...next.events])
+                                  setHistMeta(next.meta)
+                                } catch(_){} finally { setLoadingHistorial(false) }
+                              }}>Ver más</button>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <p className="text-sm font-medium mb-2 text-slate-800 dark:text-slate-100">Fotos</p>

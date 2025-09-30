@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
+import { fetchHistorialIncidencia, groupEventsByDay, eventIcon } from '../services/historial'
 import { DashboardLayout } from '../components/ui/DashboardLayout';
 import { beneficiarioApi } from '../services/api';
 import CardIncidencia from '../components/CardIncidencia';
@@ -16,6 +17,9 @@ export default function IncidenciasHistorial() {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [detailInc, setDetailInc] = useState(null);
+  const [historial, setHistorial] = useState([]);
+  const [loadingHist, setLoadingHist] = useState(false);
+  const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
   const [filters, setFilters] = useState({ estado: '', categoria: '', prioridad: '', search: '' });
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -104,7 +108,14 @@ export default function IncidenciasHistorial() {
         </div>
         <div className="grid gap-4">
           {incidencias.map(inc => (
-            <CardIncidencia key={inc.id_incidencia} incidencia={inc} onOpen={setDetailInc} allowUpload={false} />
+            <CardIncidencia key={inc.id_incidencia} incidencia={inc} onOpen={async (incData)=>{
+              setDetailInc(incData);
+              setLoadingHist(true); setHistorial([]); setHistMeta({ total:0, limit:50, offset:0, has_more:false })
+              try {
+                const r = await fetchHistorialIncidencia(incData.id_incidencia, { limit:50, offset:0 })
+                setHistorial(r.events); setHistMeta(r.meta)
+              } catch(_){ } finally { setLoadingHist(false) }
+            }} allowUpload={false} />
           ))}
           {!loading && incidencias.length === 0 && (
             <p className="text-sm text-slate-500">No hay reportes aún.</p>
@@ -139,6 +150,39 @@ export default function IncidenciasHistorial() {
                 <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
                 <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
                 <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
+                <div className='mt-4'>
+                  <p className='font-medium text-slate-900 dark:text-white mb-1'>Historial</p>
+                  {loadingHist && <p className='text-xs text-slate-500'>Cargando historial…</p>}
+                  {!loadingHist && historial.length===0 && <p className='text-xs text-slate-500'>Sin eventos</p>}
+                  {!loadingHist && historial.length>0 && groupEventsByDay(historial).map(group => (
+                    <div key={group.day} className='mb-2'>
+                      <div className='text-[11px] font-semibold text-slate-500 mb-1'>{group.day}</div>
+                      <ul className='space-y-1'>
+                        {group.events.map(ev => (
+                          <li key={ev.id} className='text-[11px] flex justify-between gap-2 border-b border-slate-100 dark:border-slate-700 py-1'>
+                            <div>
+                              <span className='mr-1'>{eventIcon(ev.tipo_evento)}</span>
+                              <span className='font-semibold'>{ev.tipo_evento}</span>
+                              {ev.estado_anterior && ev.estado_nuevo && <span className='ml-1'>({ev.estado_anterior}→{ev.estado_nuevo})</span>}
+                              {ev.comentario && <span className='italic ml-1 text-slate-500'>“{ev.comentario}”</span>}
+                            </div>
+                            <time className='text-slate-400'>{(ev.created_at||'').replace('T',' ').substring(11,16)}</time>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  {histMeta.has_more && !loadingHist && (
+                    <button className='btn-outline btn-xs mt-1' onClick={async ()=>{
+                      setLoadingHist(true)
+                      try {
+                        const next = await fetchHistorialIncidencia(detailInc.id_incidencia, { limit: histMeta.limit, offset: histMeta.offset + histMeta.limit })
+                        setHistorial(prev => [...prev, ...next.events])
+                        setHistMeta(next.meta)
+                      } catch(_){} finally { setLoadingHist(false) }
+                    }}>Ver más</button>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-sm font-medium mb-2 text-slate-800 dark:text-slate-100">Fotos</p>

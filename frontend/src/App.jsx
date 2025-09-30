@@ -19,6 +19,7 @@ import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import FormulariosPosventa from './pages/tecnico/FormulariosPosventa';
 import FormularioPosventa from './pages/tecnico/FormularioPosventa';
+import ViviendasTecnico from './pages/tecnico/ViviendasTecnico';
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
               <Route path="/tecnico/posventa" element={<FormulariosPosventa />} />
               <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
+              <Route path="/tecnico/viviendas" element={<ViviendasTecnico />} />
             </Route>
             <Route element={<RoleRoute allowed={["beneficiario"]} />}> 
               {/* UI pulida conectada al backend */}
