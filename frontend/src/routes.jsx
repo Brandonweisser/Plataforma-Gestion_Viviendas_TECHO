@@ -15,6 +15,7 @@ import GestionProyectos from './pages/admin/GestionProyectos';
 import GestionViviendas from './pages/admin/GestionViviendas';
 import AsignacionViviendas from './pages/admin/AsignacionViviendas';
 import GestionUsuarios from './pages/admin/GestionUsuarios';
+import KpisMetricas from './pages/admin/KpisMetricas';
 
 export default function AppRoutes() {
   const { isLoading } = useContext(AuthContext);
@@ -55,7 +56,8 @@ export default function AppRoutes() {
             <Route path="/admin/proyectos" element={<GestionProyectos />} />
             <Route path="/admin/viviendas" element={<GestionViviendas />} />
             <Route path="/admin/asignaciones" element={<AsignacionViviendas />} />
-          <Route path="/admin/usuarios" element={<GestionUsuarios />} />
+            <Route path="/admin/usuarios" element={<GestionUsuarios />} />
+            <Route path="/admin/kpis" element={<KpisMetricas />} />
           </Route>
         </Route>
 

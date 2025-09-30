@@ -165,6 +165,21 @@ export default function GestionProyectos() {
     }
   }
 
+  const handleRemoveTechnician = async (projectId, technicianId) => {
+    if (!window.confirm('¿Remover técnico del proyecto?')) return
+    setLoading(true)
+    setError('')
+    try {
+      await adminApi.removerTecnicoProyecto(projectId, technicianId)
+      setSuccess('Técnico removido')
+      await loadData()
+    } catch (err) {
+      setError(err.message || 'Error al remover técnico')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const formatDate = (dateString) => {
     if (!dateString) return 'No definida'
     return new Date(dateString).toLocaleDateString('es-CL')
@@ -270,8 +285,14 @@ export default function GestionProyectos() {
                     <div className="flex flex-wrap gap-2 mb-3">
                       {proyecto.tecnicos && proyecto.tecnicos.length > 0 ? (
                         proyecto.tecnicos.map((tecnico) => (
-                          <span key={tecnico.uid} className="inline-flex items-center px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded">
+                          <span key={tecnico.uid} className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded group">
                             {tecnico.nombre}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTechnician(proyecto.id, tecnico.uid)}
+                              className="opacity-60 group-hover:opacity-100 text-xs px-1 rounded bg-red-200 text-red-700 hover:bg-red-300"
+                              title="Remover"
+                            >×</button>
                           </span>
                         ))
                       ) : (

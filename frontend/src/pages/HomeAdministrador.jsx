@@ -5,7 +5,6 @@ import { StatCard } from "../components/ui/StatCard";
 import { ActionCard } from "../components/ui/ActionCard";
 import { SectionPanel } from "../components/ui/SectionPanel";
 import { DashboardLayout } from "../components/ui/DashboardLayout";
-import DashboardCharts from '../components/dashboard/DashboardCharts';
 import {
   UsersIcon,
   HomeModernIcon,
@@ -15,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../services/api';
 
-export default function HomeAdministrador({ forceShowKpis = false }) {
+export default function HomeAdministrador() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   
@@ -39,7 +38,6 @@ export default function HomeAdministrador({ forceShowKpis = false }) {
 
   const iconSize = 'h-6 w-6';
 
-  const [showKpisInline, setShowKpisInline] = useState(forceShowKpis);
 
   const [stats, setStats] = useState({
     usuarios: { total: 0, administrador: 0, tecnico: 0, beneficiario: 0 },
@@ -133,18 +131,7 @@ export default function HomeAdministrador({ forceShowKpis = false }) {
             ))}
           </ul>
         </SectionPanel>
-        <div className="flex justify-center pt-4">
-          <button
-            onClick={() => setShowKpisInline(v => !v)}
-            className="px-6 py-2 text-sm rounded-md bg-pink-600 hover:bg-pink-700 text-white font-medium shadow"
-          >{showKpisInline ? 'Ocultar KPIs' : 'Ver KPIs'}</button>
-        </div>
-        {showKpisInline && (
-          <SectionPanel title="KPIs (Inline)" description="Vista rápida sin cambiar de página" as="section">
-            <DashboardCharts stats={stats} loading={stats.loading} />
-            <p className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">Esta es una vista embebida. También disponible en la página dedicada (si la ruta funciona) /admin/kpis.</p>
-          </SectionPanel>
-        )}
+  {/* Se eliminó el bloque inline de KPIs. Ahora solo se accede vía la tarjeta 'KPIs y Métricas'. */}
       </div>
     </DashboardLayout>
   );

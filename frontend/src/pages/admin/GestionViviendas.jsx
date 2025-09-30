@@ -30,6 +30,11 @@ export default function GestionViviendas() {
     observaciones: ''
   })
 
+  // Filtros y estado de UI adicional
+  const [filterProyecto, setFilterProyecto] = useState('all')
+  const [filterEstado, setFilterEstado] = useState('all')
+  const [collapsed, setCollapsed] = useState({}) // key -> bool
+
   useEffect(() => {
     loadData()
   }, [])
@@ -251,6 +256,31 @@ export default function GestionViviendas() {
     )
   }
 
+  // ----- Filtros -----
+  const filteredViviendas = viviendas.filter(v => {
+    const okProyecto = filterProyecto === 'all' || String(v.proyecto_id || '') === String(filterProyecto)
+    const okEstado = filterEstado === 'all' || v.estado === filterEstado
+    return okProyecto && okEstado
+  })
+
+  // ----- Agrupación por proyecto (posterior a filtros) -----
+  const proyectosMap = proyectos.reduce((acc, p) => { acc[p.id] = p; return acc }, {})
+  const grouped = {}
+  filteredViviendas.forEach(v => {
+    const key = v.proyecto_id || 'SIN_PROY'
+    if (!grouped[key]) {
+      const proj = proyectosMap[v.proyecto_id]
+      grouped[key] = {
+        projectId: v.proyecto_id || null,
+        nombre: proj?.nombre || 'Sin Proyecto',
+        tecnicos: proj?.tecnicos || [],
+        viviendas: []
+      }
+    }
+    grouped[key].viviendas.push(v)
+  })
+  const gruposOrdenados = Object.values(grouped).sort((a,b) => a.nombre.localeCompare(b.nombre, 'es'))
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -281,89 +311,126 @@ export default function GestionViviendas() {
           </div>
         )}
 
-        <SectionPanel title="Lista de Viviendas">
-          <div className="grid gap-6">
-            {viviendas.length > 0 ? (
-              viviendas.map((vivienda) => (
-                <div key={vivienda.id_vivienda} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-sm transition-colors">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{vivienda.direccion}</h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(vivienda.estado)}`}>
-                          {getStatusText(vivienda.estado)}
-                        </span>
+        <SectionPanel title="Viviendas por Proyecto" description="Agrupadas y filtrables">
+          {/* Controles de filtro */}
+          <div className="mb-5 flex flex-col lg:flex-row gap-4 lg:items-end">
+            <div className="flex flex-col gap-1 w-full lg:w-1/4">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Proyecto</label>
+              <select value={filterProyecto} onChange={e=>setFilterProyecto(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white dark:bg-gray-800 dark:border-gray-700">
+                <option value="all">Todos</option>
+                {proyectos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+                {viviendas.some(v=>!v.proyecto_id) && <option value="">(Sin Proyecto)</option>}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1 w-full lg:w-1/4">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Estado</label>
+              <select value={filterEstado} onChange={e=>setFilterEstado(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white dark:bg-gray-800 dark:border-gray-700">
+                <option value="all">Todos</option>
+                <option value="en_construccion">En Construcción</option>
+                <option value="terminada">Terminada</option>
+                <option value="entregada">Entregada</option>
+                <option value="en_mantenimiento">En Mantenimiento</option>
+              </select>
+            </div>
+            <div className="flex gap-2 ml-auto">
+              <button type="button" onClick={()=>{ setFilterProyecto('all'); setFilterEstado('all'); }} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">Reset</button>
+              <button type="button" onClick={()=>{
+                // Expandir / Colapsar todos
+                const anyOpen = Object.values(collapsed).some(v => v === false)
+                if (anyOpen) {
+                  // Colapsar todos
+                  const next = {}
+                  gruposOrdenados.forEach(g => { next[g.projectId || 'SIN_PROY'] = true })
+                  setCollapsed(next)
+                } else {
+                  setCollapsed({})
+                }
+              }} className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+                {Object.keys(collapsed).length ? 'Expandir Todos' : 'Colapsar Todos'}
+              </button>
+            </div>
+          </div>
+          {viviendas.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">No hay viviendas registradas</p>
+              <button 
+                onClick={() => openModal('crear')}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Crear Primera Vivienda
+              </button>
+            </div>
+          )}
+          <div className="space-y-8">
+            {gruposOrdenados.map(grupo => {
+              const key = grupo.projectId || 'SIN_PROY'
+              const entregadas = grupo.viviendas.filter(v => v.estado === 'entregada').length
+              const total = grupo.viviendas.length
+              const pct = total ? (entregadas / total) * 100 : 0
+              const isCollapsed = collapsed[key]
+              return (
+                <div key={key} className="border border-gray-300 dark:border-gray-700 rounded-xl overflow-hidden">
+                  <button type="button" onClick={()=>setCollapsed(c => ({ ...c, [key]: !c[key] }))} className="w-full text-left px-5 py-4 bg-gray-50 dark:bg-gray-800/60 flex flex-col gap-3 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+                          <span className={`inline-block transform transition-transform ${isCollapsed ? 'rotate-90' : ''}`}>›</span>
+                          {grupo.nombre}
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-600 text-white">{total} viv</span>
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">{grupo.projectId ? `ID Proyecto: ${grupo.projectId}` : 'Sin proyecto asignado'}</p>
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
-                        <div>
-                          <span className="font-medium">Proyecto:</span> {vivienda.proyecto_nombre || 'Sin proyecto'}
-                        </div>
-                        <div>
-                          <span className="font-medium">Tipo:</span> {vivienda.tipo_vivienda || 'No especificado'}
-                        </div>
-                        <div>
-                          <span className="font-medium">Metros:</span> {vivienda.metros_cuadrados || 'N/A'} m²
-                        </div>
-                        <div>
-                          <span className="font-medium">Habitaciones:</span> {vivienda.numero_habitaciones || 'N/A'}
-                        </div>
+                      <div className="flex flex-wrap gap-2">
+                        {grupo.tecnicos.length ? grupo.tecnicos.map(t => (
+                          <span key={t.uid} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
+                            {t.nombre}
+                          </span>
+                        )) : (
+                          <span className="text-xs text-gray-500 italic">Sin técnicos asignados</span>
+                        )}
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-                        <div>
-                          <span className="font-medium">Beneficiario:</span> {
-                            vivienda.beneficiario_nombre 
-                              ? `${vivienda.beneficiario_nombre} (${vivienda.beneficiario_email})`
-                              : 'Sin asignar'
-                          }
-                        </div>
-                        <div>
-                          <span className="font-medium">Fecha Entrega:</span> {formatDate(vivienda.fecha_entrega)}
-                        </div>
-                      </div>
-
-                      {vivienda.observaciones && (
-                        <div className="mt-2 text-sm text-gray-600">
-                          <span className="font-medium">Observaciones:</span> {vivienda.observaciones}
-                        </div>
-                      )}
                     </div>
-                    
-                    <div className="flex flex-col space-y-2">
-                      <button 
-                        onClick={() => openAssignModal(vivienda)}
-                        className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        {vivienda.beneficiario_uid ? 'Reasignar' : 'Asignar'}
-                      </button>
-                      <button 
-                        onClick={() => openModal('editar', vivienda)}
-                        className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-                      >
-                        Editar
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(vivienda)}
-                        className="px-3 py-1 text-sm border border-red-300 text-red-700 rounded hover:bg-red-50"
-                      >
-                        Eliminar
-                      </button>
+                    <div className="w-full">
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                        <span>Entregadas {entregadas}/{total}</span>
+                        <span>{pct.toFixed(0)}%</span>
+                      </div>
+                      <div className="h-2 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                        <div className={`h-full ${pct < 40 ? 'bg-red-500' : pct < 70 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                  </div>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="p-5 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                      {grupo.viviendas.map(vivienda => (
+                        <div key={vivienda.id_vivienda} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex flex-col">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">{vivienda.direccion}
+                                <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getStatusColor(vivienda.estado)}`}>{getStatusText(vivienda.estado)}</span>
+                              </h4>
+                              <p className="text-[11px] text-gray-500 mt-1">Tipo: {vivienda.tipo_vivienda || '—'} · Metros: {vivienda.metros_cuadrados || 'N/A'} · Hab: {vivienda.numero_habitaciones || 'N/A'}</p>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <button onClick={() => openAssignModal(vivienda)} className="px-2 py-1 text-[11px] bg-green-600 text-white rounded hover:bg-green-700">{vivienda.beneficiario_uid ? 'Reasignar' : 'Asignar'}</button>
+                              <button onClick={() => openModal('editar', vivienda)} className="px-2 py-1 text-[11px] border border-gray-300 text-gray-700 rounded hover:bg-gray-50">Editar</button>
+                              <button onClick={() => handleDelete(vivienda)} className="px-2 py-1 text-[11px] border border-red-300 text-red-700 rounded hover:bg-red-50">Eliminar</button>
+                            </div>
+                          </div>
+                          <div className="text-[12px] text-gray-600 dark:text-gray-400 space-y-1">
+                            <div><span className="font-medium">Beneficiario:</span> {vivienda.beneficiario_nombre ? `${vivienda.beneficiario_nombre} (${vivienda.beneficiario_email})` : 'Sin asignar'}</div>
+                            <div><span className="font-medium">Entrega:</span> {formatDate(vivienda.fecha_entrega)}</div>
+                            {vivienda.observaciones && <div className="line-clamp-2"><span className="font-medium">Obs:</span> {vivienda.observaciones}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">No hay viviendas registradas</p>
-                <button 
-                  onClick={() => openModal('crear')}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Crear Primera Vivienda
-                </button>
-              </div>
-            )}
+              )
+            })}
           </div>
         </SectionPanel>
 

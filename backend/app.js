@@ -599,7 +599,39 @@ app.get('/api/admin/proyectos', verifyToken, authorizeRole(['administrador']), a
   try {
     const { data, error } = await supabase.from('proyecto').select('id_proyecto, nombre, ubicacion, fecha_inicio, fecha_entrega').order('id_proyecto', { ascending: true })
     if (error) throw error
-    const proyectos = (data || []).map(p => ({ id: p.id_proyecto, nombre: p.nombre, ubicacion: p.ubicacion, fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_entrega, estado: 'activo', tecnicos: [] }))
+    const proyectoIds = (data || []).map(p => p.id_proyecto)
+    let asignacionesMap = {}
+    if (proyectoIds.length) {
+      try {
+        // Tabla relacional proyecto_tecnico: columnas (id_proyecto, tecnico_uid)
+        const { data: asignaciones, error: ea } = await supabase.from('proyecto_tecnico').select('id_proyecto, tecnico_uid').in('id_proyecto', proyectoIds)
+        if (ea) throw ea
+        const tecnicoIds = [...new Set((asignaciones||[]).map(a => a.tecnico_uid))]
+        let tecnicosMap = {}
+        if (tecnicoIds.length) {
+          const { data: tecnicos, error: et } = await supabase.from('usuarios').select('uid, nombre, email').in('uid', tecnicoIds)
+          if (et) throw et
+          tecnicosMap = Object.fromEntries((tecnicos||[]).map(t => [t.uid, { uid: t.uid, nombre: t.nombre, email: t.email }]))
+        }
+        asignacionesMap = (asignaciones||[]).reduce((acc, a) => {
+          if (!acc[a.id_proyecto]) acc[a.id_proyecto] = []
+          if (tecnicosMap[a.tecnico_uid]) acc[a.id_proyecto].push(tecnicosMap[a.tecnico_uid])
+          return acc
+        }, {})
+      } catch (inner) {
+        // Si la tabla no existe todavía (migración no aplicada), continuamos sin técnicos.
+        console.warn('⚠️ GET /api/admin/proyectos - tabla proyecto_tecnico ausente o error; continuando sin asignaciones:', inner?.message)
+      }
+    }
+    const proyectos = (data || []).map(p => ({
+      id: p.id_proyecto,
+      nombre: p.nombre,
+      ubicacion: p.ubicacion,
+      fecha_inicio: p.fecha_inicio,
+      fecha_fin: p.fecha_entrega,
+      estado: 'activo',
+      tecnicos: asignacionesMap[p.id_proyecto] || []
+    }))
     res.json({ success: true, data: proyectos })
   } catch (e) {
     console.error('GET /api/admin/proyectos error:', e)
@@ -651,6 +683,46 @@ app.delete('/api/admin/proyectos/:id', verifyToken, authorizeRole(['administrado
   } catch (e) {
     console.error('DELETE /api/admin/proyectos/:id error:', e)
     res.status(500).json({ success: false, message: 'Error eliminando proyecto' })
+  }
+})
+
+// Asignar técnico a proyecto
+app.post('/api/admin/proyectos/:id/tecnicos', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { tecnico_uid } = req.body || {}
+    if (!tecnico_uid) return res.status(400).json({ success: false, message: 'tecnico_uid requerido' })
+    // Verificar existencia del proyecto y técnico
+    const { data: proj, error: ep } = await supabase.from('proyecto').select('id_proyecto').eq('id_proyecto', id).maybeSingle()
+    if (ep) throw ep
+    if (!proj) return res.status(404).json({ success: false, message: 'Proyecto no encontrado' })
+    const { data: tec, error: et } = await supabase.from('usuarios').select('uid, rol').eq('uid', tecnico_uid).maybeSingle()
+    if (et) throw et
+    if (!tec || tec.rol !== 'tecnico') return res.status(400).json({ success: false, message: 'Técnico inválido' })
+    // Evitar duplicados
+    const { data: existing, error: ee } = await supabase.from('proyecto_tecnico').select('id_proyecto').eq('id_proyecto', id).eq('tecnico_uid', tecnico_uid).maybeSingle()
+    if (ee) throw ee
+    if (existing) return res.json({ success: true, message: 'Ya estaba asignado' })
+    const { error: ei } = await supabase.from('proyecto_tecnico').insert([{ id_proyecto: id, tecnico_uid }])
+    if (ei) throw ei
+    res.status(201).json({ success: true })
+  } catch (e) {
+    console.error('POST /api/admin/proyectos/:id/tecnicos error:', e)
+    res.status(500).json({ success: false, message: 'Error asignando técnico' })
+  }
+})
+
+// Remover técnico de proyecto
+app.delete('/api/admin/proyectos/:id/tecnicos/:tecnico_uid', verifyToken, authorizeRole(['administrador']), async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const tecnico_uid = Number(req.params.tecnico_uid)
+    const { error } = await supabase.from('proyecto_tecnico').delete().eq('id_proyecto', id).eq('tecnico_uid', tecnico_uid)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (e) {
+    console.error('DELETE /api/admin/proyectos/:id/tecnicos/:tecnico_uid error:', e)
+    res.status(500).json({ success: false, message: 'Error removiendo técnico' })
   }
 })
 
