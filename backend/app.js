@@ -5,12 +5,16 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { supabase } from './supabaseClient.js'
 import dotenv from 'dotenv'
+import usuariosRoutes from './routes/usuarios.js'
+import viviendasRoutes from './routes/viviendas.js'
 
 dotenv.config()
 
 const app = express()
 app.use(cors())
 app.use(express.json())
+app.use("/api/usuarios", usuariosRoutes)
+app.use("/api/viviendas", viviendasRoutes)
 
 // Rate limiter para login (3 intentos por minuto por IP)
 const loginLimiter = rateLimit({
