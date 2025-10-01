@@ -1,0 +1,10 @@
+[
+  {"comuna": "San Bernardo", "lat": -33.592, "lng": -70.699, "viviendas": 2},
+  {"comuna": "Maipú", "lat": -33.516, "lng": -70.757, "viviendas": 3},
+  {"comuna": "Los Ángeles", "lat": -37.469, "lng": -72.353, "viviendas": 5},
+  {"comuna": "Valparaíso", "lat": -33.047, "lng": -71.612, "viviendas": 4},
+  {"comuna": "La Serena", "lat": -29.904, "lng": -71.249, "viviendas": 1},
+  {"comuna": "Antofagasta", "lat": -23.652, "lng": -70.398, "viviendas": 6},
+  {"comuna": "Puerto Montt", "lat": -41.468, "lng": -72.942, "viviendas": 2},
+  {"comuna": "Punta Arenas", "lat": -53.163, "lng": -70.917, "viviendas": 1}
+]

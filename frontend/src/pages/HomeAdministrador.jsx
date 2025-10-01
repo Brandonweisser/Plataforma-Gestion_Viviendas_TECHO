@@ -69,7 +69,8 @@ export default function HomeAdministrador() {
     { title: "Asignación de Viviendas", description: "Asignar viviendas a beneficiarios", badge: "Disponible", action: () => handleNavigation('/admin/asignaciones', 'Asignación de Viviendas'), icon: <UsersIcon className={iconSize} />, accent: 'purple' },
     { title: "Gestión de Usuarios", description: "Crear, editar y bloquear cuentas del sistema", badge: `${stats.usuarios.total} usuarios`, action: () => handleNavigation('/admin/usuarios', 'Gestión de Usuarios'), icon: <UsersIcon className={iconSize} />, accent: 'orange' },
   { title: "Supervisión de Incidencias", description: "Monitorear incidencias y asignaciones críticas", badge: `${stats.incidencias.abiertas} abiertas`, action: () => handleNavigation('/home/incidencias', 'Incidencias'), icon: <WrenchScrewdriverIcon className={iconSize} />, accent: 'cyan' },
-  { title: "KPIs y Métricas", description: "Visualizaciones y análisis detallado", badge: "Gráficos", to: '/admin/kpis', action: () => handleNavigation('/admin/kpis', 'KPIs'), icon: <ChartBarIcon className={iconSize} />, accent: 'pink' }
+    { title: "KPIs y Métricas", description: "Visualizaciones y análisis detallado", badge: "Gráficos", to: '/admin/kpis', action: () => handleNavigation('/admin/kpis', 'KPIs'), icon: <ChartBarIcon className={iconSize} />, accent: 'pink' },
+    { title: "Mapa de Viviendas", description: "Distribución geográfica (demo)", badge: "Beta", to: '/admin/mapa-viviendas', action: () => handleNavigation('/admin/mapa-viviendas', 'Mapa Viviendas'), icon: <HomeModernIcon className={iconSize} />, accent: 'indigo' }
   ];
 
   const recentActivity = [
