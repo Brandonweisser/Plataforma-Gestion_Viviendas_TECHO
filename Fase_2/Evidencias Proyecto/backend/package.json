@@ -12,10 +12,10 @@
     "revert:lista-asignada": "node run-sql-file.js ../database/021_revert_lista_a_asignada.sql",
     "seed:posventa-template": "node run-sql-file.js ../database/022_seed_postventa_template.sql",
     "seed:posventa-template-rich": "node run-sql-file.js ../database/023_rich_postventa_template.sql",
-    "seed:posventa-template-tipos": "node run-sql-file.js ../database/024_templates_posventa_por_tipo.sql"
-    ,"fix:posventa-templates-tipos": "node run-sql-file.js ../database/025_fix_templates_posventa_tipos.sql"
-    ,"migracion:posventa-revisar": "node run-sql-file.js ../database/026_posventa_revisar.sql"
-    ,"migracion:posventa-comentario": "node run-sql-file.js ../database/027_posventa_comentario_tecnico.sql"
+    "seed:posventa-template-tipos": "node run-sql-file.js ../database/024_templates_posventa_por_tipo.sql",
+    "fix:posventa-templates-tipos": "node run-sql-file.js ../database/025_fix_templates_posventa_tipos.sql",
+    "migracion:posventa-revisar": "node run-sql-file.js ../database/026_posventa_revisar.sql",
+    "migracion:posventa-comentario": "node run-sql-file.js ../database/027_posventa_comentario_tecnico.sql"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,7 @@
   "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
+    "apexcharts": "^5.3.5",
     "bcrypt": "^5.1.1",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
