@@ -1,6 +1,6 @@
 # Sistema de Gestión de Viviendas - TECHO
 
-Plataforma web para la gestión integral de proyectos habitacionales sociales, desarrollada para optimizar la coordinación entre beneficiarios, técnicos y administradores en todas las etapas del proceso de vivienda.
+Plataforma web para la gestión integral de proyectos habitacionales sociales. Sistema desarrollado por nuestro equipo para optimizar la coordinación entre beneficiarios, técnicos y administradores en todas las etapas del proceso de vivienda.
 
 ## Descripción del Proyecto
 
@@ -66,6 +66,76 @@ Este sistema permite gestionar el ciclo completo de las viviendas sociales, desd
 - **Jest** - Framework de testing
 - **dotenv** - Gestión de variables de entorno
 
+## 🏗️ Arquitectura del Sistema
+
+### Backend Refactorizado (Estructura Modular)
+El backend ha sido **completamente refactorizado** siguiendo patrones de arquitectura profesional para mejorar mantenibilidad, escalabilidad y colaboración en equipo:
+
+```
+backend/
+├── controllers/          # Lógica de negocio separada por funcionalidad
+│   ├── authController.js      # Autenticación y autorización
+│   ├── adminController.js     # Gestión administrativa
+│   ├── beneficiarioController.js # Funciones para beneficiarios
+│   └── tecnicoController.js   # Gestión técnica de incidencias
+├── middleware/           # Middleware reutilizable
+│   └── auth.js               # Verificación JWT y manejo de roles
+├── models/              # Acceso a datos y lógica de base de datos
+│   ├── User.js               # Gestión de usuarios y autenticación
+│   ├── Project.js            # Gestión de proyectos habitacionales
+│   ├── Housing.js            # Gestión de viviendas y asignaciones
+│   ├── Incidence.js          # Gestión de incidencias y reportes
+│   └── PasswordRecovery.js   # Sistema de recuperación de contraseñas
+├── routes/              # Definición modular de rutas API
+│   ├── auth.js               # /api/* (registro, login, recuperación)
+│   ├── admin.js              # /api/admin/* (gestión administrativa)
+│   ├── beneficiario.js       # /api/beneficiario/* (funciones beneficiario)
+│   └── tecnico.js            # /api/tecnico/* (gestión técnica)
+├── services/            # Servicios externos existentes
+│   ├── EmailService.js       # Envío de correos electrónicos
+│   └── PosventaPDFService.js # Generación de documentos PDF
+└── utils/               # Utilidades y validaciones centralizadas
+    └── validation.js         # Validaciones reutilizables (RUT, email, etc.)
+```
+
+**Beneficios de la nueva arquitectura:**
+- ✅ **Mantenibilidad**: Código organizado en módulos específicos y especializados
+- ✅ **Escalabilidad**: Fácil agregar nuevas funcionalidades sin afectar módulos existentes
+- ✅ **Testing**: Cada módulo se puede probar independientemente
+- ✅ **Colaboración**: Diferentes desarrolladores pueden trabajar en módulos separados
+- ✅ **Reutilización**: Middleware y utilidades compartidas entre módulos
+- ✅ **Mantenimiento**: Separación clara de responsabilidades (SRP)
+
+### API Endpoints Organizados
+
+#### Autenticación (`/api/`)
+- `POST /api/register` - Registro de nuevos beneficiarios
+- `POST /api/login` - Inicio de sesión con rate limiting
+- `GET /api/me` - Información del usuario autenticado
+- `POST /api/forgot-password` - Solicitar código de recuperación
+- `POST /api/reset-password` - Restablecer contraseña con código
+
+#### Administración (`/api/admin/`)
+- `GET /api/admin/dashboard/stats` - Estadísticas del sistema
+- `GET|POST|PUT|DELETE /api/admin/usuarios` - CRUD de usuarios
+- `GET|POST|PUT|DELETE /api/admin/proyectos` - CRUD de proyectos
+- `GET|POST|PUT|DELETE /api/admin/viviendas` - CRUD de viviendas
+- `POST /api/admin/proyectos/:id/tecnicos` - Asignar técnicos a proyectos
+- `POST /api/admin/viviendas/:id/asignar` - Asignar beneficiarios
+
+#### Beneficiarios (`/api/beneficiario/`)
+- `GET /api/beneficiario/vivienda` - Información de vivienda asignada
+- `GET /api/beneficiario/recepcion` - Estado de recepción de vivienda
+- `GET|POST /api/beneficiario/incidencias` - Gestión de incidencias
+- `GET /api/beneficiario/incidencias/:id` - Detalle de incidencia
+
+#### Técnicos (`/api/tecnico/`)
+- `GET /api/tecnico/incidencias` - Lista de incidencias asignadas
+- `GET /api/tecnico/incidencias/:id` - Detalle de incidencia específica
+- `PUT /api/tecnico/incidencias/:id/estado` - Actualizar estado de incidencia
+- `POST /api/tecnico/incidencias/:id/asignar` - Auto-asignarse incidencia (admins)
+- `GET /api/tecnico/stats` - Estadísticas del técnico
+
 ## Estructura del Proyecto
 
 ```
@@ -78,12 +148,19 @@ Plataforma-Gestion_Viviendas_TECHO/
 │   │   ├── context/         # Contextos de React
 │   │   └── utils/           # Funciones auxiliares
 │   └── public/              # Archivos estáticos
-├── backend/                 # Servidor Node.js
-│   ├── services/            # Lógica de negocio
-│   ├── __tests__/           # Pruebas automatizadas
-│   └── scripts/             # Scripts de utilidad
-├── database/                # Esquemas de base de datos
-└── docs/                    # Documentación técnica
+├── backend/                 # Servidor Node.js (REFACTORIZADO)
+│   ├── controllers/         # Lógica de negocio por funcionalidad
+│   ├── middleware/          # Middleware de autenticación y autorización
+│   ├── models/             # Modelos de datos y acceso a BD
+│   ├── routes/             # Definición modular de rutas API
+│   ├── services/           # Servicios externos (Email, PDF)
+│   ├── utils/              # Utilidades y validaciones
+│   ├── __tests__/          # Pruebas automatizadas
+│   └── scripts/            # Scripts de utilidad
+├── database/               # Esquemas de base de datos unificados
+│   ├── schema_completo.sql # Esquema unificado de la base de datos
+│   └── datos_prueba.sql    # Datos de prueba para desarrollo
+└── docs/                   # Documentación técnica
 ```
 
 ## Instalación y Configuración
@@ -246,4 +323,17 @@ Para soporte técnico y consultas:
 - **v1.0.0** - Lanzamiento inicial con funcionalidades básicas
 - **v1.1.0** - Sistema de postventa y PDFs
 - **v1.2.0** - Mejoras de UX y optimizaciones
-- **v2.0.0** - Aplicación móvil y nuevas funcionalidades (planificado)
+- **v2.0.0** - Arquitectura modular implementada
+
+## Equipo de Desarrollo
+
+Este sistema fue desarrollado aplicando principios de ingeniería de software y arquitectura modular para garantizar escalabilidad y mantenibilidad a largo plazo.
+
+### Contribuciones Técnicas
+- **Arquitectura Modular**: Implementación de patrones MVC con separación clara de responsabilidades
+- **API RESTful**: Diseño de endpoints organizados por funcionalidad
+- **Autenticación Segura**: Sistema JWT con manejo de roles y middleware
+- **Frontend Reactivo**: Interfaces adaptadas por tipo de usuario
+- **Base de Datos**: Diseño normalizado con integridad referencial
+
+El proyecto sigue estándares de la industria para desarrollo web moderno con React y Node.js.

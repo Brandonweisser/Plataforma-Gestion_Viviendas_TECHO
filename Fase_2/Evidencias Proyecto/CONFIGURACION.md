@@ -1,5 +1,18 @@
 # Configuración del Sistema TECHO
 
+## Arquitectura del Backend
+
+### Sistema Desarrollado
+Nuestro backend implementa una **arquitectura modular profesional** diseñada por el equipo que separa responsabilidades:
+
+- **Controllers**: Lógica de negocio específica por funcionalidad
+- **Models**: Acceso a datos y operaciones de base de datos  
+- **Routes**: Definición clara de endpoints API
+- **Middleware**: Autenticación, autorización y validaciones
+- **Utils**: Funciones reutilizables y validaciones
+
+Esta estructura mejora significativamente la mantenibilidad y escalabilidad del sistema.
+
 ## Variables de Entorno Requeridas
 
 ### Backend (.env)
@@ -15,6 +28,10 @@ JWT_SECRET=[tu-clave-secreta-jwt]
 # Configuración del Servidor
 PORT=3001
 NODE_ENV=development
+
+# Configuración de Recuperación de Contraseñas
+RECOVERY_ALLOWED_ROLES=beneficiario
+BCRYPT_SALT_ROUNDS=10
 ```
 
 ### Frontend

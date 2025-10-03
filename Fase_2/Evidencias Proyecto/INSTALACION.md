@@ -6,6 +6,27 @@
 - npm 8.0 o superior  
 - Cuenta activa en Supabase
 
+## Arquitectura del Sistema
+
+### Backend Desarrollado
+Nuestro backend implementa una **arquitectura modular profesional** diseñada para:
+
+```
+backend/
+├── controllers/     # Lógica de negocio separada
+├── middleware/      # Autenticación y autorización
+├── models/         # Acceso a datos
+├── routes/         # Definición de endpoints
+├── services/       # Servicios externos
+└── utils/          # Utilidades reutilizables
+```
+
+**Beneficios:**
+- ✅ Mantenibilidad mejorada
+- ✅ Escalabilidad aumentada  
+- ✅ Testing simplificado
+- ✅ Colaboración en equipo facilitada
+
 ## Instalación Paso a Paso
 
 ### 1. Preparación del Proyecto

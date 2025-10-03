@@ -51,7 +51,7 @@ export function RoleRoute({ allowed = [], fallback = '/unauthorized' }) {
   }
   
   if (!role) {
-    // Si ya está autenticado pero todavía no tenemos role (puede ser carrera al normalizar), mostramos spinner
+    // Si ya está autenticado pero todavía no tenemos role (puede estar cargando), mostramos spinner
     if (isAuthenticated) {
       console.log('⏳ RoleRoute - Usuario autenticado pero role todavía no disponible. Esperando...')
       return (
