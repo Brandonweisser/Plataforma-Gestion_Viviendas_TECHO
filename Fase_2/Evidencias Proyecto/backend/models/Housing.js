@@ -18,6 +18,10 @@ export async function getAllHousings() {
       estado,
       id_proyecto,
       id_usuario_beneficiario,
+      latitud,
+      longitud,
+      direccion,
+      direccion_normalizada,
       proyecto!inner(nombre, ubicacion),
       usuarios(nombre, email)
     `)

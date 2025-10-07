@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import beneficiarioRoutes from './routes/beneficiario.js'
 import tecnicoRoutes from './routes/tecnico.js'
+import geocodingRoutes from './routes/geocoding.js'
 
 // Configurar variables de entorno
 dotenv.config()
@@ -38,6 +39,7 @@ app.use('/api', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/beneficiario', beneficiarioRoutes)
 app.use('/api/tecnico', tecnicoRoutes)
+app.use('/api/geo', geocodingRoutes)
 
 // TODO: Agregar rutas de posventa cuando sea necesario
 // app.use('/api/posventa', posventaRoutes)

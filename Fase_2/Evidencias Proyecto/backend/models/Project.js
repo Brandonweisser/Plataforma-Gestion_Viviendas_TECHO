@@ -12,7 +12,7 @@ import { supabase } from '../supabaseClient.js'
 export async function getAllProjects() {
   const { data, error } = await supabase
     .from('proyecto')
-    .select('id_proyecto, nombre, ubicacion, fecha_inicio, fecha_entrega')
+    .select('id_proyecto, nombre, ubicacion, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, fecha_inicio, fecha_entrega')
     .order('id_proyecto', { ascending: true })
     
   if (error) throw error

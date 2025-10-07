@@ -277,7 +277,7 @@ export async function getProjects(req, res) {
  */
 export async function createNewProject(req, res) {
   try {
-    const { nombre, ubicacion, fecha_inicio, fecha_entrega } = req.body || {}
+  const { nombre, ubicacion, fecha_inicio, fecha_entrega, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, geocode_provider, geocode_score, geocode_at } = req.body || {}
     
     if (!nombre || !ubicacion) {
       return res.status(400).json({ 
@@ -290,7 +290,14 @@ export async function createNewProject(req, res) {
       nombre,
       ubicacion,
       fecha_inicio: fecha_inicio || null,
-      fecha_entrega: fecha_entrega || null
+      fecha_entrega: fecha_entrega || null,
+  ubicacion_normalizada: ubicacion_normalizada || null,
+  ubicacion_referencia: ubicacion_referencia || null,
+      latitud: typeof latitud === 'number' ? latitud : null,
+      longitud: typeof longitud === 'number' ? longitud : null,
+      geocode_provider: geocode_provider || null,
+      geocode_score: typeof geocode_score === 'number' ? geocode_score : null,
+      geocode_at: geocode_at ? new Date(geocode_at) : (latitud && longitud ? new Date() : null)
     }
     
     const created = await createProject(projectData)
@@ -319,7 +326,7 @@ export async function updateProjectById(req, res) {
       })
     }
     
-    const updated = await updateProject(id, updates)
+  const updated = await updateProject(id, updates)
     res.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error actualizando proyecto:', error)

@@ -3,8 +3,86 @@ import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { adminApi } from '../../services/api'
+import { searchAddresses as geoSearch, validateAddress as geoValidate } from '../../services/geocoding'
 
 export default function GestionProyectos() {
+  // Utilidad: extraer lat,lng desde texto o URL de Google/OSM
+  function parseLatLngFromText(text) {
+    if (!text) return null
+    const s = String(text).trim()
+    // 1) Par "lat,lng"
+    let m = s.match(/(-?\d{1,2}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    // 2) Google Maps URL con @lat,lng,zoomz
+    m = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+),\d+(?:\.\d+)?z/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    // 3) Google Maps con q=lat,lng
+    m = s.match(/[?&]q=(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    // 4) Google !3dlat!4dlng
+    m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    // 5) OSM mlat/mlon
+    m = s.match(/[?&]mlat=(-?\d{1,2}\.\d+).*?[&]mlon=(-?\d{1,3}\.\d+)/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    // 6) OSM #map=zoom/lat/lon
+    m = s.match(/#map=\d+\/?(-?\d{1,2}\.\d+)\/?(-?\d{1,3}\.\d+)/)
+    if (m) {
+      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+    }
+    return null
+  }
+  // Carga dinámica de Leaflet (igual que en MapaViviendas)
+  function useLeaflet() {
+    const [L, setL] = useState(null)
+    useEffect(() => {
+      let cancelled = false
+      async function load() {
+        if (window.L) { setL(window.L); return; }
+        const cssId = 'leaflet-css'
+        if (!document.getElementById(cssId)) {
+          const link = document.createElement('link')
+          link.id = cssId
+          link.rel = 'stylesheet'
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+          document.head.appendChild(link)
+        }
+        await import('https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js')
+          .then(mod => { if (!cancelled) setL(mod); })
+          .catch(async () => {
+            const scriptId = 'leaflet-umd'
+            if (!document.getElementById(scriptId)) {
+              const s = document.createElement('script')
+              s.id = scriptId
+              s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+              s.onload = () => { if (!cancelled) setL(window.L) }
+              document.body.appendChild(s)
+            } else if (window.L) setL(window.L)
+          })
+      }
+      load()
+      return () => { cancelled = true }
+    }, [])
+    return L
+  }
+
+  const L = useLeaflet()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -19,11 +97,22 @@ export default function GestionProyectos() {
     nombre: '',
     descripcion: '',
     ubicacion: '',
+    ubicacion_normalizada: '',
+    ubicacion_referencia: '',
+    latitud: null,
+    longitud: null,
     fecha_inicio: '',
     fecha_fin: '',
     estado: 'activo',
     coordinador_uid: ''
   })
+  const [geoState, setGeoState] = useState({ status: 'idle', msg: '', suggestions: [] })
+  const [addressLocked, setAddressLocked] = useState(false)
+  const mapRef = React.useRef(null)
+  const previewMapRef = React.useRef(null)
+  const previewMarkerRef = React.useRef(null)
+  const pickerMapRef = React.useRef(null)
+  const pickerMarkerRef = React.useRef(null)
 
   useEffect(() => {
     loadData()
@@ -59,18 +148,31 @@ export default function GestionProyectos() {
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
+    if (name === 'ubicacion' && addressLocked) {
+      // Solo resetear si ya había una dirección validada y ahora el usuario la está cambiando
+      setAddressLocked(false)
+      setGeoState({ status: 'idle', msg: '', suggestions: [] })
+      setForm(prev => ({ ...prev, ubicacion_normalizada: '', latitud: null, longitud: null }))
+    }
   }
+
+  // (helpers de comuna removidos; aceptamos resultados amplios y validamos por feature)
 
   const resetForm = () => {
     setForm({
       nombre: '',
       descripcion: '',
       ubicacion: '',
+      ubicacion_normalizada: '',
+      ubicacion_referencia: '',
+      latitud: null,
+      longitud: null,
       fecha_inicio: '',
       fecha_fin: '',
       estado: 'activo',
       coordinador_uid: ''
     })
+    setGeoState({ status: 'idle', msg: '', suggestions: [] })
   }
 
   const openModal = (type, project = null) => {
@@ -82,6 +184,10 @@ export default function GestionProyectos() {
         nombre: project.nombre || '',
         descripcion: project.descripcion || '',
         ubicacion: project.ubicacion || '',
+        ubicacion_normalizada: project.ubicacion_normalizada || '',
+        ubicacion_referencia: project.ubicacion_referencia || '',
+        latitud: project.latitud ?? null,
+        longitud: project.longitud ?? null,
         fecha_inicio: project.fecha_inicio ? project.fecha_inicio.split('T')[0] : '',
         fecha_fin: project.fecha_fin ? project.fecha_fin.split('T')[0] : '',
         estado: project.estado || 'activo',
@@ -114,6 +220,7 @@ export default function GestionProyectos() {
     setError('')
 
     try {
+      // Adjuntar normalización/coords si existen
       if (modalType === 'crear') {
         await adminApi.crearProyecto(form)
         setSuccess('Proyecto creado exitosamente')
@@ -130,6 +237,90 @@ export default function GestionProyectos() {
       setLoading(false)
     }
   }
+
+  // Autocompletado de dirección con debounce
+  useEffect(() => {
+    // Si ya se seleccionó/validó una dirección, no buscar de nuevo
+    if (addressLocked) { setGeoState(s => ({ ...s, suggestions: [] })); return }
+    const id = setTimeout(async () => {
+      const q = (form.ubicacion || '').trim()
+      if (!q || q.length < 3) { setGeoState(s => ({ ...s, suggestions: [] })); return }
+      try {
+        const res = await geoSearch(q)
+        setGeoState(s => ({ ...s, suggestions: res }))
+      } catch {
+        setGeoState(s => ({ ...s, suggestions: [] }))
+      }
+    }, 250)
+    return () => clearTimeout(id)
+  }, [form.ubicacion, addressLocked])
+
+  async function handleValidate(place) {
+    try {
+      setGeoState({ status: 'loading', msg: 'Validando…', suggestions: [] })
+  // Usar coordenadas exactas del ítem seleccionado y enviar el feature + address + comuna/region al backend
+  const r = await geoValidate({ feature: place, address: place.place_name })
+      setForm(prev => ({ ...prev, ubicacion: place.place_name, ubicacion_normalizada: r.normalized, latitud: r.lat, longitud: r.lng }))
+      setGeoState({ status: 'ok', msg: 'Dirección validada', suggestions: [] })
+      setAddressLocked(true)
+    } catch (err) {
+      setGeoState({ status: 'error', msg: err?.message || 'No se pudo validar', suggestions: [] })
+    }
+  }
+
+  // Render y actualización del mapa de previsualización (una sola instancia)
+  useEffect(() => {
+    if (!showModal || !L || !mapRef.current) return
+    if (typeof form.latitud !== 'number' || typeof form.longitud !== 'number') return
+    const center = [form.latitud, form.longitud]
+    if (!previewMapRef.current) {
+  const m = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView(center, 17)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(m)
+      const marker = L.circleMarker(center, { radius: 6, color: '#22c55e', weight: 2, fillOpacity: 0.8 }).addTo(m)
+      previewMapRef.current = m
+      previewMarkerRef.current = marker
+    } else {
+  previewMapRef.current.setView(center, previewMapRef.current.getZoom() || 17)
+      if (previewMarkerRef.current) previewMarkerRef.current.setLatLng(center)
+    }
+  }, [L, form.latitud, form.longitud, showModal])
+
+  // Limpiar instancias al cerrar modal
+  useEffect(() => {
+    if (!showModal) {
+      if (previewMapRef.current) { previewMapRef.current.remove(); previewMapRef.current = null }
+      previewMarkerRef.current = null
+      if (pickerMapRef.current) { pickerMapRef.current.remove(); pickerMapRef.current = null }
+      pickerMarkerRef.current = null
+    }
+  }, [showModal])
+
+  // Mapa tipo “Uber” para fijar punto arrastrando
+  useEffect(() => {
+    const el = document.getElementById('project-picker-map')
+    if (!el || !L || !showModal) return
+    const hasCoords = typeof form.latitud === 'number' && typeof form.longitud === 'number'
+    const center = hasCoords ? [form.latitud, form.longitud] : [-33.45, -70.66]
+    if (!pickerMapRef.current) {
+      const m = L.map(el, { zoomControl: true, attributionControl: false }).setView(center, hasCoords ? 17 : 5)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(m)
+      const marker = L.marker(center, { draggable: true }).addTo(m)
+      marker.on('dragend', () => {
+        const { lat, lng } = marker.getLatLng()
+        setForm(prev => ({ ...prev, latitud: lat, longitud: lng }))
+      })
+      m.on('moveend', () => {
+        const c = m.getCenter()
+        marker.setLatLng(c)
+        setForm(prev => ({ ...prev, latitud: c.lat, longitud: c.lng }))
+      })
+      pickerMapRef.current = m
+      pickerMarkerRef.current = marker
+    } else {
+      pickerMapRef.current.setView(center, pickerMapRef.current.getZoom() || (hasCoords ? 17 : 5))
+      if (pickerMarkerRef.current) pickerMarkerRef.current.setLatLng(center)
+    }
+  }, [L, showModal, form.latitud, form.longitud])
 
   const handleDelete = async (project) => {
     if (!window.confirm(`¿Está seguro de eliminar el proyecto "${project.nombre}"?`)) {
@@ -338,7 +529,7 @@ export default function GestionProyectos() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto overscroll-contain p-6">
               <h3 className="text-lg font-semibold mb-4">
                 {modalType === 'crear' ? 'Crear Nuevo Proyecto' : 'Editar Proyecto'}
               </h3>
@@ -371,7 +562,7 @@ export default function GestionProyectos() {
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Ubicación
                   </label>
@@ -382,6 +573,107 @@ export default function GestionProyectos() {
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  {geoState.suggestions.length > 0 && !addressLocked && (
+                    <div className="absolute z-[1200] mt-1 w-full bg-white text-gray-800 border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                      {geoState.suggestions.map(s => (
+                        <button type="button" key={s.id} onClick={() => handleValidate(s)} className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
+                          {s.place_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {addressLocked && (
+                    <div className="mt-1">
+                      <button type="button" onClick={() => { setAddressLocked(false); setGeoState(s => ({ ...s, suggestions: [] })) }} className="text-xs text-blue-600 hover:underline">Cambiar dirección</button>
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs">
+                    {geoState.status === 'loading' && <span className="text-gray-500">{geoState.msg}</span>}
+                    {geoState.status === 'ok' && (
+                      <span className="text-green-600">
+                        {geoState.msg}{form.ubicacion_normalizada ? ` · ${form.ubicacion_normalizada}` : ''}
+                      </span>
+                    )}
+                    {geoState.status === 'error' && <span className="text-red-600">{geoState.msg}</span>}
+                  </div>
+                  {(form.latitud && form.longitud) ? (
+                    <>
+                      <div className="mt-2 w-full h-48 rounded border border-gray-200 overflow-hidden" ref={mapRef}></div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                        <span>
+                          Lat: {Number(form.latitud).toFixed(6)}, Lng: {Number(form.longitud).toFixed(6)}
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${form.latitud},${form.longitud}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >Abrir en Google Maps</a>
+                        <a
+                          href={`https://www.openstreetmap.org/?mlat=${form.latitud}&mlon=${form.longitud}#map=19/${form.latitud}/${form.longitud}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >Ver en OpenStreetMap</a>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Referencia (si no existe calle aún)</label>
+                  <input type="text" name="ubicacion_referencia" value={form.ubicacion_referencia} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Ej: Loteo Los Pinos, manzana B, frente a sede vecinal" />
+                </div>
+
+                <div className="rounded border border-gray-200 p-3">
+                  <h4 className="text-sm font-medium mb-2">Otras formas de fijar ubicación</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fijar punto en el mapa (arrastrar)</label>
+                      <div id="project-picker-map" className="w-full h-72 rounded border border-gray-200 overflow-hidden" />
+                      <p className="text-xs text-gray-500 mt-1">Arrastra el mapa y pin para ajustar la ubicación. Se guardarán las coordenadas elegidas.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Ingresar coordenadas manualmente</label>
+                      <div className="flex gap-2">
+                        <input type="number" step="0.000001" name="latitud" value={form.latitud ?? ''} onChange={handleInputChange} placeholder="Latitud" className="w-1/2 px-3 py-2 border rounded" />
+                        <input type="number" step="0.000001" name="longitud" value={form.longitud ?? ''} onChange={handleInputChange} placeholder="Longitud" className="w-1/2 px-3 py-2 border rounded" />
+                      </div>
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pegar coordenadas o enlace (Google/OSM)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Ej: -33.578015,-70.708008 o enlace de Google Maps/OSM"
+                            className="flex-1 px-3 py-2 border rounded"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const value = e.currentTarget.value || ''
+                                const parsed = parseLatLngFromText(value)
+                                if (parsed) {
+                                  setForm(prev => ({ ...prev, latitud: parsed.lat, longitud: parsed.lng }))
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="px-3 py-2 border rounded bg-gray-50 hover:bg-gray-100"
+                            onClick={(e) => {
+                              const input = e.currentTarget.parentElement?.querySelector('input[type="text"]')
+                              const value = input?.value || ''
+                              const parsed = parseLatLngFromText(value)
+                              if (parsed) {
+                                setForm(prev => ({ ...prev, latitud: parsed.lat, longitud: parsed.lng }))
+                              }
+                            }}
+                          >Aplicar</button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Acepta: "-33.57,-70.70", enlaces con @lat,lng o q=lat,lng, OSM con mlat/mlon, o el formato !3dlat!4dlng.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
