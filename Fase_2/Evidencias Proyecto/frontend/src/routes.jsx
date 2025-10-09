@@ -17,6 +17,7 @@ import AsignacionViviendas from './pages/admin/AsignacionViviendas';
 import GestionUsuarios from './pages/admin/GestionUsuarios';
 import KpisMetricas from './pages/admin/KpisMetricas';
 import MapaViviendas from './pages/admin/MapaViviendas';
+import PosventaFormPage from './pages/PosventaForm.jsx';
 
 export default function AppRoutes() {
   const { isLoading } = useContext(AuthContext);
@@ -44,6 +45,8 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute redirectTo="/" />}>
           <Route path="/home" element={<Home />} />
           <Route path="/home/incidencias" element={<IncidenciasHistorial />} />
+          {/* Beneficiario posventa */}
+          <Route path="/beneficiario/posventa" element={<PosventaFormPage />} />
 
           <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
             <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />

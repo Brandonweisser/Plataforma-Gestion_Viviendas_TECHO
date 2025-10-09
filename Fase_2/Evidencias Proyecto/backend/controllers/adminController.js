@@ -499,16 +499,16 @@ export async function deleteHousingById(req, res) {
 export async function assignBeneficiary(req, res) {
   try {
     const housingId = Number(req.params.id)
-    const { beneficiario_uid } = req.body || {}
-    
-    if (!beneficiario_uid) {
+    const { id_usuario_beneficiario, beneficiario_uid } = req.body || {}
+    const finalBeneficiary = beneficiario_uid || id_usuario_beneficiario
+
+    if (!finalBeneficiary) {
       return res.status(400).json({ 
         success: false, 
-        message: 'beneficiario_uid es obligatorio' 
+        message: 'beneficiario_uid (o id_usuario_beneficiario) es obligatorio' 
       })
     }
-    
-    const updated = await assignBeneficiaryToHousing(housingId, beneficiario_uid)
+    const updated = await assignBeneficiaryToHousing(housingId, finalBeneficiary)
     res.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error asignando beneficiario:', error)

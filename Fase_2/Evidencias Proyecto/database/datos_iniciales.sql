@@ -76,3 +76,55 @@ INSERT INTO postventa_template_item (template_id, categoria, item, orden, severi
 (3, 'Acabados', 'Estado de ventanas', 10, 'media'),
 (3, 'Acabados', 'Escalera interna', 11, 'mayor'),
 (3, 'Limpieza', 'Limpieza general', 12, 'menor');
+
+
+BEGIN;
+
+TRUNCATE TABLE
+	audit_log,
+	incidencia_historial,
+	incidencias,
+	media,
+	media_legacy,
+	password_recovery_codes,
+	postventa_template_item,
+	postventa_template,
+	proyecto_tecnico,
+	vivienda_postventa_item,
+	vivienda_postventa_form,
+	vivienda_recepcion_item,
+	vivienda_recepcion,
+	viviendas,
+	proyecto
+RESTART IDENTITY CASCADE;
+
+
+-- Recalcular contador
+UPDATE proyecto p SET viviendas_count = (
+	SELECT COUNT(*) FROM viviendas v WHERE v.id_proyecto = p.id_proyecto
+);
+
+-- (Opcional) Asignar técnico (descomentar si hay rol = 'tecnico')
+-- INSERT INTO proyecto_tecnico (id_proyecto, tecnico_uid)
+-- SELECT p.id_proyecto,
+--        (SELECT u.uid FROM usuarios u WHERE u.rol = 'tecnico' ORDER BY u.uid LIMIT 1)
+-- FROM proyecto p
+-- WHERE EXISTS (SELECT 1 FROM usuarios u2 WHERE u2.rol = 'tecnico');
+
+-- (Opcional) Distribuir beneficiarios a viviendas asignadas / entregadas
+-- WITH beneficiarios AS (
+--   SELECT uid, ROW_NUMBER() OVER (ORDER BY uid) rn FROM usuarios WHERE rol = 'beneficiario'
+-- ), target AS (
+--   SELECT id_vivienda, ROW_NUMBER() OVER (ORDER BY id_vivienda) rn
+--   FROM viviendas WHERE estado IN ('asignada','entregada')
+-- )
+-- UPDATE viviendas v SET beneficiario_uid = b.uid
+-- FROM target t JOIN beneficiarios b ON b.rn = t.rn
+-- WHERE v.id_vivienda = t.id_vivienda;
+
+COMMIT;
+
+-- Verificación (ejecutar según necesites)
+-- SELECT id_proyecto, nombre, viviendas_count FROM proyecto ORDER BY id_proyecto;
+-- SELECT id_proyecto, estado, COUNT(*) FROM viviendas GROUP BY 1,2 ORDER BY 1,2;
+-- ========================= FIN BLOQUE RESETEO ========================

@@ -49,11 +49,15 @@ export default function HomeBeneficiario() {
       setError(e.message || "No se pudo cargar la vivienda");
     }
     try {
-  const incs = await beneficiarioApi.listarIncidencias(3, 0)
+      const incs = await beneficiarioApi.listarIncidencias(3, 0)
       setIncidencias(Array.isArray(incs.data) ? incs.data : [])
     } catch (e) {
-      // No bloqueamos toda la vista si falla media; mostramos aviso pequeño
-      setError(prev => prev || "Error al obtener las incidencias")
+      // Silenciar error si simplemente no hay incidencias o 404
+      if (e.status && [404, 204].includes(e.status)) {
+        setIncidencias([])
+      } else {
+        console.warn('Incidencias: ', e.message)
+      }
     } finally {
       setLoading(false)
     }

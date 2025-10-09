@@ -91,10 +91,10 @@ export async function getIncidenceDetail(req, res) {
     const { data: incidencia, error: errorIncidencia } = await supabase
       .from('incidencias')
       .select(`
-        *,
-        viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
-        reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
-        tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
+  *,
+  viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
+  reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
+  tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
       `)
       .match(whereClause)
       .single()
@@ -113,8 +113,8 @@ export async function getIncidenceDetail(req, res) {
     const { data: historial, error: errorHistorial } = await supabase
       .from('incidencia_historial')
       .select('*')
-      .eq('incidencia_id', incidenciaId)
-      .order('created_at', { ascending: true })
+  .eq('incidencia_id', incidenciaId)
+  .order('created_at', { ascending: true })
       
     if (errorHistorial) throw errorHistorial
 

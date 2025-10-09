@@ -22,7 +22,7 @@ export async function getAllHousings() {
       direccion,
       direccion_normalizada,
       proyecto!inner(nombre, ubicacion),
-      usuarios(nombre, email)
+      beneficiario:usuarios!viviendas_beneficiario_uid_fkey(nombre, email)
     `)
     .order('id_vivienda', { ascending: true })
     
@@ -41,7 +41,7 @@ export async function getHousingById(id) {
     .select(`
       *,
       proyecto(nombre, ubicacion),
-      usuarios(nombre, email, rut)
+      beneficiario:usuarios!viviendas_beneficiario_uid_fkey(nombre, email, rut)
     `)
     .eq('id_vivienda', id)
     .single()

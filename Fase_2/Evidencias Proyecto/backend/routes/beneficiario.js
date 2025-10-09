@@ -13,11 +13,18 @@ import {
   getMyReception,
   getMyIncidences,
   createNewIncidence,
-  getIncidenceDetail,
-  listIncidenceMedia,
-  uploadIncidenceMedia,
-  getIncidenceHistory
+  getIncidenceDetail
 } from '../controllers/beneficiarioController.js'
+import { 
+  getPosventaForm, 
+  createPosventaForm, 
+  savePosventaItems, 
+  sendPosventaForm 
+} from '../controllers/beneficiarioController.js'
+import { 
+  uploadIncidenciaMediaBeneficiario,
+  listIncidenciaMediaBeneficiario
+} from '../controllers/mediaIncidenciasBeneficiario.js'
 
 const router = express.Router()
 
@@ -38,8 +45,13 @@ router.get('/recepcion', getMyReception)
 router.get('/incidencias', getMyIncidences)
 router.post('/incidencias', createNewIncidence)
 router.get('/incidencias/:id', getIncidenceDetail)
-router.get('/incidencias/:id/media', listIncidenceMedia)
-router.post('/incidencias/:id/media', uploadIncidenceMedia)
-router.get('/incidencias/:id/historial', getIncidenceHistory)
+router.get('/incidencias/:id/media', listIncidenciaMediaBeneficiario)
+router.post('/incidencias/:id/media', uploadIncidenciaMediaBeneficiario)
+
+// Posventa
+router.get('/posventa/form', getPosventaForm)
+router.post('/posventa/form', createPosventaForm)
+router.post('/posventa/form/items', savePosventaItems)
+router.post('/posventa/form/enviar', sendPosventaForm)
 
 export default router

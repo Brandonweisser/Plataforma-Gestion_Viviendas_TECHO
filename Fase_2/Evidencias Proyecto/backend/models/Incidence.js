@@ -49,13 +49,18 @@ export async function getIncidencesByBeneficiary(beneficiaryId) {
  * @returns {Object} Incidencia creada
  */
 export async function createIncidence(incidenceData) {
+  // Seleccionamos sólo columnas existentes explícitamente para evitar referencias fantasma a 'fecha_creacion'
+  const selectCols = 'id_incidencia,id_vivienda,id_usuario_reporta,id_usuario_tecnico,descripcion,estado,fecha_reporte,categoria,prioridad,prioridad_origen,prioridad_final,version'
   const { data, error } = await supabase
     .from('incidencias')
     .insert([incidenceData])
-    .select('*')
+    .select(selectCols)
     .single()
-    
-  if (error) throw error
+
+  if (error) {
+    console.error('Error createIncidence (detalle raw):', error)
+    throw error
+  }
   return data
 }
 
