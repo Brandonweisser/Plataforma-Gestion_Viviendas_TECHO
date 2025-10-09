@@ -95,16 +95,13 @@ export default function GestionProyectos() {
   const [selectedProject, setSelectedProject] = useState(null)
   const [form, setForm] = useState({
     nombre: '',
-    descripcion: '',
     ubicacion: '',
     ubicacion_normalizada: '',
     ubicacion_referencia: '',
     latitud: null,
     longitud: null,
     fecha_inicio: '',
-    fecha_fin: '',
-    estado: 'activo',
-    coordinador_uid: ''
+    fecha_entrega: ''
   })
   const [geoState, setGeoState] = useState({ status: 'idle', msg: '', suggestions: [] })
   const [addressLocked, setAddressLocked] = useState(false)
@@ -129,7 +126,15 @@ export default function GestionProyectos() {
       ])
 
       if (proyectosRes.status === 'fulfilled') {
-        setProyectos(proyectosRes.value.data || [])
+        const base = proyectosRes.value.data || []
+        // cargar técnicos por proyecto en paralelo
+        const withTechs = await Promise.all(base.map(async (p) => {
+          try {
+            const r = await adminApi.listarTecnicosProyecto(p.id)
+            return { ...p, tecnicos: r.data || [] }
+          } catch { return { ...p, tecnicos: [] } }
+        }))
+        setProyectos(withTechs)
       }
 
       if (usuariosRes.status === 'fulfilled') {
@@ -161,16 +166,13 @@ export default function GestionProyectos() {
   const resetForm = () => {
     setForm({
       nombre: '',
-      descripcion: '',
       ubicacion: '',
       ubicacion_normalizada: '',
       ubicacion_referencia: '',
       latitud: null,
       longitud: null,
       fecha_inicio: '',
-      fecha_fin: '',
-      estado: 'activo',
-      coordinador_uid: ''
+      fecha_entrega: ''
     })
     setGeoState({ status: 'idle', msg: '', suggestions: [] })
   }
@@ -182,16 +184,13 @@ export default function GestionProyectos() {
     if (type === 'editar' && project) {
       setForm({
         nombre: project.nombre || '',
-        descripcion: project.descripcion || '',
         ubicacion: project.ubicacion || '',
         ubicacion_normalizada: project.ubicacion_normalizada || '',
         ubicacion_referencia: project.ubicacion_referencia || '',
         latitud: project.latitud ?? null,
         longitud: project.longitud ?? null,
-        fecha_inicio: project.fecha_inicio ? project.fecha_inicio.split('T')[0] : '',
-        fecha_fin: project.fecha_fin ? project.fecha_fin.split('T')[0] : '',
-        estado: project.estado || 'activo',
-        coordinador_uid: project.coordinador_uid || ''
+        fecha_inicio: project.fecha_inicio ? String(project.fecha_inicio).split('T')[0] : '',
+        fecha_entrega: project.fecha_entrega ? String(project.fecha_entrega).split('T')[0] : ''
       })
     } else {
       resetForm()
@@ -442,7 +441,7 @@ export default function GestionProyectos() {
                           {proyecto.estado}
                         </span>
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400 mb-2">{proyecto.descripcion}</p>
+                      {/* Descripción no disponible en el esquema actual */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500 dark:text-gray-400">
                         <div>
                           <span className="font-medium">Ubicación:</span> {proyecto.ubicacion || 'No especificada'}
@@ -451,7 +450,7 @@ export default function GestionProyectos() {
                           <span className="font-medium">Inicio:</span> {formatDate(proyecto.fecha_inicio)}
                         </div>
                         <div>
-                          <span className="font-medium">Fin:</span> {formatDate(proyecto.fecha_fin)}
+                          <span className="font-medium">Entrega:</span> {formatDate(proyecto.fecha_entrega)}
                         </div>
                       </div>
                     </div>
@@ -549,18 +548,7 @@ export default function GestionProyectos() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Descripción
-                  </label>
-                  <textarea
-                    name="descripcion"
-                    value={form.descripcion}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+                {/* Descripción removida: no está en el esquema actual */}
 
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -692,53 +680,19 @@ export default function GestionProyectos() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fecha Fin
+                      Fecha Entrega
                     </label>
                     <input
                       type="date"
-                      name="fecha_fin"
-                      value={form.fecha_fin}
+                      name="fecha_entrega"
+                      value={form.fecha_entrega}
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Estado
-                  </label>
-                  <select
-                    name="estado"
-                    value={form.estado}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="pausado">Pausado</option>
-                    <option value="completado">Completado</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Coordinador
-                  </label>
-                  <select
-                    name="coordinador_uid"
-                    value={form.coordinador_uid}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Seleccionar coordinador...</option>
-                    {usuarios.filter(u => u.rol === 'administrador' || u.rol === 'tecnico').map((user) => (
-                      <option key={user.uid} value={user.uid}>
-                        {user.nombre} ({user.rol})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Estado y Coordinador removidos: no están en el esquema actual */}
 
                 <div className="flex flex-wrap gap-3 pt-4">
                   <button

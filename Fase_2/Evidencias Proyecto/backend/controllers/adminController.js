@@ -25,6 +25,7 @@ import {
   updateHousing, 
   deleteHousing,
   assignBeneficiaryToHousing,
+  unassignBeneficiaryFromHousing,
   getHousingStats
 } from '../models/Housing.js'
 
@@ -262,7 +263,22 @@ export async function deleteUserById(req, res) {
 export async function getProjects(req, res) {
   try {
     const projects = await getAllProjects()
-    res.json({ success: true, data: projects })
+    // Normalizamos para el frontend: exponer 'id' además de 'id_proyecto'
+    const normalized = (projects || []).map(p => ({
+      id: p.id_proyecto,
+      id_proyecto: p.id_proyecto,
+      nombre: p.nombre,
+      ubicacion: p.ubicacion,
+      fecha_inicio: p.fecha_inicio,
+      fecha_entrega: p.fecha_entrega,
+      ubicacion_normalizada: p.ubicacion_normalizada,
+      ubicacion_referencia: p.ubicacion_referencia,
+      latitud: p.latitud,
+      longitud: p.longitud,
+      // el esquema no define estado/descripcion, damos valores por defecto para UI
+      estado: 'activo'
+    }))
+    res.json({ success: true, data: normalized })
   } catch (error) {
     console.error('Error listando proyectos:', error)
     res.status(500).json({ 
@@ -360,16 +376,17 @@ export async function deleteProjectById(req, res) {
 export async function assignTechnician(req, res) {
   try {
     const projectId = Number(req.params.id)
-    const { id_usuario_tecnico } = req.body || {}
+    const { id_usuario_tecnico, tecnico_uid } = req.body || {}
+    const finalTechId = id_usuario_tecnico || tecnico_uid
     
-    if (!id_usuario_tecnico) {
+    if (!finalTechId) {
       return res.status(400).json({ 
         success: false, 
-        message: 'id_usuario_tecnico es obligatorio' 
+        message: 'id_usuario_tecnico/tecnico_uid es obligatorio' 
       })
     }
     
-    await assignTechnicianToProject(projectId, id_usuario_tecnico)
+    await assignTechnicianToProject(projectId, finalTechId)
     res.json({ success: true })
   } catch (error) {
     console.error('Error asignando técnico:', error)
@@ -399,6 +416,25 @@ export async function removeTechnician(req, res) {
   }
 }
 
+/**
+ * Lista los técnicos asignados a un proyecto
+ */
+export async function listProjectTechnicians(req, res) {
+  try {
+    const projectId = Number(req.params.id)
+    const rows = await getProjectTechnicians(projectId)
+    const tecnicos = (rows || []).map(r => ({
+      uid: r.id_usuario_tecnico || r.usuarios?.uid,
+      nombre: r.usuarios?.nombre,
+      email: r.usuarios?.email
+    })).filter(t => t.uid)
+    res.json({ success: true, data: tecnicos })
+  } catch (error) {
+    console.error('Error listando técnicos del proyecto:', error)
+    res.status(500).json({ success: false, message: 'Error listando técnicos del proyecto' })
+  }
+}
+
 // ==================== GESTIÓN DE VIVIENDAS ====================
 
 /**
@@ -422,17 +458,18 @@ export async function getHousings(req, res) {
  */
 export async function createNewHousing(req, res) {
   try {
-    const { id_proyecto, estado, direccion, tipo_vivienda, fecha_entrega } = req.body || {}
+    const { id_proyecto, proyecto_id, estado, direccion, tipo_vivienda, fecha_entrega } = req.body || {}
     
-    if (!id_proyecto || !direccion) {
+    const finalProjectId = proyecto_id || id_proyecto
+    if (!finalProjectId || !direccion) {
       return res.status(400).json({ 
         success: false, 
-        message: 'id_proyecto y direccion son obligatorios' 
+        message: 'id_proyecto/proyecto_id y direccion son obligatorios' 
       })
     }
     
     const housingData = {
-      id_proyecto: Number(id_proyecto),
+      id_proyecto: Number(finalProjectId),
       direccion,
       tipo_vivienda: tipo_vivienda || null,
       fecha_entrega: fecha_entrega || null,
@@ -515,6 +552,23 @@ export async function assignBeneficiary(req, res) {
     res.status(500).json({ 
       success: false, 
       message: 'Error asignando beneficiario' 
+    })
+  }
+}
+
+/**
+ * Desasigna el beneficiario de una vivienda
+ */
+export async function unassignBeneficiary(req, res) {
+  try {
+    const housingId = Number(req.params.id)
+    const updated = await unassignBeneficiaryFromHousing(housingId)
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    console.error('Error desasignando beneficiario:', error)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error desasignando beneficiario' 
     })
   }
 }

@@ -41,12 +41,24 @@ export async function getProjectById(id) {
  * @returns {Object} Proyecto creado
  */
 export async function createProject(projectData) {
+  // La tabla proyecto no tiene identidad automática; generamos id_proyecto
+  let id_proyecto = projectData.id_proyecto
+  if (typeof id_proyecto !== 'number') {
+    const { data: last, error: errLast } = await supabase
+      .from('proyecto')
+      .select('id_proyecto')
+      .order('id_proyecto', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (errLast) throw errLast
+    id_proyecto = last && last.id_proyecto ? Number(last.id_proyecto) + 1 : 1
+  }
+  const toInsert = { ...projectData, id_proyecto }
   const { data, error } = await supabase
     .from('proyecto')
-    .insert([projectData])
+    .insert([toInsert])
     .select('*')
     .single()
-    
   if (error) throw error
   return data
 }

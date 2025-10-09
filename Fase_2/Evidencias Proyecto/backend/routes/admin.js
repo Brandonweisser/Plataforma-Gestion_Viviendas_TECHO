@@ -20,11 +20,13 @@ import {
   deleteProjectById,
   assignTechnician,
   removeTechnician,
+  listProjectTechnicians,
   getHousings,
   createNewHousing,
   updateHousingById,
   deleteHousingById,
-  assignBeneficiary
+  assignBeneficiary,
+  unassignBeneficiary
 } from '../controllers/adminController.js'
 
 const router = express.Router()
@@ -54,6 +56,7 @@ router.delete('/proyectos/:id', deleteProjectById)
 // Gestión de técnicos en proyectos
 router.post('/proyectos/:id/tecnicos', assignTechnician)
 router.delete('/proyectos/:id/tecnicos/:tecnico_uid', removeTechnician)
+router.get('/proyectos/:id/tecnicos', listProjectTechnicians)
 
 // ==================== GESTIÓN DE VIVIENDAS ====================
 router.get('/viviendas', getHousings)
@@ -63,5 +66,6 @@ router.delete('/viviendas/:id', deleteHousingById)
 
 // Asignación de beneficiarios
 router.post('/viviendas/:id/asignar', assignBeneficiary)
+router.post('/viviendas/:id/desasignar', unassignBeneficiary)
 
 export default router

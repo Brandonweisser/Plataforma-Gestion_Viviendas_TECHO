@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
+import { Modal } from '../../components/ui/Modal'
 import { adminApi } from '../../services/api'
 
 export default function GestionViviendas() {
@@ -189,9 +190,12 @@ export default function GestionViviendas() {
 
     try {
       await adminApi.asignarVivienda(selectedForAssign.id_vivienda, assignForm.beneficiario_uid)
-      setSuccess('Vivienda asignada exitosamente')
+      // Cerramos el modal primero para evitar que coincida su desmontaje con el re-render de la lista
       closeAssignModal()
+      // Permitimos que React procese el unmount del modal
+      await new Promise(r => setTimeout(r, 0))
       await loadData()
+      setSuccess('Vivienda asignada exitosamente')
     } catch (err) {
       setError(err.message || 'Error al asignar vivienda')
     } finally {
@@ -435,9 +439,8 @@ export default function GestionViviendas() {
         </SectionPanel>
 
         {/* Modal de Crear/Editar Vivienda */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <Modal isOpen={showModal} onClose={closeModal}>
+            <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">
                 {modalType === 'crear' ? 'Crear Nueva Vivienda' : 'Editar Vivienda'}
               </h3>
@@ -605,13 +608,11 @@ export default function GestionViviendas() {
                 </div>
               </form>
             </div>
-          </div>
-        )}
+        </Modal>
 
         {/* Modal de Asignación */}
-        {showAssignModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <Modal isOpen={showAssignModal} onClose={closeAssignModal} maxWidth="max-w-md">
+            <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">
                 Asignar Vivienda
               </h3>
@@ -668,8 +669,7 @@ export default function GestionViviendas() {
                 </div>
               </form>
             </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </DashboardLayout>
   )
