@@ -14,10 +14,11 @@ export async function getAllIncidences() {
     .from('incidencias')
     .select(`
       *,
-      viviendas(numero_vivienda, proyecto(nombre)),
-      usuarios!incidencias_id_usuario_beneficiario_fkey(nombre, email)
+      viviendas(id_vivienda, direccion, proyecto(nombre)),
+      reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
+      tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
     `)
-    .order('fecha_creacion', { ascending: false })
+    .order('fecha_reporte', { ascending: false })
     
   if (error) throw error
   return data || []
@@ -33,10 +34,10 @@ export async function getIncidencesByBeneficiary(beneficiaryId) {
     .from('incidencias')
     .select(`
       *,
-      viviendas(numero_vivienda, proyecto(nombre))
+      viviendas(id_vivienda, direccion, proyecto(nombre))
     `)
-    .eq('id_usuario_beneficiario', beneficiaryId)
-    .order('fecha_creacion', { ascending: false })
+    .eq('id_usuario_reporta', beneficiaryId)
+    .order('fecha_reporte', { ascending: false })
     
   if (error) throw error
   return data || []

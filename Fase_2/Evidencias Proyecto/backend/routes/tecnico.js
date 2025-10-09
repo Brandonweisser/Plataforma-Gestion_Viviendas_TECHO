@@ -13,7 +13,9 @@ import {
   getIncidenceDetail,
   updateIncidenceStatus,
   assignIncidenceToMe,
-  getTechnicianStats
+  getTechnicianStats,
+  uploadIncidenceMedia,
+  listIncidenceMedia
 } from '../controllers/tecnicoController.js'
 
 const router = express.Router()
@@ -30,6 +32,8 @@ router.get('/incidencias', getIncidences)
 router.get('/incidencias/:id', getIncidenceDetail)
 router.put('/incidencias/:id/estado', updateIncidenceStatus)
 router.post('/incidencias/:id/asignar', assignIncidenceToMe)
+router.get('/incidencias/:id/media', listIncidenceMedia)
+router.post('/incidencias/:id/media', uploadIncidenceMedia)
 
 // Estadísticas del técnico
 router.get('/stats', getTechnicianStats)

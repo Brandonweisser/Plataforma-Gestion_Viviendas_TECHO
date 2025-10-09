@@ -14,10 +14,9 @@ export async function getAllHousings() {
     .from('viviendas')
     .select(`
       id_vivienda,
-      numero_vivienda,
       estado,
       id_proyecto,
-      id_usuario_beneficiario,
+      beneficiario_uid,
       latitud,
       longitud,
       direccion,
@@ -107,7 +106,7 @@ export async function assignBeneficiaryToHousing(housingId, beneficiaryId) {
   const { data, error } = await supabase
     .from('viviendas')
     .update({ 
-      id_usuario_beneficiario: beneficiaryId,
+      beneficiario_uid: beneficiaryId,
       estado: 'asignada'
     })
     .eq('id_vivienda', housingId)
@@ -130,7 +129,7 @@ export async function getHousingsByBeneficiary(beneficiaryId) {
       *,
       proyecto(nombre, ubicacion)
     `)
-    .eq('id_usuario_beneficiario', beneficiaryId)
+    .eq('beneficiario_uid', beneficiaryId)
     
   if (error) throw error
   return data || []

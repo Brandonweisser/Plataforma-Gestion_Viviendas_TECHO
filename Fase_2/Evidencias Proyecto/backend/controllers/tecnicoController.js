@@ -7,6 +7,10 @@
 
 import { supabase } from '../supabaseClient.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent } from '../models/Incidence.js'
+import multer from 'multer'
+import { listMediaForIncidencias, uploadIncidenciaMedia } from '../services/MediaService.js'
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 /**
  * Health check para rutas de técnico
@@ -26,6 +30,7 @@ export async function getIncidences(req, res) {
   try {
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
+    const { includeMedia } = req.query || {}
     
     let incidencias
 
@@ -38,14 +43,19 @@ export async function getIncidences(req, res) {
         .from('incidencias')
         .select(`
           *,
-          viviendas(numero_vivienda, proyecto(nombre, ubicacion)),
-          usuarios!incidencias_id_usuario_beneficiario_fkey(nombre, email)
+          viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
+          reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
         `)
         .eq('id_usuario_tecnico', tecnicoUid)
-        .order('fecha_creacion', { ascending: false })
+        .order('fecha_reporte', { ascending: false })
         
       if (error) throw error
       incidencias = data || []
+    }
+
+    if (includeMedia && incidencias.length) {
+      const byId = await listMediaForIncidencias(incidencias.map(i => i.id_incidencia))
+      incidencias = incidencias.map(i => ({ ...i, media: byId[i.id_incidencia] || [] }))
     }
 
     return res.json({
@@ -82,8 +92,8 @@ export async function getIncidenceDetail(req, res) {
       .from('incidencias')
       .select(`
         *,
-        viviendas(numero_vivienda, proyecto(nombre, ubicacion)),
-        usuarios!incidencias_id_usuario_beneficiario_fkey(nombre, email),
+        viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
+        reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
         tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
       `)
       .match(whereClause)
@@ -104,14 +114,18 @@ export async function getIncidenceDetail(req, res) {
       .from('incidencia_historial')
       .select('*')
       .eq('incidencia_id', incidenciaId)
-      .order('fecha_evento', { ascending: true })
+      .order('created_at', { ascending: true })
       
     if (errorHistorial) throw errorHistorial
+
+    // Media asociada
+    const mediaBy = await listMediaForIncidencias([incidenciaId])
 
     return res.json({
       success: true,
       data: {
-        incidencia,
+        ...incidencia,
+        media: mediaBy[incidenciaId] || [],
         historial: historial || []
       }
     })
@@ -122,6 +136,39 @@ export async function getIncidenceDetail(req, res) {
       success: false, 
       message: 'Error al obtener el detalle de la incidencia' 
     })
+  }
+}
+
+// Middleware wrapper para usar multer dentro de controladores exportados
+function runMulter(req, res) {
+  return new Promise((resolve, reject) => {
+    upload.single('file')(req, res, (err) => (err ? reject(err) : resolve()))
+  })
+}
+
+export async function uploadIncidenceMedia(req, res) {
+  try {
+    await runMulter(req, res)
+    const incidenciaId = Number(req.params.id)
+    const uploader = req.user?.uid || req.user?.sub
+    if (!req.file) return res.status(400).json({ success:false, message:'Archivo requerido' })
+    const saved = await uploadIncidenciaMedia(incidenciaId, req.file, uploader)
+    await logIncidenciaEvent({ incidenciaId, actorUid: uploader, actorRol: req.user?.rol || req.user?.role, tipo: 'media_agregada', comentario: `Archivo ${req.file.originalname}` })
+    return res.status(201).json({ success:true, data: saved })
+  } catch (error) {
+    console.error('Error al subir media de incidencia:', error)
+    return res.status(500).json({ success:false, message:'Error subiendo media' })
+  }
+}
+
+export async function listIncidenceMedia(req, res) {
+  try {
+    const incidenciaId = Number(req.params.id)
+    const byId = await listMediaForIncidencias([incidenciaId])
+    return res.json({ success:true, data: byId[incidenciaId] || [] })
+  } catch (error) {
+    console.error('Error listando media:', error)
+    return res.status(500).json({ success:false, message:'Error al listar media' })
   }
 }
 

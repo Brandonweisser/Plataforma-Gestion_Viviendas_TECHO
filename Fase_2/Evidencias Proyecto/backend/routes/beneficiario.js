@@ -13,7 +13,10 @@ import {
   getMyReception,
   getMyIncidences,
   createNewIncidence,
-  getIncidenceDetail
+  getIncidenceDetail,
+  listIncidenceMedia,
+  uploadIncidenceMedia,
+  getIncidenceHistory
 } from '../controllers/beneficiarioController.js'
 
 const router = express.Router()
@@ -35,5 +38,8 @@ router.get('/recepcion', getMyReception)
 router.get('/incidencias', getMyIncidences)
 router.post('/incidencias', createNewIncidence)
 router.get('/incidencias/:id', getIncidenceDetail)
+router.get('/incidencias/:id/media', listIncidenceMedia)
+router.post('/incidencias/:id/media', uploadIncidenceMedia)
+router.get('/incidencias/:id/historial', getIncidenceHistory)
 
 export default router

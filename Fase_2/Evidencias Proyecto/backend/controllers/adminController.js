@@ -422,19 +422,21 @@ export async function getHousings(req, res) {
  */
 export async function createNewHousing(req, res) {
   try {
-    const { numero_vivienda, id_proyecto, estado } = req.body || {}
+    const { id_proyecto, estado, direccion, tipo_vivienda, fecha_entrega } = req.body || {}
     
-    if (!numero_vivienda || !id_proyecto) {
+    if (!id_proyecto || !direccion) {
       return res.status(400).json({ 
         success: false, 
-        message: 'numero_vivienda y id_proyecto son obligatorios' 
+        message: 'id_proyecto y direccion son obligatorios' 
       })
     }
     
     const housingData = {
-      numero_vivienda,
       id_proyecto: Number(id_proyecto),
-      estado: estado || 'disponible'
+      direccion,
+      tipo_vivienda: tipo_vivienda || null,
+      fecha_entrega: fecha_entrega || null,
+      estado: estado || 'planificada'
     }
     
     const created = await createHousing(housingData)
@@ -497,16 +499,16 @@ export async function deleteHousingById(req, res) {
 export async function assignBeneficiary(req, res) {
   try {
     const housingId = Number(req.params.id)
-    const { id_usuario_beneficiario } = req.body || {}
+    const { beneficiario_uid } = req.body || {}
     
-    if (!id_usuario_beneficiario) {
+    if (!beneficiario_uid) {
       return res.status(400).json({ 
         success: false, 
-        message: 'id_usuario_beneficiario es obligatorio' 
+        message: 'beneficiario_uid es obligatorio' 
       })
     }
     
-    const updated = await assignBeneficiaryToHousing(housingId, id_usuario_beneficiario)
+    const updated = await assignBeneficiaryToHousing(housingId, beneficiario_uid)
     res.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error asignando beneficiario:', error)
