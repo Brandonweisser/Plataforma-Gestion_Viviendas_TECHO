@@ -42,21 +42,27 @@ export default function HomeBeneficiario() {
 
   async function loadData() {
     setLoading(true); setError(""); setSuccess("");
+    
     try {
       const v = await beneficiarioApi.vivienda();
       setVivData(v.data || null);
+      
+      // Si llegamos aquí, intentar cargar incidencias
+      try {
+        const incs = await beneficiarioApi.listarIncidencias(3, 0)
+        setIncidencias(Array.isArray(incs.data) ? incs.data : [])
+      } catch (e) {
+        setError("Error al obtener las incidencias")
+      }
+      
     } catch (e) {
-      setError(e.message || "No se pudo cargar la vivienda");
+      // Para cualquier error relacionado con vivienda, asumir que no tiene vivienda asignada
+      // y NO mostrar error
+      setVivData(null);
+      setIncidencias([]);
     }
-    try {
-  const incs = await beneficiarioApi.listarIncidencias(3, 0)
-      setIncidencias(Array.isArray(incs.data) ? incs.data : [])
-    } catch (e) {
-      // No bloqueamos toda la vista si falla media; mostramos aviso pequeño
-      setError(prev => prev || "Error al obtener las incidencias")
-    } finally {
-      setLoading(false)
-    }
+    
+    setLoading(false);
   }
 
   useEffect(() => { loadData(); }, []);
@@ -106,7 +112,7 @@ export default function HomeBeneficiario() {
   };
 
   const iconSize = 'h-6 w-6';
-  const beneficiarioSections = [
+  const beneficiarioSections = vivData?.vivienda ? [
     {
       title: "Estado de Mi Vivienda",
       description: "Ver información detallada, historial y condición actual de mi hogar",
@@ -123,7 +129,7 @@ export default function HomeBeneficiario() {
       color: "bg-red-500 hover:bg-red-600",
       badge: "24/7",
       urgent: true,
-  action: () => openIncidenciaModal()
+      action: () => openIncidenciaModal()
     },
     {
       title: "Historial de Mis Reportes",
@@ -132,7 +138,7 @@ export default function HomeBeneficiario() {
       color: "bg-blue-500 hover:bg-blue-600",
       badge: `${activeReportsCount} activos`,
       urgent: false,
-  action: () => navigate('/beneficiario/incidencias')
+      action: () => navigate('/beneficiario/incidencias')
     },
     {
       title: "Contacto con Mi Técnico",
@@ -161,6 +167,35 @@ export default function HomeBeneficiario() {
       urgent: false,
       action: () => navigate('/beneficiario/posventa')
     } : null
+  ] : [
+    // Secciones cuando no hay vivienda asignada
+    {
+      title: "Estado de Mi Solicitud",
+      description: "Consultar el progreso de mi solicitud de vivienda",
+      icon: <ClipboardDocumentListIcon className={iconSize} />,
+      color: "bg-blue-500 hover:bg-blue-600",
+      badge: "En proceso",
+      urgent: false,
+      action: () => console.log("Ver estado solicitud")
+    },
+    {
+      title: "Información de TECHO",
+      description: "Conocer más sobre nuestros programas y procesos",
+      icon: <BookOpenIcon className={iconSize} />,
+      color: "bg-green-500 hover:bg-green-600",
+      badge: "Disponible",
+      urgent: false,
+      action: () => console.log("Ver información")
+    },
+    {
+      title: "Contacto y Soporte",
+      description: "Comunicarte con nuestro equipo para consultas",
+      icon: <PhoneIcon className={iconSize} />,
+      color: "bg-purple-500 hover:bg-purple-600",
+      badge: "Lun-Vie",
+      urgent: false,
+      action: () => console.log("Contactar soporte")
+    }
   ];
 
   const recentReports = useMemo(() => {
@@ -213,18 +248,45 @@ export default function HomeBeneficiario() {
               {/* Texto bienvenida */}
               <div className="flex-1 min-w-0">
                 {(() => { const nombre = user?.nombre || user?.username || (user?.email ? user.email.split('@')[0] : 'Usuario'); return (
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-sky-700 via-sky-800 to-sky-600 dark:from-sky-200 dark:via-sky-100 dark:to-sky-300">Bienvenido a tu hogar, {nombre}</h2>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-sky-700 via-sky-800 to-sky-600 dark:from-sky-200 dark:via-sky-100 dark:to-sky-300">
+                    {vivData?.vivienda ? `Bienvenido a tu hogar, ${nombre}` : `Hola ${nombre}`}
+                  </h2>
                 ) })()}
-                <ul className="space-y-1 text-sky-800 dark:text-slate-200 text-sm sm:text-base mb-6 leading-relaxed">
-                  <li><span className="font-semibold text-sky-900 dark:text-white">Dirección:</span> {vivData?.vivienda?.direccion || vivData?.vivienda?.direccion_principal || 'No registrada'}</li>
-                  <li><span className="font-semibold text-sky-900 dark:text-white">Estado:</span> {viviendaEstado}</li>
-                  {vivData?.vivienda?.id_vivienda && (
-                    <li><span className="font-semibold text-sky-900 dark:text-white">ID Vivienda:</span> #{vivData.vivienda.id_vivienda}</li>
-                  )}
-                </ul>
+                
+                {vivData?.vivienda ? (
+                  // Mostrar información de la vivienda
+                  <ul className="space-y-1 text-sky-800 dark:text-slate-200 text-sm sm:text-base mb-6 leading-relaxed">
+                    <li><span className="font-semibold text-sky-900 dark:text-white">Dirección:</span> {vivData?.vivienda?.direccion || vivData?.vivienda?.direccion_principal || 'No registrada'}</li>
+                    <li><span className="font-semibold text-sky-900 dark:text-white">Estado:</span> {viviendaEstado}</li>
+                    {vivData?.vivienda?.id_vivienda && (
+                      <li><span className="font-semibold text-sky-900 dark:text-white">ID Vivienda:</span> #{vivData.vivienda.id_vivienda}</li>
+                    )}
+                  </ul>
+                ) : (
+                  // Mostrar mensaje cuando no hay vivienda asignada
+                  <div className="mb-6">
+                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+                      <p className="text-amber-800 dark:text-amber-200 text-sm sm:text-base leading-relaxed">
+                        <span className="font-semibold">No tienes una vivienda asignada aún.</span><br />
+                        Tu solicitud está siendo procesada. Te notificaremos cuando tu vivienda esté lista para ser asignada.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-4">
-                  <button className="btn-primary text-sm px-5 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sky-500 dark:focus:ring-offset-slate-800" onClick={() => openIncidenciaModal()}>Reportar problema</button>
-                  <button className="text-sm px-5 rounded-md bg-amber-400 hover:bg-amber-500 text-sky-900 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-400 dark:focus:ring-offset-slate-800">Ver guías</button>
+                  {vivData?.vivienda ? (
+                    <>
+                      <button className="btn-primary text-sm px-5 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sky-500 dark:focus:ring-offset-slate-800" onClick={() => openIncidenciaModal()}>Reportar problema</button>
+                      <button className="text-sm px-5 rounded-md bg-amber-400 hover:bg-amber-500 text-sky-900 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-400 dark:focus:ring-offset-slate-800">Ver guías</button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-sm">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                      <span>Las funciones estarán disponibles una vez asignada tu vivienda</span>
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Mini KPIs */}
@@ -273,34 +335,67 @@ export default function HomeBeneficiario() {
 
             {/* Reportes recientes */}
           <SectionPanel
-            title="Mis reportes recientes"
-            description="Resumen de actividad más reciente"
+            title={vivData?.vivienda ? "Mis reportes recientes" : "Información relevante"}
+            description={vivData?.vivienda ? "Resumen de actividad más reciente" : "Información útil mientras esperas tu vivienda"}
             as="section"
             className="h-full flex flex-col"
           >
-            <ul className="space-y-4" aria-label="Listado de reportes recientes">
-              {recentReports.map((report) => (
-                <li key={report.id} className="pt-2 first:pt-0">
-                  <CardIncidencia
-                    incidencia={report.raw}
-                    onOpen={async (inc) => {
-                      setDetailInc(inc)
-                      setHistorialInc([]); setHistMeta({ total:0, limit:50, offset:0, has_more:false })
-                      setLoadingHistorial(true)
-                      try {
-                        const r = await fetchHistorialIncidencia(inc.id_incidencia, { limit:50, offset:0 })
-                        setHistorialInc(r.events); setHistMeta(r.meta)
-                      } catch(_){} finally { setLoadingHistorial(false) }
-                    }}
-                    allowUpload={false}
-                    onUploadClick={(inc) => { setUploadTarget(inc); fileInputRef.current?.click(); }}
-                  />
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6">
-              <button className="btn-primary w-full text-sm" onClick={() => navigate('/beneficiario/incidencias')}>Ver todos los reportes</button>
-            </div>
+            {vivData?.vivienda ? (
+              // Mostrar reportes cuando hay vivienda
+              <>
+                <ul className="space-y-4" aria-label="Listado de reportes recientes">
+                  {recentReports.map((report) => (
+                    <li key={report.id} className="pt-2 first:pt-0">
+                      <CardIncidencia
+                        incidencia={report.raw}
+                        onOpen={async (inc) => {
+                          setDetailInc(inc)
+                          setHistorialInc([]); setHistMeta({ total:0, limit:50, offset:0, has_more:false })
+                          setLoadingHistorial(true)
+                          try {
+                            const r = await fetchHistorialIncidencia(inc.id_incidencia, { limit:50, offset:0 })
+                            setHistorialInc(r.events); setHistMeta(r.meta)
+                          } catch(_){} finally { setLoadingHistorial(false) }
+                        }}
+                        allowUpload={false}
+                        onUploadClick={(inc) => { setUploadTarget(inc); fileInputRef.current?.click(); }}
+                      />
+                    </li>
+                  ))}
+                  {recentReports.length === 0 && (
+                    <li className="text-center py-8 text-gray-500">
+                      <p>No tienes reportes recientes</p>
+                      <p className="text-sm mt-1">¡Esperamos que todo esté en orden!</p>
+                    </li>
+                  )}
+                </ul>
+                <div className="mt-6">
+                  <button className="btn-primary w-full text-sm" onClick={() => navigate('/beneficiario/incidencias')}>Ver todos los reportes</button>
+                </div>
+              </>
+            ) : (
+              // Mostrar información útil cuando no hay vivienda
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-700">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">📋 Proceso de Asignación</h4>
+                  <p className="text-blue-700 dark:text-blue-300 text-sm">
+                    Tu solicitud está siendo evaluada por nuestro equipo. Te contactaremos pronto con novedades.
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-700">
+                  <h4 className="font-semibold text-green-800 dark:text-green-200 mb-2">📞 ¿Dudas?</h4>
+                  <p className="text-green-700 dark:text-green-300 text-sm">
+                    Si tienes consultas sobre tu postulación, puedes contactarnos de lunes a viernes de 9:00 a 17:00.
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-purple-50 border border-purple-200 dark:bg-purple-900/20 dark:border-purple-700">
+                  <h4 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">💡 Mientras tanto...</h4>
+                  <p className="text-purple-700 dark:text-purple-300 text-sm">
+                    Te recomendamos revisar nuestras guías de cuidado del hogar para cuando recibas tu vivienda.
+                  </p>
+                </div>
+              </div>
+            )}
           </SectionPanel>
         </div>
 

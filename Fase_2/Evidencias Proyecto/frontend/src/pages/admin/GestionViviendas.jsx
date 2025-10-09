@@ -18,10 +18,25 @@ export default function GestionViviendas() {
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [selectedForAssign, setSelectedForAssign] = useState(null)
   const [assignForm, setAssignForm] = useState({ beneficiario_uid: '' })
+  const [showBulkModal, setShowBulkModal] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    cantidad: '',
+    proyecto_id: '',
+    tipo_vivienda: 'casa',
+    tipo_template: '2D', // Nuevo campo para template específico
+    metros_cuadrados: '',
+    numero_habitaciones: '',
+    numero_banos: '',
+    estado: 'en_construccion',
+    fecha_entrega: '',
+    observaciones: '',
+    direccion_base: ''
+  })
   const [form, setForm] = useState({
     direccion: '',
     proyecto_id: '',
     tipo_vivienda: 'casa',
+    tipo_template: '2D', // Nuevo campo para template específico
     metros_cuadrados: '',
     numero_habitaciones: '',
     numero_banos: '',
@@ -80,17 +95,39 @@ export default function GestionViviendas() {
     setAssignForm(prev => ({ ...prev, [name]: value }))
   }
 
+  const handleBulkInputChange = (e) => {
+    const { name, value } = e.target
+    setBulkForm(prev => ({ ...prev, [name]: value }))
+  }
+
   const resetForm = () => {
     setForm({
       direccion: '',
       proyecto_id: '',
       tipo_vivienda: 'casa',
+      tipo_template: '2D',
       metros_cuadrados: '',
       numero_habitaciones: '',
       numero_banos: '',
       estado: 'en_construccion',
       fecha_entrega: '',
       observaciones: ''
+    })
+  }
+
+  const resetBulkForm = () => {
+    setBulkForm({
+      cantidad: '',
+      proyecto_id: '',
+      tipo_vivienda: 'casa',
+      tipo_template: '2D',
+      metros_cuadrados: '',
+      numero_habitaciones: '',
+      numero_banos: '',
+      estado: 'en_construccion',
+      fecha_entrega: '',
+      observaciones: '',
+      direccion_base: ''
     })
   }
 
@@ -103,6 +140,7 @@ export default function GestionViviendas() {
         direccion: vivienda.direccion || '',
         proyecto_id: vivienda.proyecto_id || '',
         tipo_vivienda: vivienda.tipo_vivienda || 'casa',
+        tipo_template: vivienda.tipo_template || '2D',
         metros_cuadrados: vivienda.metros_cuadrados || '',
         numero_habitaciones: vivienda.numero_habitaciones || '',
         numero_banos: vivienda.numero_banos || '',
@@ -137,6 +175,18 @@ export default function GestionViviendas() {
     setShowAssignModal(false)
     setSelectedForAssign(null)
     setAssignForm({ beneficiario_uid: '' })
+  }
+
+  const openBulkModal = () => {
+    setShowBulkModal(true)
+    resetBulkForm()
+    setError('')
+    setSuccess('')
+  }
+
+  const closeBulkModal = () => {
+    setShowBulkModal(false)
+    resetBulkForm()
   }
 
   const handleSubmit = async (e) => {
@@ -199,6 +249,57 @@ export default function GestionViviendas() {
     }
   }
 
+  const handleBulkCreate = async (e) => {
+    e.preventDefault()
+    
+    if (!bulkForm.cantidad || parseInt(bulkForm.cantidad) < 1) {
+      setError('Debe especificar una cantidad válida (mayor a 0)')
+      return
+    }
+
+    if (!bulkForm.direccion_base.trim()) {
+      setError('La dirección base es obligatoria')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const cantidad = parseInt(bulkForm.cantidad)
+      const baseFormData = {
+        proyecto_id: bulkForm.proyecto_id || null,
+        tipo_vivienda: bulkForm.tipo_vivienda,
+        metros_cuadrados: bulkForm.metros_cuadrados ? parseInt(bulkForm.metros_cuadrados) : null,
+        numero_habitaciones: bulkForm.numero_habitaciones ? parseInt(bulkForm.numero_habitaciones) : null,
+        numero_banos: bulkForm.numero_banos ? parseInt(bulkForm.numero_banos) : null,
+        estado: bulkForm.estado,
+        fecha_entrega: bulkForm.fecha_entrega || null,
+        observaciones: bulkForm.observaciones
+      }
+
+      // Crear viviendas secuencialmente
+      for (let i = 1; i <= cantidad; i++) {
+        const direccion = cantidad === 1 
+          ? bulkForm.direccion_base 
+          : `${bulkForm.direccion_base} ${i}`
+        
+        await adminApi.crearVivienda({
+          ...baseFormData,
+          direccion
+        })
+      }
+      
+      setSuccess(`${cantidad} vivienda${cantidad > 1 ? 's' : ''} creada${cantidad > 1 ? 's' : ''} exitosamente`)
+      closeBulkModal()
+      await loadData()
+    } catch (err) {
+      setError(err.message || 'Error al crear las viviendas')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleDelete = async (vivienda) => {
     if (!window.confirm(`¿Está seguro de eliminar la vivienda en "${vivienda.direccion}"?`)) {
       return
@@ -249,7 +350,7 @@ export default function GestionViviendas() {
         <div className="flex items-center justify-center min-h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Cargando viviendas...</p>
+            <p className="text-gray-600 dark:text-gray-400">Cargando viviendas...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -290,12 +391,20 @@ export default function GestionViviendas() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Gestión de Viviendas</h1>
               <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Administrar viviendas y asignar a beneficiarios</p>
             </div>
-            <button 
-              onClick={() => openModal('crear')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Nueva Vivienda
-            </button>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => openModal('crear')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Nueva Vivienda
+              </button>
+              <button 
+                onClick={openBulkModal}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Creación Masiva
+              </button>
+            </div>
           </div>
         </div>
 
@@ -335,7 +444,7 @@ export default function GestionViviendas() {
               </select>
             </div>
             <div className="flex gap-2 ml-auto">
-              <button type="button" onClick={()=>{ setFilterProyecto('all'); setFilterEstado('all'); }} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">Reset</button>
+              <button type="button" onClick={()=>{ setFilterProyecto('all'); setFilterEstado('all'); }} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Reset</button>
               <button type="button" onClick={()=>{
                 // Expandir / Colapsar todos
                 const anyOpen = Object.values(collapsed).some(v => v === false)
@@ -354,7 +463,7 @@ export default function GestionViviendas() {
           </div>
           {viviendas.length === 0 && (
             <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">No hay viviendas registradas</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">No hay viviendas registradas</p>
               <button 
                 onClick={() => openModal('crear')}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -410,13 +519,16 @@ export default function GestionViviendas() {
                             <div>
                               <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">{vivienda.direccion}
                                 <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getStatusColor(vivienda.estado)}`}>{getStatusText(vivienda.estado)}</span>
+                                {vivienda.tipo_template && (
+                                  <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{vivienda.tipo_template}</span>
+                                )}
                               </h4>
                               <p className="text-[11px] text-gray-500 mt-1">Tipo: {vivienda.tipo_vivienda || '—'} · Metros: {vivienda.metros_cuadrados || 'N/A'} · Hab: {vivienda.numero_habitaciones || 'N/A'}</p>
                             </div>
                             <div className="flex flex-col gap-1">
                               <button onClick={() => openAssignModal(vivienda)} className="px-2 py-1 text-[11px] bg-green-600 text-white rounded hover:bg-green-700">{vivienda.beneficiario_uid ? 'Reasignar' : 'Asignar'}</button>
-                              <button onClick={() => openModal('editar', vivienda)} className="px-2 py-1 text-[11px] border border-gray-300 text-gray-700 rounded hover:bg-gray-50">Editar</button>
-                              <button onClick={() => handleDelete(vivienda)} className="px-2 py-1 text-[11px] border border-red-300 text-red-700 rounded hover:bg-red-50">Eliminar</button>
+                              <button onClick={() => openModal('editar', vivienda)} className="px-2 py-1 text-[11px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700">Editar</button>
+                              <button onClick={() => handleDelete(vivienda)} className="px-2 py-1 text-[11px] border border-red-300 dark:border-red-600 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20">Eliminar</button>
                             </div>
                           </div>
                           <div className="text-[12px] text-gray-600 dark:text-gray-400 space-y-1">
@@ -437,15 +549,23 @@ export default function GestionViviendas() {
         {/* Modal de Crear/Editar Vivienda */}
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold mb-4">
-                {modalType === 'crear' ? 'Crear Nueva Vivienda' : 'Editar Vivienda'}
-              </h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {modalType === 'crear' ? 'Crear Nueva Vivienda' : 'Editar Vivienda'}
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
               
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Dirección *
                     </label>
                     <input
@@ -453,20 +573,20 @@ export default function GestionViviendas() {
                       name="direccion"
                       value={form.direccion}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Proyecto
                     </label>
                     <select
                       name="proyecto_id"
                       value={form.proyecto_id}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     >
                       <option value="">Seleccionar proyecto...</option>
                       {proyectos.map((proyecto) => (
@@ -478,14 +598,14 @@ export default function GestionViviendas() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Tipo de Vivienda
                     </label>
                     <select
                       name="tipo_vivienda"
                       value={form.tipo_vivienda}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     >
                       <option value="casa">Casa</option>
                       <option value="departamento">Departamento</option>
@@ -495,7 +615,27 @@ export default function GestionViviendas() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Template de Formulario *
+                    </label>
+                    <select
+                      name="tipo_template"
+                      value={form.tipo_template}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      required
+                    >
+                      <option value="1D">1D - Template Básico</option>
+                      <option value="2D">2D - Template Estándar</option>
+                      <option value="3D">3D - Template Avanzado</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Define el tipo de formulario de postventa que recibirá el beneficiario
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Metros Cuadrados
                     </label>
                     <input
@@ -503,13 +643,13 @@ export default function GestionViviendas() {
                       name="metros_cuadrados"
                       value={form.metros_cuadrados}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                       min="1"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Número de Habitaciones
                     </label>
                     <input
@@ -517,13 +657,13 @@ export default function GestionViviendas() {
                       name="numero_habitaciones"
                       value={form.numero_habitaciones}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                       min="1"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Número de Baños
                     </label>
                     <input
@@ -531,20 +671,20 @@ export default function GestionViviendas() {
                       name="numero_banos"
                       value={form.numero_banos}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                       min="1"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Estado
                     </label>
                     <select
                       name="estado"
                       value={form.estado}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     >
                       <option value="en_construccion">En Construcción</option>
                       <option value="terminada">Terminada</option>
@@ -554,7 +694,7 @@ export default function GestionViviendas() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Fecha de Entrega
                     </label>
                     <input
@@ -562,12 +702,12 @@ export default function GestionViviendas() {
                       name="fecha_entrega"
                       value={form.fecha_entrega}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Observaciones
                     </label>
                     <textarea
@@ -575,7 +715,7 @@ export default function GestionViviendas() {
                       value={form.observaciones}
                       onChange={handleInputChange}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     />
                   </div>
                 </div>
@@ -591,14 +731,14 @@ export default function GestionViviendas() {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 min-w-[110px]"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 min-w-[110px]"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={() => { closeModal(); navigate('/home'); }}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 min-w-[140px]"
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 min-w-[140px]"
                   >
                     Volver al Inicio
                   </button>
@@ -611,27 +751,35 @@ export default function GestionViviendas() {
         {/* Modal de Asignación */}
         {showAssignModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
-                Asignar Vivienda
-              </h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Asignar Vivienda
+                </h3>
+                <button
+                  onClick={closeAssignModal}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
               
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   <span className="font-medium">Vivienda:</span> {selectedForAssign?.direccion}
                 </p>
               </div>
 
               <form onSubmit={handleAssign} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Beneficiario
                   </label>
                   <select
                     name="beneficiario_uid"
                     value={assignForm.beneficiario_uid}
                     onChange={handleAssignInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
                     required
                   >
                     <option value="">Seleccionar beneficiario...</option>
@@ -654,14 +802,236 @@ export default function GestionViviendas() {
                   <button
                     type="button"
                     onClick={closeAssignModal}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 min-w-[110px]"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 min-w-[110px]"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={() => { closeAssignModal(); navigate('/home'); }}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 min-w-[140px]"
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 min-w-[140px]"
+                  >
+                    Volver al Inicio
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Creación Masiva */}
+        {showBulkModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Creación Masiva de Viviendas
+                </h3>
+                <button
+                  onClick={closeBulkModal}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <form onSubmit={handleBulkCreate} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Cantidad de Viviendas *
+                    </label>
+                    <input
+                      type="number"
+                      name="cantidad"
+                      value={bulkForm.cantidad}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      min="1"
+                      max="50"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Proyecto
+                    </label>
+                    <select
+                      name="proyecto_id"
+                      value={bulkForm.proyecto_id}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                    >
+                      <option value="">Seleccionar proyecto...</option>
+                      {proyectos.map((proyecto) => (
+                        <option key={proyecto.id} value={proyecto.id}>
+                          {proyecto.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Dirección Base *
+                    </label>
+                    <input
+                      type="text"
+                      name="direccion_base"
+                      value={bulkForm.direccion_base}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      placeholder="Ej: Calle Los Álamos"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Se numerarán automáticamente: "Dirección Base 1", "Dirección Base 2", etc.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Tipo de Vivienda
+                    </label>
+                    <select
+                      name="tipo_vivienda"
+                      value={bulkForm.tipo_vivienda}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                    >
+                      <option value="casa">Casa</option>
+                      <option value="departamento">Departamento</option>
+                      <option value="duplex">Duplex</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Template de Formulario *
+                    </label>
+                    <select
+                      name="tipo_template"
+                      value={bulkForm.tipo_template}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      required
+                    >
+                      <option value="1D">1D - Template Básico</option>
+                      <option value="2D">2D - Template Estándar</option>
+                      <option value="3D">3D - Template Avanzado</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Todas las viviendas usarán este template de formulario
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Metros Cuadrados
+                    </label>
+                    <input
+                      type="number"
+                      name="metros_cuadrados"
+                      value={bulkForm.metros_cuadrados}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      min="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Número de Habitaciones
+                    </label>
+                    <input
+                      type="number"
+                      name="numero_habitaciones"
+                      value={bulkForm.numero_habitaciones}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      min="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Número de Baños
+                    </label>
+                    <input
+                      type="number"
+                      name="numero_banos"
+                      value={bulkForm.numero_banos}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                      min="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Estado
+                    </label>
+                    <select
+                      name="estado"
+                      value={bulkForm.estado}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                    >
+                      <option value="en_construccion">En Construcción</option>
+                      <option value="terminada">Terminada</option>
+                      <option value="entregada">Entregada</option>
+                      <option value="en_mantenimiento">En Mantenimiento</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Fecha de Entrega
+                    </label>
+                    <input
+                      type="date"
+                      name="fecha_entrega"
+                      value={bulkForm.fecha_entrega}
+                      onChange={handleBulkInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Observaciones
+                    </label>
+                    <textarea
+                      name="observaciones"
+                      value={bulkForm.observaciones}
+                      onChange={handleBulkInputChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
+                  >
+                    {loading ? 'Creando...' : 'Crear Viviendas'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeBulkModal}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 min-w-[110px]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { closeBulkModal(); navigate('/home'); }}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 min-w-[140px]"
                   >
                     Volver al Inicio
                   </button>

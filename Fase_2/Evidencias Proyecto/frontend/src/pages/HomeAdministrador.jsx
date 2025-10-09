@@ -65,6 +65,7 @@ export default function HomeAdministrador() {
   }, []);
   const adminSections = [
     { title: "Gestión de Proyectos", description: "Crear proyectos y asignar técnicos responsables", badge: "Nuevo", action: () => handleNavigation('/admin/proyectos', 'Gestión de Proyectos'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'blue' },
+    { title: "Templates de Casa", description: "Crear y gestionar tipos de vivienda profesionales", badge: "Profesional", action: () => handleNavigation('/admin/templates', 'Templates de Casa'), icon: <HomeModernIcon className={iconSize} />, accent: 'emerald' },
     { title: "Gestión de Viviendas", description: "Administrar viviendas y sus características", badge: `${stats.viviendas.total} registradas`, action: () => handleNavigation('/admin/viviendas', 'Gestión de Viviendas'), icon: <HomeModernIcon className={iconSize} />, accent: 'green' },
     { title: "Asignación de Viviendas", description: "Asignar viviendas a beneficiarios", badge: "Disponible", action: () => handleNavigation('/admin/asignaciones', 'Asignación de Viviendas'), icon: <UsersIcon className={iconSize} />, accent: 'purple' },
     { title: "Gestión de Usuarios", description: "Crear, editar y bloquear cuentas del sistema", badge: `${stats.usuarios.total} usuarios`, action: () => handleNavigation('/admin/usuarios', 'Gestión de Usuarios'), icon: <UsersIcon className={iconSize} />, accent: 'orange' },

@@ -249,6 +249,19 @@ export const adminApi = {
       body: JSON.stringify({ beneficiario_uid: beneficiarioId }) 
     })
   },
+    // ==================== Templates de Casa ====================
+    listarTemplatesCasa() {
+      return request('/api/admin/templates')
+    },
+    crearTemplateCasaFull(templatePayload) {
+      return request('/api/admin/templates/full', { method: 'POST', body: JSON.stringify(templatePayload) })
+    },
+    actualizarTemplateCasa(id, template) {
+      return request(`/api/admin/templates/${id}`, { method: 'PUT', body: JSON.stringify(template) })
+    },
+    desactivarTemplateCasa(id) {
+      return request(`/api/admin/templates/${id}`, { method: 'DELETE' })
+    },
   desasignarVivienda(viviendaId) {
     return request(`/api/admin/viviendas/${viviendaId}/desasignar`, { 
       method: 'POST' 

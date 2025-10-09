@@ -9,7 +9,13 @@ import dotenv from 'dotenv'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
 import { posventaPDFServiceAlternativo as posventaPDFService } from './services/PosventaPDFServiceAlternativo.js'
-
+// Importar rutas modulares
+import authRoutes from './routes/auth.js'
+import adminRoutes from './routes/admin.js'
+import beneficiarioRoutes from './routes/beneficiario.js'
+import tecnicoRoutes from './routes/tecnico.js'
+import geocodingRoutes from './routes/geocoding.js'
+import casaTemplateRoutes from './routes/casaTemplates.js'
 dotenv.config()
 
 const app = express()
@@ -27,20 +33,43 @@ const loginLimiter = rateLimit({
 
 const JWT_SECRET = process.env.JWT_SECRET
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10)
-// Permitir crear formulario posventa también cuando la vivienda está 'asignada' (configurable)
 const POSVENTA_ALLOW_ASIGNADA = process.env.POSVENTA_ALLOW_ASIGNADA === '1'
-// Roles permitidos para recuperación de contraseña (configurable vía env)
 const ALLOWED_RECOVERY_ROLES = (process.env.RECOVERY_ALLOWED_ROLES || 'beneficiario')
   .split(',')
   .map(r => r.trim().toLowerCase())
   .filter(Boolean)
-// Password policy (puede externalizarse después)
 function isStrongPassword(pwd) {
   if (typeof pwd !== 'string') return false
   if (pwd.length < 8) return false
   const hasLetter = /[A-Za-z]/.test(pwd)
   const hasNumber = /[0-9]/.test(pwd)
   return hasLetter && hasNumber
+}
+// Montar rutas modulares
+app.use('/api', authRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/admin/templates', casaTemplateRoutes)
+app.use('/api/beneficiario', beneficiarioRoutes)
+app.use('/api/tecnico', tecnicoRoutes)
+app.use('/api/geo', geocodingRoutes)
+// TODO: agregar futuras rutas de posventa si se modularizan
+// 404 handler
+app.use((req, res, next) => {
+  if (res.headersSent) return next()
+  res.status(404).json({ success: false, message: 'Ruta no encontrada', path: req.path })
+})
+// Error handler
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err)
+  if (res.headersSent) return next(err)
+  res.status(500).json({ success: false, message: 'Error interno del servidor' })
+})
+const PORT = process.env.PORT || 5000
+if (import.meta.url === `file://${process.argv[1]}`) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Servidor TECHO corriendo en puerto ${PORT}`)
+  })
 }
 
 // --- Helpers & Test Overrides -------------------------------------------------
