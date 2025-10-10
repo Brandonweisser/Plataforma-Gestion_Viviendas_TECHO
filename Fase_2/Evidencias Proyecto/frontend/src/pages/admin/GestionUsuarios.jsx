@@ -115,14 +115,37 @@ export default function GestionUsuarios() {
     }
     setLoading(true);
     try {
-      if (modalMode === 'crear') {
-        await adminApi.crearUsuario({ nombre: form.nombre.trim(), email: form.email.trim(), rol: form.rol, password: form.password });
-        setSuccess('Usuario creado');
-      } else if (selectedUser) {
-        const payload = { nombre: form.nombre.trim(), rol: form.rol };
-        if (form.password.trim()) payload.password = form.password.trim();
-        await adminApi.actualizarUsuario(selectedUser.uid, payload);
-        setSuccess('Usuario actualizado');
+      const doCreate = async () => {
+        if (modalMode === 'crear') {
+          await adminApi.crearUsuario({ nombre: form.nombre.trim(), email: form.email.trim(), rol: form.rol, password: form.password });
+          setSuccess('Usuario creado');
+        } else if (selectedUser) {
+          const payload = { nombre: form.nombre.trim(), rol: form.rol };
+          if (form.password.trim()) payload.password = form.password.trim();
+          await adminApi.actualizarUsuario(selectedUser.uid, payload);
+          setSuccess('Usuario actualizado');
+        }
+      }
+
+      try {
+        await doCreate();
+      } catch (err1) {
+        // Si es 401/403, intentar rehidratar sesión y reintentar una vez
+        if (err1?.status === 401 || err1?.status === 403) {
+          try {
+            const me = await getMe();
+            if (me?.data?.rol) {
+              login({ ...me.data, role: me.data.rol, token: localStorage.getItem('token') });
+              await doCreate(); // retry
+            } else {
+              throw err1;
+            }
+          } catch (rehydrateErr) {
+            throw err1;
+          }
+        } else {
+          throw err1;
+        }
       }
       closeModal();
       await loadData();

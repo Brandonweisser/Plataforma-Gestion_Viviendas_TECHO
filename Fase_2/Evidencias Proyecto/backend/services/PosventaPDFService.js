@@ -16,18 +16,12 @@ class PosventaPDFService {
   async initBrowser() {
     if (!this.browser) {
       this.browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         args: [
-          '--no-sandbox', 
+          '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
           '--disable-gpu'
-        ],
-        timeout: 60000
+        ]
       });
     }
     return this.browser;
@@ -494,27 +488,20 @@ class PosventaPDFService {
       console.log(`🔄 Inicializando browser para formulario ${formId}...`);
       // Crear PDF - Usar nueva instancia del browser cada vez para mayor estabilidad
       browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         args: [
-          '--no-sandbox', 
+          '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
           '--disable-gpu'
-        ],
-        timeout: 60000
+        ]
       });
       
       page = await browser.newPage();
       
       console.log(`🔄 Configurando contenido HTML para formulario ${formId}...`);
-      await page.setContent(html, { 
-        waitUntil: 'domcontentloaded',
-        timeout: 60000 
-      });
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      // Asegurar estilos consistentes para PDF
+      await page.emulateMediaType('screen');
       
       console.log(`🔄 Generando PDF para formulario ${formId}...`);
       const pdfBuffer = await page.pdf({
@@ -525,8 +512,7 @@ class PosventaPDFService {
           right: '20px',
           bottom: '20px',
           left: '20px'
-        },
-        timeout: 60000
+        }
       });
       
       // Generar nombre del archivo

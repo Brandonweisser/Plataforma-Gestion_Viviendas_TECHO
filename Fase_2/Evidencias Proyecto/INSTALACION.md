@@ -63,7 +63,7 @@ npm install
 
 1. Acceder al panel de Supabase
 2. Ir a SQL Editor
-3. Ejecutar el archivo `database/schema_completo.sql`
+3. Ejecutar SOLO el archivo `database/schema_completo.sql` (incluye todo el esquema y los índices)
 
 ### 5. Ejecución del Sistema
 
@@ -102,7 +102,7 @@ npm start
 - Verificar que no haya otros servicios usando el puerto 3001
 
 ### Problemas con la base de datos
-- Ejecutar nuevamente el archivo `schema_completo.sql`
+- Ejecutar nuevamente el archivo `database/schema_completo.sql`
 - Verificar que la cuenta de Supabase tenga permisos administrativos
 
 ## Soporte

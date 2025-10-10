@@ -12,6 +12,7 @@ export default function GestionViviendas() {
   const [success, setSuccess] = useState('')
   const [viviendas, setViviendas] = useState([])
   const [proyectos, setProyectos] = useState([])
+  const [templates, setTemplates] = useState([])
   const [beneficiarios, setBeneficiarios] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState('crear')
@@ -22,7 +23,7 @@ export default function GestionViviendas() {
   const [form, setForm] = useState({
     direccion: '',
     proyecto_id: '',
-    tipo_vivienda: 'casa',
+    tipo_vivienda: '',
     metros_cuadrados: '',
     numero_habitaciones: '',
     numero_banos: '',
@@ -45,10 +46,11 @@ export default function GestionViviendas() {
     setError('')
     
     try {
-      const [viviendasRes, proyectosRes, usuariosRes] = await Promise.allSettled([
+      const [viviendasRes, proyectosRes, usuariosRes, templatesRes] = await Promise.allSettled([
         adminApi.listarViviendas(),
         adminApi.listarProyectos(),
-        adminApi.listarUsuarios()
+        adminApi.listarUsuarios(),
+        adminApi.listarTemplates({ activo: true })
       ])
 
       if (viviendasRes.status === 'fulfilled') {
@@ -62,6 +64,10 @@ export default function GestionViviendas() {
       if (usuariosRes.status === 'fulfilled') {
         const allUsers = usuariosRes.value.data || []
         setBeneficiarios(allUsers.filter(u => u.rol === 'beneficiario'))
+      }
+
+      if (templatesRes.status === 'fulfilled') {
+        setTemplates(templatesRes.value.data || [])
       }
 
     } catch (err) {
@@ -85,7 +91,7 @@ export default function GestionViviendas() {
     setForm({
       direccion: '',
       proyecto_id: '',
-      tipo_vivienda: 'casa',
+      tipo_vivienda: '',
       metros_cuadrados: '',
       numero_habitaciones: '',
       numero_banos: '',
@@ -103,7 +109,7 @@ export default function GestionViviendas() {
       setForm({
         direccion: vivienda.direccion || '',
         proyecto_id: vivienda.proyecto_id || '',
-        tipo_vivienda: vivienda.tipo_vivienda || 'casa',
+        tipo_vivienda: vivienda.tipo_vivienda || '',
         metros_cuadrados: vivienda.metros_cuadrados || '',
         numero_habitaciones: vivienda.numero_habitaciones || '',
         numero_banos: vivienda.numero_banos || '',
@@ -147,6 +153,14 @@ export default function GestionViviendas() {
       setError('La dirección es obligatoria')
       return
     }
+    if (modalType === 'crear' && !form.proyecto_id) {
+      setError('Debe seleccionar un proyecto')
+      return
+    }
+    if (modalType === 'crear' && (form.tipo_vivienda ?? '') === '') {
+      setError('Debe seleccionar el tipo de casa (template)')
+      return
+    }
 
     setLoading(true)
     setError('')
@@ -154,6 +168,7 @@ export default function GestionViviendas() {
     try {
       const formData = {
         ...form,
+        tipo_vivienda: form.tipo_vivienda || null,
         metros_cuadrados: form.metros_cuadrados ? parseInt(form.metros_cuadrados) : null,
         numero_habitaciones: form.numero_habitaciones ? parseInt(form.numero_habitaciones) : null,
         numero_banos: form.numero_banos ? parseInt(form.numero_banos) : null,
@@ -482,7 +497,7 @@ export default function GestionViviendas() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo de Vivienda
+                      Tipo de casa (Template)
                     </label>
                     <select
                       name="tipo_vivienda"
@@ -490,54 +505,33 @@ export default function GestionViviendas() {
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="casa">Casa</option>
-                      <option value="departamento">Departamento</option>
-                      <option value="duplex">Duplex</option>
-                      <option value="otro">Otro</option>
+                      <option value="">Seleccionar template...</option>
+                      {templates.filter(t=>t.activo).map(t => (
+                        <option key={t.id} value={t.tipo_vivienda || ''}>
+                          {t.nombre}{t.tipo_vivienda ? ` — ${t.tipo_vivienda}` : ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Metros Cuadrados
-                    </label>
-                    <input
-                      type="number"
-                      name="metros_cuadrados"
-                      value={form.metros_cuadrados}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      min="1"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Metros Cuadrados</label>
+                    <input type="number" name="metros_cuadrados" value={form.metros_cuadrados} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Número de Habitaciones
-                    </label>
-                    <input
-                      type="number"
-                      name="numero_habitaciones"
-                      value={form.numero_habitaciones}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      min="1"
-                    />
-                  </div>
+                  {modalType !== 'crear' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Número de Habitaciones</label>
+                      <input type="number" name="numero_habitaciones" value={form.numero_habitaciones} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Número de Baños
-                    </label>
-                    <input
-                      type="number"
-                      name="numero_banos"
-                      value={form.numero_banos}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      min="1"
-                    />
-                  </div>
+                  {modalType !== 'crear' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Número de Baños</label>
+                      <input type="number" name="numero_banos" value={form.numero_banos} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -569,18 +563,12 @@ export default function GestionViviendas() {
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Observaciones
-                    </label>
-                    <textarea
-                      name="observaciones"
-                      value={form.observaciones}
-                      onChange={handleInputChange}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+                  {modalType !== 'crear' && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+                      <textarea name="observaciones" value={form.observaciones} onChange={handleInputChange} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3 pt-4">

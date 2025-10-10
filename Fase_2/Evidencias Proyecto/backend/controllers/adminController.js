@@ -458,7 +458,18 @@ export async function getHousings(req, res) {
  */
 export async function createNewHousing(req, res) {
   try {
-    const { id_proyecto, proyecto_id, estado, direccion, tipo_vivienda, fecha_entrega } = req.body || {}
+    const { 
+      id_proyecto, 
+      proyecto_id, 
+      estado, 
+      direccion, 
+      tipo_vivienda, 
+      fecha_entrega,
+      metros_cuadrados,
+      numero_habitaciones,
+      numero_banos,
+      observaciones
+    } = req.body || {}
     
     const finalProjectId = proyecto_id || id_proyecto
     if (!finalProjectId || !direccion) {
@@ -468,13 +479,28 @@ export async function createNewHousing(req, res) {
       })
     }
     
-    const housingData = {
+    const housingDataRaw = {
       id_proyecto: Number(finalProjectId),
       direccion,
       tipo_vivienda: tipo_vivienda || null,
       fecha_entrega: fecha_entrega || null,
-      estado: estado || 'planificada'
+      estado: estado || 'planificada',
+      // Campos adicionales utilizados por el panel
+      metros_cuadrados: typeof metros_cuadrados === 'number' ? metros_cuadrados : (metros_cuadrados ? Number(metros_cuadrados) : null),
+      numero_habitaciones: typeof numero_habitaciones === 'number' ? numero_habitaciones : (numero_habitaciones ? Number(numero_habitaciones) : null),
+      numero_banos: typeof numero_banos === 'number' ? numero_banos : (numero_banos ? Number(numero_banos) : null),
+      observaciones: observaciones || null
     }
+    // Para evitar errores PGRST204 cuando la columna aún no existe en el esquema
+    // (por ejemplo, antes de aplicar la migración), eliminamos las claves con valor null/undefined
+    // de los campos opcionales nuevos.
+    const optionalKeys = ['metros_cuadrados','numero_habitaciones','numero_banos','observaciones']
+    const housingData = Object.fromEntries(
+      Object.entries(housingDataRaw).filter(([k, v]) => {
+        if (!optionalKeys.includes(k)) return true
+        return v !== null && typeof v !== 'undefined'
+      })
+    )
     
     const created = await createHousing(housingData)
     res.status(201).json({ success: true, data: created })
@@ -502,7 +528,61 @@ export async function updateHousingById(req, res) {
       })
     }
     
+    const prev = await getHousingById(id)
     const updated = await updateHousing(id, updates)
+
+    // Disparador: si pasa a 'entregada' y tiene beneficiario, crear automáticamente el form de posventa
+    try {
+      const becameDelivered = (prev?.estado || '').toLowerCase() !== 'entregada' && (updated?.estado || '').toLowerCase() === 'entregada'
+      if (becameDelivered && updated?.beneficiario_uid) {
+        // Verificar si ya existe un form activo (borrador/enviada)
+        const { data: existing, error: errExist } = await supabase
+          .from('vivienda_postventa_form')
+          .select('id, estado')
+          .eq('id_vivienda', updated.id_vivienda)
+          .eq('beneficiario_uid', updated.beneficiario_uid)
+          .order('id', { ascending: false })
+          .limit(1)
+        if (errExist) throw errExist
+        const hasActive = Array.isArray(existing) && existing.length && ['borrador','enviada'].includes(existing[0].estado)
+        if (!hasActive) {
+          // Seleccionar template activo por tipo de vivienda (o general)
+          const { data: template, error: errTpl } = await supabase
+            .from('postventa_template')
+            .select('*')
+            .eq('activo', true)
+            .or(`tipo_vivienda.eq.${updated.tipo_vivienda || ''},tipo_vivienda.is.null`)
+            .order('tipo_vivienda', { ascending: false })
+            .order('version', { ascending: false })
+            .limit(1)
+          if (errTpl) throw errTpl
+          if (template && template.length) {
+            const tpl = template[0]
+            const { data: inserted, error: errForm } = await supabase
+              .from('vivienda_postventa_form')
+              .insert([{ id_vivienda: updated.id_vivienda, beneficiario_uid: updated.beneficiario_uid, estado: 'borrador', template_version: tpl.version }])
+              .select('*')
+            if (errForm) throw errForm
+            const form = inserted?.[0]
+            // Copiar items del template
+            const { data: tplItems, error: errTplItems } = await supabase
+              .from('postventa_template_item')
+              .select('*')
+              .eq('template_id', tpl.id)
+              .order('orden', { ascending: true })
+            if (errTplItems) throw errTplItems
+            if (Array.isArray(tplItems) && tplItems.length && form?.id) {
+              const payload = tplItems.map(it => ({ form_id: form.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: it.orden }))
+              const { error: errIns } = await supabase.from('vivienda_postventa_item').insert(payload)
+              if (errIns) throw errIns
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Aviso: no se pudo crear automáticamente el formulario de posventa:', e?.message || e)
+    }
+
     res.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error actualizando vivienda:', error)

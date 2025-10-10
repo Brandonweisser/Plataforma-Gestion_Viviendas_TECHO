@@ -9,6 +9,7 @@ import IncidenciasHistorial from "./pages/IncidenciasHistorial";
 import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import FormularioPosventa from './pages/tecnico/FormularioPosventa';
+import FormulariosPosventa from './pages/tecnico/FormulariosPosventa';
 import ViviendasTecnico from './pages/tecnico/ViviendasTecnico';
 // Versión completa de gestión de proyectos
 import GestionProyectos from './pages/admin/GestionProyectos';
@@ -17,7 +18,11 @@ import AsignacionViviendas from './pages/admin/AsignacionViviendas';
 import GestionUsuarios from './pages/admin/GestionUsuarios';
 import KpisMetricas from './pages/admin/KpisMetricas';
 import MapaViviendas from './pages/admin/MapaViviendas';
+import GestionTemplatesPosventa from './pages/admin/GestionTemplatesPosventa';
 import PosventaFormPage from './pages/PosventaForm.jsx';
+import Registro from './pages/registrar.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 
 export default function AppRoutes() {
   const { isLoading } = useContext(AuthContext);
@@ -40,6 +45,10 @@ export default function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
+        {/* Rutas públicas */}
+        <Route path="/registro" element={<Registro />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
   {/* Rutas debug removidas */}
         
         <Route element={<ProtectedRoute redirectTo="/" />}>
@@ -49,8 +58,11 @@ export default function AppRoutes() {
           <Route path="/beneficiario/posventa" element={<PosventaFormPage />} />
 
           <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
+            {/* Alias legacy path to new list path to avoid dead links */}
+            <Route path="/tecnico/posventa" element={<Navigate to="/tecnico/posventa/formularios" replace />} />
             <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
             <Route path="/tecnico/incidencias/:id" element={<IncidenciaDetalleTecnico />} />
+            <Route path="/tecnico/posventa/formularios" element={<FormulariosPosventa />} />
             <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
             <Route path="/tecnico/viviendas" element={<ViviendasTecnico />} />
           </Route>
@@ -63,6 +75,7 @@ export default function AppRoutes() {
             <Route path="/admin/usuarios" element={<GestionUsuarios />} />
             <Route path="/admin/kpis" element={<KpisMetricas />} />
             <Route path="/admin/mapa-viviendas" element={<MapaViviendas />} />
+            <Route path="/admin/templates-posventa" element={<GestionTemplatesPosventa />} />
           </Route>
         </Route>
 

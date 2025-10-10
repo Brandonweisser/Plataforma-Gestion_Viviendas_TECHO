@@ -15,7 +15,10 @@ import {
   assignIncidenceToMe,
   getTechnicianStats,
   uploadIncidenceMedia,
-  listIncidenceMedia
+  listIncidenceMedia,
+  listPosventaForms,
+  getPosventaFormDetail,
+  reviewPosventaForm
 } from '../controllers/tecnicoController.js'
 
 const router = express.Router()
@@ -37,5 +40,10 @@ router.post('/incidencias/:id/media', uploadIncidenceMedia)
 
 // Estadísticas del técnico
 router.get('/stats', getTechnicianStats)
+
+// Posventa - técnico
+router.get('/posventa/formularios', listPosventaForms)
+router.get('/posventa/form/:id', getPosventaFormDetail)
+router.post('/posventa/form/:id/revisar', reviewPosventaForm)
 
 export default router

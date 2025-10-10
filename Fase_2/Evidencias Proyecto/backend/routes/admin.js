@@ -28,6 +28,22 @@ import {
   assignBeneficiary,
   unassignBeneficiary
 } from '../controllers/adminController.js'
+import {
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  deactivateTemplate,
+  listTemplateItems,
+  addTemplateItems,
+  updateTemplateItem,
+  deleteTemplateItem
+} from '../controllers/postventaTemplateController.js'
+import {
+  listRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom
+} from '../controllers/postventaTemplateController.js'
 
 const router = express.Router()
 
@@ -67,5 +83,21 @@ router.delete('/viviendas/:id', deleteHousingById)
 // Asignación de beneficiarios
 router.post('/viviendas/:id/asignar', assignBeneficiary)
 router.post('/viviendas/:id/desasignar', unassignBeneficiary)
+
+// ==================== GESTIÓN DE TEMPLATES DE POSTVENTA ====================
+router.get('/postventa/templates', listTemplates)
+router.post('/postventa/templates', createTemplate)
+router.put('/postventa/templates/:id', updateTemplate)
+router.delete('/postventa/templates/:id', deactivateTemplate)
+router.get('/postventa/templates/:id/items', listTemplateItems)
+router.post('/postventa/templates/:id/items', addTemplateItems)
+router.put('/postventa/templates/:id/items/:itemId', updateTemplateItem)
+router.delete('/postventa/templates/:id/items/:itemId', deleteTemplateItem)
+
+// Rooms (habitaciones) por template
+router.get('/postventa/templates/:id/rooms', listRooms)
+router.post('/postventa/templates/:id/rooms', createRoom)
+router.put('/postventa/templates/:id/rooms/:roomId', updateRoom)
+router.delete('/postventa/templates/:id/rooms/:roomId', deleteRoom)
 
 export default router

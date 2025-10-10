@@ -18,6 +18,10 @@ export async function getAllHousings() {
       id_proyecto,
       beneficiario_uid,
       tipo_vivienda,
+      metros_cuadrados,
+      numero_habitaciones,
+      numero_banos,
+      observaciones,
       fecha_entrega,
       latitud,
       longitud,
@@ -106,7 +110,16 @@ export async function updateHousing(id, updates) {
   const finalUpdates = { ...updates }
   if (Object.prototype.hasOwnProperty.call(finalUpdates, 'proyecto_id') && !finalUpdates.id_proyecto) {
     finalUpdates.id_proyecto = finalUpdates.proyecto_id
-    delete finalUpdates.proyecto_id
+  }
+  delete finalUpdates.proyecto_id
+
+  // Evitar enviar campos opcionales nulos cuando la columna pudiera no existir aún
+  const optionalKeys = ['metros_cuadrados','numero_habitaciones','numero_banos','observaciones']
+  for (const key of optionalKeys) {
+    if (Object.prototype.hasOwnProperty.call(finalUpdates, key)) {
+      const v = finalUpdates[key]
+      if (v === null || typeof v === 'undefined') delete finalUpdates[key]
+    }
   }
 
   const { data, error } = await supabase

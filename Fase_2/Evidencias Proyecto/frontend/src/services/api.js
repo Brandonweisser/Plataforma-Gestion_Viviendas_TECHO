@@ -277,5 +277,48 @@ export const adminApi = {
   },
   obtenerActividad() {
     return request('/api/admin/dashboard/activity')
+  },
+
+  // ---- Templates de Postventa ----
+  listarTemplates({ tipo_vivienda, activo } = {}) {
+    const params = new URLSearchParams()
+    if (tipo_vivienda) params.set('tipo_vivienda', tipo_vivienda)
+    if (typeof activo !== 'undefined') params.set('activo', String(activo))
+    const qs = params.toString()
+    return request(`/api/admin/postventa/templates${qs ? `?${qs}` : ''}`)
+  },
+  crearTemplate({ nombre, tipo_vivienda }) {
+    return request('/api/admin/postventa/templates', { method: 'POST', body: JSON.stringify({ nombre, tipo_vivienda }) })
+  },
+  actualizarTemplate(id, { nombre, activo }) {
+    return request(`/api/admin/postventa/templates/${id}`, { method: 'PUT', body: JSON.stringify({ nombre, activo }) })
+  },
+  desactivarTemplate(id) {
+    return request(`/api/admin/postventa/templates/${id}`, { method: 'DELETE' })
+  },
+  listarItemsTemplate(templateId) {
+    return request(`/api/admin/postventa/templates/${templateId}/items`)
+  },
+  agregarItemsTemplate(templateId, items) {
+    return request(`/api/admin/postventa/templates/${templateId}/items`, { method: 'POST', body: JSON.stringify({ items }) })
+  },
+  actualizarItemTemplate(templateId, itemId, payload) {
+    return request(`/api/admin/postventa/templates/${templateId}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(payload) })
+  },
+  eliminarItemTemplate(templateId, itemId) {
+    return request(`/api/admin/postventa/templates/${templateId}/items/${itemId}`, { method: 'DELETE' })
+  },
+  // Rooms
+  listarRooms(templateId) {
+    return request(`/api/admin/postventa/templates/${templateId}/rooms`)
+  },
+  crearRoom(templateId, { nombre, orden }) {
+    return request(`/api/admin/postventa/templates/${templateId}/rooms`, { method: 'POST', body: JSON.stringify({ nombre, orden }) })
+  },
+  actualizarRoom(templateId, roomId, payload) {
+    return request(`/api/admin/postventa/templates/${templateId}/rooms/${roomId}`, { method: 'PUT', body: JSON.stringify(payload) })
+  },
+  eliminarRoom(templateId, roomId) {
+    return request(`/api/admin/postventa/templates/${templateId}/rooms/${roomId}`, { method: 'DELETE' })
   }
 }

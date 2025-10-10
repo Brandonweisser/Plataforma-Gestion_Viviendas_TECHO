@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS proyecto (
     fecha_inicio DATE,
     fecha_entrega DATE,
     viviendas_count INT NOT NULL DEFAULT 0 CHECK (viviendas_count >= 0),
+    -- Geocodificación y coordenadas
+    latitud DOUBLE PRECISION,
+    longitud DOUBLE PRECISION,
+    ubicacion_normalizada TEXT,
+    ubicacion_referencia TEXT,
+    geocode_provider TEXT,
+    geocode_score NUMERIC,
+    geocode_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -44,6 +52,18 @@ CREATE TABLE IF NOT EXISTS viviendas (
     fecha_entrega DATE,
     beneficiario_uid BIGINT REFERENCES usuarios(uid) ON UPDATE CASCADE ON DELETE SET NULL,
     tipo_vivienda TEXT,
+    -- Geocodificación y coordenadas
+    latitud DOUBLE PRECISION,
+    longitud DOUBLE PRECISION,
+    direccion_normalizada TEXT,
+    geocode_provider TEXT,
+    geocode_score NUMERIC,
+    geocode_at TIMESTAMPTZ,
+    -- Campos administrativos
+    metros_cuadrados INT,
+    numero_habitaciones INT,
+    numero_banos INT,
+    observaciones TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -158,13 +178,23 @@ CREATE TABLE IF NOT EXISTS postventa_template (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Habitaciones/áreas asociadas a un template de postventa
+CREATE TABLE IF NOT EXISTS postventa_template_room (
+    id BIGSERIAL PRIMARY KEY,
+    template_id BIGINT NOT NULL REFERENCES postventa_template(id) ON DELETE CASCADE,
+    nombre TEXT NOT NULL,
+    orden INT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS postventa_template_item (
     id BIGSERIAL PRIMARY KEY,
     template_id BIGINT NOT NULL REFERENCES postventa_template(id) ON DELETE CASCADE,
     categoria TEXT NOT NULL,
     item TEXT NOT NULL,
     orden INT,
-    severidad_sugerida TEXT CHECK (severidad_sugerida IS NULL OR severidad_sugerida IN ('menor','media','mayor'))
+    severidad_sugerida TEXT CHECK (severidad_sugerida IS NULL OR severidad_sugerida IN ('menor','media','mayor')),
+    room_id BIGINT REFERENCES postventa_template_room(id) ON DELETE SET NULL
 );
 
 -- ========================================
@@ -206,6 +236,7 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_rol ON usuarios(rol);
 CREATE INDEX IF NOT EXISTS idx_viviendas_proyecto ON viviendas(id_proyecto);
 CREATE INDEX IF NOT EXISTS idx_viviendas_beneficiario ON viviendas(beneficiario_uid);
 CREATE INDEX IF NOT EXISTS idx_viviendas_estado ON viviendas(estado);
+CREATE INDEX IF NOT EXISTS idx_viviendas_lat_long ON viviendas(latitud, longitud);
 
 -- Incidencias
 CREATE INDEX IF NOT EXISTS idx_incidencias_vivienda ON incidencias(id_vivienda);
@@ -228,12 +259,16 @@ CREATE INDEX IF NOT EXISTS idx_postventa_beneficiario ON vivienda_postventa_form
 CREATE INDEX IF NOT EXISTS idx_postventa_item_form ON vivienda_postventa_item(form_id);
 CREATE INDEX IF NOT EXISTS idx_postventa_template_tipo ON postventa_template(tipo_vivienda, activo);
 CREATE INDEX IF NOT EXISTS idx_postventa_template_item_template ON postventa_template_item(template_id);
+CREATE INDEX IF NOT EXISTS idx_postventa_room_template ON postventa_template_room(template_id);
+CREATE INDEX IF NOT EXISTS idx_postventa_item_room ON postventa_template_item(room_id);
 
 -- Media
 CREATE INDEX IF NOT EXISTS idx_media_entity ON media(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_media_uploaded_by ON media(uploaded_by);
 
 -- Recuperación contraseñas
+-- Proyecto: índices de coordenadas
+CREATE INDEX IF NOT EXISTS idx_proyecto_lat_long ON proyecto(latitud, longitud);
 CREATE INDEX IF NOT EXISTS idx_recovery_email ON password_recovery_codes(email);
 CREATE INDEX IF NOT EXISTS idx_recovery_code ON password_recovery_codes(code);
 CREATE INDEX IF NOT EXISTS idx_recovery_expires ON password_recovery_codes(expires_at);
