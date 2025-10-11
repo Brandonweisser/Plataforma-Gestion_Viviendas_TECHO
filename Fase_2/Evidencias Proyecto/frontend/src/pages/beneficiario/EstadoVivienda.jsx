@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
+import { Toast } from '../../components/ui/Toast'
+import { StatusPill } from '../../components/ui/StatusPill'
 import { beneficiarioApi } from '../../services/api'
 
 export default function EstadoVivienda() {
@@ -145,42 +147,19 @@ export default function EstadoVivienda() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Estado de Mi Vivienda</h1>
-              <p className="text-gray-600 mt-1">Información completa sobre tu vivienda y gestiones</p>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Última actualización</div>
-              <div className="text-sm font-medium">{new Date().toLocaleDateString('es-CL')}</div>
-            </div>
-          </div>
-        </div>
-
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-            <button 
-              onClick={loadAllData}
-              className="ml-2 underline hover:no-underline"
-            >
-              Reintentar
-            </button>
-          </div>
+          <Toast
+            type="error"
+            message={
+              <span>
+                {error} <button onClick={loadAllData} className="underline">Reintentar</button>
+              </span>
+            }
+            onClose={() => setError('')}
+          />
         )}
-
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            {success}
-            <button 
-              onClick={() => setSuccess('')}
-              className="ml-2 text-green-500 hover:text-green-600"
-            >
-              ✕
-            </button>
-          </div>
+          <Toast type="success" message={success} onClose={() => setSuccess('')} />
         )}
 
         {/* Información de la Vivienda */}
@@ -212,9 +191,7 @@ export default function EstadoVivienda() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Estado</label>
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                    Entregada
-                  </span>
+                  <StatusPill value={vivienda.estado || 'entregada'} />
                 </div>
               </div>
             </div>
@@ -255,9 +232,7 @@ export default function EstadoVivienda() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${getEstadoColor(recepcion.estado)}`}>
-                    {recepcion.estado.charAt(0).toUpperCase() + recepcion.estado.slice(1)}
-                  </span>
+                  <StatusPill value={recepcion.estado} className="text-sm" />
                   <span className="text-sm text-gray-600">
                     Creada el {formatFecha(recepcion.fecha_creada)}
                   </span>
@@ -390,9 +365,7 @@ export default function EstadoVivienda() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${getEstadoColor(posventaForm.estado)}`}>
-                    {posventaForm.estado.charAt(0).toUpperCase() + posventaForm.estado.slice(1)}
-                  </span>
+                  <StatusPill value={posventaForm.estado} className="text-sm" />
                   <span className="text-sm text-gray-600">
                     Creado el {formatFecha(posventaForm.fecha_creada)}
                   </span>

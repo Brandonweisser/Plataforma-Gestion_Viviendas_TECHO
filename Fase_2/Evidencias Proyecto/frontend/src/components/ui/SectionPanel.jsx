@@ -21,7 +21,7 @@ export function SectionPanel({ title, description, children, actions, as = 'sect
     }
   }
   return (
-  <Component className={`card-surface ${isHighlight ? 'relative overflow-hidden card-strong border-techo-blue-100' : ''} ${className} dark:bg-gray-900/40` }>
+  <Component className={`card-surface rounded-2xl border border-gray-100 shadow-soft ${isHighlight ? 'relative overflow-hidden card-strong border-techo-blue-100' : ''} ${className} dark:bg-gray-900/40` }>
       {isHighlight && (
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-techo-blue-50 via-techo-cyan-50 to-white" />
       )}
@@ -35,7 +35,7 @@ export function SectionPanel({ title, description, children, actions, as = 'sect
             <button
               type="button"
               onClick={handleBack}
-              className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+              className="px-3 py-1.5 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-techo-blue-400"
             >
               {backLabel}
             </button>

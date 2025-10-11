@@ -22,6 +22,12 @@ export default function IncidenciasHistorial() {
   const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
   const [filters, setFilters] = useState({ estado: '', categoria: '', prioridad: '', search: '' });
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const stateChips = [
+    { label: 'Todas', value: '' },
+    { label: 'Abiertas', value: 'abierta' },
+    { label: 'En progreso', value: 'en_progreso' },
+    { label: 'Resueltas', value: 'resuelta' }
+  ];
 
   async function load() {
     setLoading(true); setError('');
@@ -68,13 +74,6 @@ export default function IncidenciasHistorial() {
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <button onClick={() => navigate('/beneficiario')} className="btn-outline btn-sm">← Volver al inicio</button>
             <div className="flex flex-wrap gap-3">
-              <select value={filters.estado} onChange={e => setFilters(f => ({ ...f, estado: e.target.value }))} className="border rounded px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-600">
-                <option value="">Estado (todos)</option>
-                <option value="abierta">Abierta</option>
-                <option value="en_proceso">En proceso</option>
-                <option value="resuelta">Resuelta</option>
-                <option value="cerrada">Cerrada</option>
-              </select>
               <select value={filters.categoria} onChange={e => setFilters(f => ({ ...f, categoria: e.target.value }))} className="border rounded px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-600">
                 <option value="">Categoría (todas)</option>
                 <option value="Eléctrico">Eléctrico</option>
@@ -95,6 +94,24 @@ export default function IncidenciasHistorial() {
                   className="btn-outline btn-sm"
                 >Limpiar</button>
               )}
+            </div>
+          </div>
+          {/* Chips de estado (scroll horizontal en móvil) */}
+          <div className="-mx-1 overflow-x-auto scrollbar-thin">
+            <div className="flex items-center gap-2 px-1">
+              {stateChips.map(chip => {
+                const active = (filters.estado || '') === chip.value;
+                return (
+                  <button
+                    key={chip.value || 'all'}
+                    onClick={() => setFilters(f => ({ ...f, estado: chip.value }))}
+                    className={`select-none whitespace-nowrap inline-flex items-center px-3 py-1.5 rounded-full border text-sm transition-all duration-200 ${active ? 'bg-techo-blue-600 text-white border-techo-blue-600 shadow-sm scale-100' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 scale-95'} focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-techo-blue-400`}
+                    aria-pressed={active}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -118,7 +135,14 @@ export default function IncidenciasHistorial() {
             }} allowUpload={false} />
           ))}
           {!loading && incidencias.length === 0 && (
-            <p className="text-sm text-slate-500">No hay reportes aún.</p>
+            <div className="text-center py-10 bg-white/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl">
+              <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-sky-50 text-sky-600 grid place-items-center border border-sky-100">
+                <span className="text-2xl" aria-hidden>🔧</span>
+              </div>
+              <h3 className="text-slate-800 dark:text-slate-100 font-semibold mb-1">Sin reportes por ahora</h3>
+              <p className="text-sm text-slate-500 max-w-sm mx-auto mb-4">Cuando tengas un problema en tu vivienda, crea un reporte para que podamos ayudarte.</p>
+              <button className="btn-primary" onClick={() => navigate('/beneficiario/nueva-incidencia')}>Crear mi primer reporte</button>
+            </div>
           )}
         </div>
         <nav className="flex items-center gap-4 mt-8 justify-center" aria-label="Paginación reportes">

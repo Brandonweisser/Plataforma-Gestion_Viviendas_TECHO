@@ -6,6 +6,8 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 // Rutas de debug eliminadas para versión final
 import IncidenciasHistorial from "./pages/IncidenciasHistorial";
+import EstadoVivienda from './pages/beneficiario/EstadoVivienda';
+import NuevaIncidencia from './pages/beneficiario/NuevaIncidencia';
 import IncidenciasListaTecnico from './pages/tecnico/IncidenciasLista';
 import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import FormularioPosventa from './pages/tecnico/FormularioPosventa';
@@ -56,6 +58,10 @@ export default function AppRoutes() {
           <Route path="/home/incidencias" element={<IncidenciasHistorial />} />
           {/* Beneficiario posventa */}
           <Route path="/beneficiario/posventa" element={<PosventaFormPage />} />
+          {/* Beneficiario: Estado de vivienda y reportes */}
+          <Route path="/beneficiario/estado-vivienda" element={<EstadoVivienda />} />
+          <Route path="/beneficiario/incidencias" element={<IncidenciasHistorial />} />
+          <Route path="/beneficiario/nueva-incidencia" element={<NuevaIncidencia />} />
 
           <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
             {/* Alias legacy path to new list path to avoid dead links */}

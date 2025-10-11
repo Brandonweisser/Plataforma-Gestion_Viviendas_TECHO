@@ -43,7 +43,7 @@ export function ActionCard({ title, description, badge, urgent, onClick, to, ico
         {to ? (
           <Link
             to={to}
-            className={`mt-auto w-full btn text-center ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none' : 'btn-primary'}`}
+            className={`mt-auto w-full text-center ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none btn' : 'btn-primary bg-gradient-to-r from-techo-blue-600 to-techo-blue-500 hover:from-techo-blue-700 hover:to-techo-blue-600 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-techo-blue-400 text-white shadow-sm'}`}
             aria-label={urgent ? `${title} - acción urgente` : title}
             onClick={onClick}
           >
@@ -52,7 +52,7 @@ export function ActionCard({ title, description, badge, urgent, onClick, to, ico
         ) : (
           <button
             onClick={onClick}
-            className={`mt-auto w-full btn ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none' : 'btn-primary'}`}
+            className={`mt-auto w-full ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none btn' : 'btn-primary bg-gradient-to-r from-techo-blue-600 to-techo-blue-500 hover:from-techo-blue-700 hover:to-techo-blue-600 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-techo-blue-400 text-white shadow-sm'}`}
             aria-label={urgent ? `${title} - acción urgente` : title}
           >
             {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
