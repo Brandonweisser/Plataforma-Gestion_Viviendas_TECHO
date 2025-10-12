@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS proyecto (
 );
 
 -- ========================================
+-- ASIGNACIÓN DE TÉCNICOS A PROYECTOS
+-- ========================================
+-- Relación N:M entre proyectos y usuarios con rol técnico
+CREATE TABLE IF NOT EXISTS proyecto_tecnico (
+    id_proyecto BIGINT NOT NULL REFERENCES proyecto(id_proyecto) ON UPDATE CASCADE ON DELETE CASCADE,
+    tecnico_uid BIGINT NOT NULL REFERENCES usuarios(uid) ON UPDATE CASCADE ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (id_proyecto, tecnico_uid)
+);
+
+-- ========================================
 -- VIVIENDAS
 -- ========================================
 CREATE TABLE IF NOT EXISTS viviendas (
@@ -64,6 +75,9 @@ CREATE TABLE IF NOT EXISTS viviendas (
     numero_habitaciones INT,
     numero_banos INT,
     observaciones TEXT,
+    -- Trazabilidad de recepción conforme (previa a entrega)
+    recepcion_conforme BOOLEAN NOT NULL DEFAULT false,
+    fecha_recepcion_conforme TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -86,6 +100,12 @@ CREATE TABLE IF NOT EXISTS incidencias (
     fecha_en_proceso TIMESTAMPTZ,
     fecha_resuelta TIMESTAMPTZ,
     fecha_cerrada TIMESTAMPTZ,
+    -- Campos de trazabilidad posventa
+    fuente TEXT CHECK (fuente IN ('beneficiario','posventa')) DEFAULT 'beneficiario',
+    fecha_limite_atencion TIMESTAMPTZ,
+    fecha_limite_cierre TIMESTAMPTZ,
+    conforme_beneficiario BOOLEAN,
+    fecha_conformidad_beneficiario TIMESTAMPTZ,
     version INT NOT NULL DEFAULT 1
 );
 
@@ -237,12 +257,15 @@ CREATE INDEX IF NOT EXISTS idx_viviendas_proyecto ON viviendas(id_proyecto);
 CREATE INDEX IF NOT EXISTS idx_viviendas_beneficiario ON viviendas(beneficiario_uid);
 CREATE INDEX IF NOT EXISTS idx_viviendas_estado ON viviendas(estado);
 CREATE INDEX IF NOT EXISTS idx_viviendas_lat_long ON viviendas(latitud, longitud);
+CREATE INDEX IF NOT EXISTS idx_viviendas_recepcion_conforme ON viviendas(recepcion_conforme);
 
 -- Incidencias
 CREATE INDEX IF NOT EXISTS idx_incidencias_vivienda ON incidencias(id_vivienda);
 CREATE INDEX IF NOT EXISTS idx_incidencias_estado ON incidencias(estado);
 CREATE INDEX IF NOT EXISTS idx_incidencias_tecnico ON incidencias(id_usuario_tecnico);
 CREATE INDEX IF NOT EXISTS idx_incidencias_reporta ON incidencias(id_usuario_reporta);
+CREATE INDEX IF NOT EXISTS idx_incidencias_fuente ON incidencias(fuente);
+CREATE INDEX IF NOT EXISTS idx_incidencias_limites ON incidencias(fecha_limite_atencion, fecha_limite_cierre);
 
 -- Historial
 CREATE INDEX IF NOT EXISTS idx_historial_incidencia ON incidencia_historial(incidencia_id);

@@ -7,6 +7,7 @@
 
 import { supabase } from '../supabaseClient.js'
 import { getIncidencesByBeneficiary, createIncidence, computePriority, logIncidenciaEvent } from '../models/Incidence.js'
+import { calcularFechasLimite } from '../utils/posventaConfig.js'
 
 /**
  * Health check para rutas de beneficiario
@@ -29,13 +30,25 @@ export async function getMyHousing(req, res) {
 
     const { data: vivienda, error: errViv } = await supabase
       .from('viviendas')
-      .select(`id_vivienda,id_proyecto,direccion,estado,beneficiario_uid,tipo_vivienda,proyecto(id_proyecto,nombre,ubicacion)`) // añadimos tipo_vivienda para posventa
+      .select(`
+        id_vivienda,
+        id_proyecto,
+        direccion,
+        estado,
+        beneficiario_uid,
+        tipo_vivienda,
+        metros_cuadrados,
+        numero_habitaciones,
+        numero_banos,
+        fecha_entrega,
+        proyecto(id_proyecto,nombre,ubicacion)
+      `)
       .eq('beneficiario_uid', beneficiarioUid)
       .maybeSingle()
     if (errViv) throw errViv
     if (!vivienda) return res.status(404).json({ success:false, message:'No tienes una vivienda asignada' })
 
-    // Recepción activa
+  // Recepción activa
     const { data: recepcionActiva, error: errRec } = await supabase
       .from('vivienda_recepcion')
       .select('id, estado, fecha_creada, fecha_enviada, observaciones_count')
@@ -61,7 +74,29 @@ export async function getMyHousing(req, res) {
       puedeCrearIncidencias = Array.isArray(revisada) && revisada.length > 0
     }
 
-    return res.json({ success:true, data:{ vivienda, proyecto: vivienda.proyecto, recepcion_activa: recepcionActual, flags:{ tiene_recepcion_activa: !!recepcionActual, puede_incidencias: puedeCrearIncidencias } } })
+    // Intentar obtener un técnico referente del proyecto (si está configurado)
+    let tecnico = null
+    try {
+      const { data: techRows, error: errTech } = await supabase
+        .from('proyecto_tecnico')
+        .select(`
+          tecnico_uid,
+          usuarios!inner(uid, nombre, email)
+        `)
+        .eq('id_proyecto', vivienda.id_proyecto)
+        .limit(1)
+      if (errTech) throw errTech
+      if (Array.isArray(techRows) && techRows.length) {
+        // Normalizamos estructura simple
+  const u = techRows[0]?.usuarios
+        if (u) tecnico = { uid: u.uid, nombre: u.nombre, email: u.email }
+      }
+    } catch (e) {
+      // No bloquear por contacto, solo loguear
+      console.warn('getMyHousing: no se pudo cargar técnico del proyecto:', e?.message || e)
+    }
+
+    return res.json({ success:true, data:{ vivienda, proyecto: vivienda.proyecto, tecnico, recepcion_activa: recepcionActual, flags:{ tiene_recepcion_activa: !!recepcionActual, puede_incidencias: puedeCrearIncidencias } } })
   } catch (error) {
     console.error('Error getMyHousing:', error)
     return res.status(500).json({ success:false, message:'Error al obtener la vivienda' })
@@ -177,7 +212,19 @@ export async function createNewIncidence(req, res) {
     if (!vivienda) return res.status(404).json({ success:false, message:'No tienes una vivienda asignada' })
 
     const prioridad = computePriority(categoria, descripcion)
-    const incidenciaData = { id_vivienda: vivienda.id_vivienda, id_usuario_reporta: beneficiarioUid, categoria, descripcion, prioridad, estado:'abierta', fecha_reporte: new Date().toISOString() }
+    const fechas = calcularFechasLimite(prioridad, new Date())
+    const incidenciaData = { 
+      id_vivienda: vivienda.id_vivienda, 
+      id_usuario_reporta: beneficiarioUid, 
+      categoria, 
+      descripcion, 
+      prioridad, 
+      estado:'abierta', 
+      fecha_reporte: new Date().toISOString(),
+      fuente: 'beneficiario',
+      fecha_limite_atencion: fechas.fecha_limite_atencion,
+      fecha_limite_cierre: fechas.fecha_limite_cierre
+    }
     const nuevaIncidencia = await createIncidence(incidenciaData)
 
     await logIncidenciaEvent({ incidenciaId: nuevaIncidencia.id_incidencia, actorUid: beneficiarioUid, actorRol:'beneficiario', tipo:'creacion', estadoNuevo:'abierta', comentario:'Incidencia creada por beneficiario' })

@@ -179,7 +179,8 @@ export const tecnicoApi = {
     return request(`/api/tecnico/incidencias/${id}/asignar`, { method: 'POST', body: JSON.stringify({}) })
   },
   cambiarEstadoIncidencia(id, nuevo_estado, comentario) {
-    return request(`/api/tecnico/incidencias/${id}/estado`, { method: 'POST', body: JSON.stringify({ nuevo_estado, comentario }) })
+    // Backend espera PUT y el campo 'estado' en el payload
+    return request(`/api/tecnico/incidencias/${id}/estado`, { method: 'PUT', body: JSON.stringify({ estado: nuevo_estado, comentario }) })
   },
   historialIncidencia(id) {
     return request(`/api/incidencias/${id}/historial`)

@@ -52,9 +52,6 @@ export default function IncidenciaDetalleTecnico() {
     loadAll() // eslint-disable-next-line
   }, [id])
 
-  async function handleAsignar() {
-    try { await tecnicoApi.asignarIncidencia(id); setAccionMsg('Asignada correctamente'); loadAll() } catch(e){ setAccionMsg(e.message)}
-  }
   async function handleEstado() {
     if (!nuevoEstado) return
     try { await tecnicoApi.cambiarEstadoIncidencia(id, nuevoEstado, comentario); setAccionMsg('Estado actualizado'); setComentario(''); loadAll() } catch(e) { setAccionMsg(e.message) }
@@ -128,8 +125,8 @@ export default function IncidenciaDetalleTecnico() {
                 </div>
               )}
             </div>
-            <div className='mt-4 flex flex-wrap gap-2'>
-              {!data.id_usuario_tecnico && <button className='btn btn-primary' onClick={handleAsignar}>Asignarme</button>}
+              <div className='mt-4 flex flex-wrap gap-2'>
+              {/* Solo el admin asigna incidencias; no mostrar auto-asignación al técnico */}
               {!editMode && <button className='btn btn-secondary' onClick={()=>setEditMode(true)}>Editar</button>}
               {editMode && (
                 <>
@@ -145,10 +142,8 @@ export default function IncidenciaDetalleTecnico() {
                   <option value=''>-- estado --</option>
                   <option value='abierta'>Abierta</option>
                   <option value='en_proceso'>En proceso</option>
-                  <option value='en_espera'>En espera</option>
                   <option value='resuelta'>Resuelta</option>
                   <option value='cerrada'>Cerrada</option>
-                  <option value='descartada'>Descartada</option>
                 </select>
                 <input className='input w-64' placeholder='Comentario (opcional)' value={comentario} onChange={e=>setComentario(e.target.value)} />
                 <button className='btn btn-secondary' onClick={handleEstado}>Actualizar</button>

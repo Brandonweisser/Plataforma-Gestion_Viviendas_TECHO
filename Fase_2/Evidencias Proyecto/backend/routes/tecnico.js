@@ -18,7 +18,9 @@ import {
   listIncidenceMedia,
   listPosventaForms,
   getPosventaFormDetail,
-  reviewPosventaForm
+  reviewPosventaForm,
+  listTechnicianHousings,
+  deliverTechnicianHousing
 } from '../controllers/tecnicoController.js'
 
 const router = express.Router()
@@ -45,5 +47,9 @@ router.get('/stats', getTechnicianStats)
 router.get('/posventa/formularios', listPosventaForms)
 router.get('/posventa/form/:id', getPosventaFormDetail)
 router.post('/posventa/form/:id/revisar', reviewPosventaForm)
+
+// Viviendas del técnico
+router.get('/viviendas', listTechnicianHousings)
+router.post('/viviendas/:id/entregar', deliverTechnicianHousing)
 
 export default router

@@ -9,6 +9,7 @@ import { Toast } from "../components/ui/Toast";
 import { StatusPill } from "../components/ui/StatusPill";
 import { ReportFab } from "../components/ui/ReportFab";
 import CardIncidencia from "../components/CardIncidencia";
+import CardVivienda from "../components/CardVivienda";
 import { beneficiarioApi } from "../services/api";
 import { 
   HomeModernIcon,
@@ -195,11 +196,11 @@ export default function HomeBeneficiario() {
       {error && <Toast type="error" message={error} onClose={() => setError('')} />}
       {success && <div className="mb-4"><Toast type="success" message={success} onClose={() => setSuccess('')} /></div>}
       {loading && <Toast type="info" message="Cargando…" />}
-  <div aria-label="Panel principal beneficiario" className="w-full bg-gradient-to-b from-sky-50/40 via-white to-white dark:from-slate-800 dark:via-slate-800 dark:to-slate-900">
+  <div aria-label="Panel principal beneficiario" className="w-full bg-white dark:bg-slate-900">
         {/* Hero bienvenida / info vivienda */}
   <div className="relative mb-10 overflow-hidden rounded-3xl bg-white border border-gray-100 shadow-soft dark:bg-slate-800 dark:border-slate-700">
           {/* Capa de gradiente suave (celeste→blanco→amarillo) - en dark usamos un degradado más luminoso para contraste */}
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700" />
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-white/0 dark:bg-transparent" />
           {/* Halos sutiles */}
           <div className="pointer-events-none absolute -top-8 -left-8 h-40 w-40 rounded-full bg-sky-100/70 blur-2xl mix-blend-multiply dark:bg-sky-400/20" />
           <div className="pointer-events-none absolute -bottom-10 -right-10 h-48 w-48 rounded-full bg-amber-100/70 blur-2xl mix-blend-multiply dark:bg-amber-300/10" />
@@ -207,7 +208,7 @@ export default function HomeBeneficiario() {
             <div className="flex flex-col md:flex-row md:items-center gap-10">
               {/* Icono principal */}
               <div className="flex-shrink-0">
-                <div className="grid place-items-center h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-100 to-white border border-gray-200 shadow-inner dark:from-sky-700/30 dark:to-slate-700 dark:border-slate-600">
+                <div className="grid place-items-center h-28 w-28 rounded-2xl bg-white border border-gray-200 shadow-inner dark:bg-slate-700 dark:border-slate-600">
                   <HomeModernIcon className="h-16 w-16 text-sky-700 dark:text-sky-200" />
                 </div>
               </div>
@@ -259,7 +260,7 @@ export default function HomeBeneficiario() {
           aria-label="Banner TECHO"
         >
           <div className="relative">
-            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-sky-50 via-white to-amber-50 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700" />
+            <div className="absolute inset-0 -z-10 bg-white/0 dark:bg-transparent" />
             <img
               src={`${process.env.PUBLIC_URL || ''}/assets/techo/hero-techo.jpg`}
               alt="TECHO Chile"
@@ -345,11 +346,12 @@ export default function HomeBeneficiario() {
             title="Información de tu vivienda"
             description="Detalles clave y contacto principal"
             className="lg:col-span-2"
+            showBack={false}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-techo-gray-500 mb-2">Detalles generales</h4>
+                  {/* Información de vivienda renderizada más abajo por CardVivienda */}
                 {/* hidden input for quick uploads */}
                 <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={async (e) => {
                   const files = Array.from(e.target.files || [])
@@ -548,22 +550,9 @@ export default function HomeBeneficiario() {
                     </div>
                   </div>
                 )}
-                  <ul className="space-y-2 text-techo-gray-700 dark:text-techo-gray-200">
-                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Dirección:</span> Calle Falsa 123, Comuna X</li>
-                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Tipo:</span> Casa Básica</li>
-                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Metros cuadrados:</span> 42 m²</li>
-                    <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Fecha de entrega:</span> 15 de marzo, 2023</li>
-                  </ul>
+                {/* Reemplazamos con componente dinámico */}
+                <CardVivienda vivienda={vivData?.vivienda} tecnico={vivData?.tecnico || { nombre: 'Sin asignar', telefono: '—', email: '—', horario: '—' }} />
                 </div>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-techo-gray-500 mb-2">Contacto de emergencia</h4>
-                <ul className="space-y-2 text-techo-gray-700 dark:text-techo-gray-200">
-                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Técnico asignado:</span> Ana Gómez</li>
-                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Teléfono:</span> +56 9 1234 5678</li>
-                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Email:</span> ana@correo.cl</li>
-                  <li><span className="font-medium text-techo-gray-800 dark:text-techo-gray-100">Horario:</span> Lun-Vie 8:00-18:00</li>
-                </ul>
               </div>
             </div>
           </SectionPanel>
@@ -571,6 +560,7 @@ export default function HomeBeneficiario() {
             title="Consejos rápidos"
             description="Cuidado preventivo de tu vivienda"
             variant="highlight"
+            showBack={false}
           >
             <ul className="text-sm text-techo-gray-700 space-y-3" aria-label="Lista de consejos">
               {[

@@ -7,6 +7,7 @@
 
 import { supabase } from '../supabaseClient.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent, createIncidence, computePriority } from '../models/Incidence.js'
+import { calcularFechasLimite, obtenerGarantiaPorCategoria } from '../utils/posventaConfig.js'
 import multer from 'multer'
 import { listMediaForIncidencias, uploadIncidenciaMedia } from '../services/MediaService.js'
 
@@ -30,7 +31,7 @@ export async function getIncidences(req, res) {
   try {
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
-    const { includeMedia } = req.query || {}
+  const { includeMedia, asignacion = 'all' } = req.query || {}
     
     let incidencias
 
@@ -38,19 +39,58 @@ export async function getIncidences(req, res) {
       // Los admins pueden ver todas las incidencias
       incidencias = await getAllIncidences()
     } else {
-      // Los técnicos solo ven las asignadas a ellos
-      const { data, error } = await supabase
-        .from('incidencias')
-        .select(`
-          *,
-          viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
-          reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
-        `)
-        .eq('id_usuario_tecnico', tecnicoUid)
-        .order('fecha_reporte', { ascending: false })
-        
-      if (error) throw error
-      incidencias = data || []
+      // Técnicos: ver asignadas directamente o por proyectos asignados
+  const seeAllAssigned = asignacion === 'all' || asignacion === 'asignadas'
+  const seeProjectScoped = asignacion === 'all' || asignacion === 'proyecto'
+  const seeUnassigned = asignacion === 'unassigned'
+
+      let results = []
+
+      if (seeAllAssigned) {
+        const { data, error } = await supabase
+          .from('incidencias')
+          .select(`
+            *,
+            viviendas(id_vivienda, direccion, proyecto(id_proyecto, nombre, ubicacion)),
+            reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
+          `)
+          .eq('id_usuario_tecnico', tecnicoUid)
+          .order('fecha_reporte', { ascending: false })
+        if (error) throw error
+        results = results.concat(data || [])
+      }
+
+      if (seeProjectScoped || seeUnassigned) {
+        // Incidencias de viviendas pertenecientes a proyectos donde el técnico está asignado
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const projectIds = (projects || []).map(p => p.id_proyecto)
+        if (projectIds.length) {
+          let query = supabase
+            .from('incidencias')
+            .select(`
+              *,
+              viviendas!inner(id_vivienda, direccion, id_proyecto, proyecto(id_proyecto, nombre, ubicacion)),
+              reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
+            `)
+            .in('viviendas.id_proyecto', projectIds)
+            .order('fecha_reporte', { ascending: false })
+          if (seeUnassigned) {
+            query = query.is('id_usuario_tecnico', null)
+          }
+          const { data: byProject, error: errIncP } = await query
+          if (errIncP) throw errIncP
+          results = results.concat(byProject || [])
+        }
+      }
+
+      // De-duplicar por id_incidencia
+      const map = new Map()
+      results.forEach(r => { map.set(r.id_incidencia, r) })
+      incidencias = Array.from(map.values())
     }
 
     if (includeMedia && incidencias.length) {
@@ -60,7 +100,8 @@ export async function getIncidences(req, res) {
 
     return res.json({
       success: true,
-      data: incidencias
+      data: incidencias,
+      meta: { total: incidencias.length }
     })
     
   } catch (error) {
@@ -80,23 +121,15 @@ export async function getIncidenceDetail(req, res) {
     const incidenciaId = Number(req.params.id)
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
-
-    let whereClause = { id_incidencia: incidenciaId }
-    
-    // Si no es admin, solo puede ver incidencias asignadas a él
-    if (userRole !== 'administrador') {
-      whereClause.id_usuario_tecnico = tecnicoUid
-    }
-
     const { data: incidencia, error: errorIncidencia } = await supabase
       .from('incidencias')
       .select(`
-  *,
-  viviendas(id_vivienda, direccion, proyecto(nombre, ubicacion)),
-  reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
-  tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
+        *,
+        viviendas(id_vivienda, direccion, id_proyecto, proyecto(nombre, ubicacion)),
+        reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email),
+        tecnico:usuarios!incidencias_id_usuario_tecnico_fkey(nombre, email)
       `)
-      .match(whereClause)
+      .eq('id_incidencia', incidenciaId)
       .single()
       
     if (errorIncidencia) {
@@ -107,6 +140,23 @@ export async function getIncidenceDetail(req, res) {
         })
       }
       throw errorIncidencia
+    }
+
+    if (userRole !== 'administrador') {
+      // Permitir si está asignada al técnico o si pertenece a un proyecto del técnico
+      const assignedToMe = incidencia.id_usuario_tecnico === tecnicoUid
+      if (!assignedToMe) {
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const projectIds = (projects || []).map(p => p.id_proyecto)
+        const incProject = incidencia?.viviendas?.id_proyecto
+        if (!projectIds.includes(incProject)) {
+          return res.status(403).json({ success:false, message:'No tienes acceso a esta incidencia' })
+        }
+      }
     }
 
     // Obtener historial de la incidencia
@@ -180,7 +230,7 @@ export async function updateIncidenceStatus(req, res) {
     const incidenciaId = Number(req.params.id)
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
-    const { estado, comentario } = req.body || {}
+  const { estado, comentario, conforme_beneficiario } = req.body || {}
 
     if (!estado) {
       return res.status(400).json({ 
@@ -190,7 +240,8 @@ export async function updateIncidenceStatus(req, res) {
     }
 
     // Validar estados permitidos
-    const estadosValidos = ['abierta', 'en_proceso', 'resuelta', 'cerrada']
+  // Estados válidos según CHECK de la tabla incidencias
+  const estadosValidos = ['abierta', 'en_proceso', 'en_espera', 'resuelta', 'cerrada', 'descartada']
     if (!estadosValidos.includes(estado)) {
       return res.status(400).json({ 
         success: false, 
@@ -199,15 +250,11 @@ export async function updateIncidenceStatus(req, res) {
     }
 
     // Obtener incidencia actual
-    let whereClause = { id_incidencia: incidenciaId }
-    if (userRole !== 'administrador') {
-      whereClause.id_usuario_tecnico = tecnicoUid
-    }
-
+    // Cargamos incidencia completa para validar permisos
     const { data: incidenciaActual, error: errorActual } = await supabase
       .from('incidencias')
-      .select('estado, id_usuario_tecnico')
-      .match(whereClause)
+      .select('id_vivienda, estado, id_usuario_tecnico, viviendas!inner(id_proyecto)')
+      .eq('id_incidencia', incidenciaId)
       .single()
       
     if (errorActual) {
@@ -220,17 +267,44 @@ export async function updateIncidenceStatus(req, res) {
       throw errorActual
     }
 
+    // Permisos: admin siempre; técnico si (a) es su asignada, o (b) pertenece a un proyecto suyo y la toma (opcionalmente podríamos exigir asignación previa)
+    if (userRole !== 'administrador') {
+      const assignedToMe = incidenciaActual.id_usuario_tecnico === tecnicoUid
+      if (!assignedToMe) {
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const allowed = (projects || []).some(p => p.id_proyecto === incidenciaActual.viviendas.id_proyecto)
+        if (!allowed) return res.status(403).json({ success:false, message:'No tienes permisos sobre el proyecto' })
+      }
+    }
+
     const estadoAnterior = incidenciaActual.estado
 
     // Actualizar incidencia
     const updates = { 
       estado,
-      fecha_actualizacion: new Date().toISOString()
+      // No existe 'fecha_actualizacion' en esquema; seteamos fechas según estado cuando aplique
     }
 
-    // Si se resuelve o cierra, registrar fecha
-    if (estado === 'resuelta' || estado === 'cerrada') {
-      updates.fecha_resolucion = new Date().toISOString()
+    // Para cierre: exigir conformidad del beneficiario (o manejar según política interna)
+    if (estado === 'cerrada') {
+      if (conforme_beneficiario !== true) {
+        return res.status(400).json({ success:false, message:'Para cerrar se requiere conformidad del beneficiario' })
+      }
+      updates.conforme_beneficiario = true
+      updates.fecha_conformidad_beneficiario = new Date().toISOString()
+      updates.fecha_cerrada = new Date().toISOString()
+    }
+
+    // Marcar fechas clave según estado
+    if (estado === 'en_proceso') {
+      updates.fecha_en_proceso = new Date().toISOString()
+    }
+    if (estado === 'resuelta') {
+      updates.fecha_resuelta = new Date().toISOString()
     }
 
     const incidenciaActualizada = await updateIncidence(incidenciaId, updates)
@@ -270,21 +344,40 @@ export async function assignIncidenceToMe(req, res) {
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
 
-    // Solo admins pueden asignar incidencias
-    if (userRole !== 'administrador') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'No tienes permisos para asignar incidencias' 
+    // Admin: asigna sin restricciones
+    if (userRole === 'administrador') {
+      const updates = { id_usuario_tecnico: tecnicoUid, estado: 'en_proceso', fecha_asignada: new Date().toISOString(), fecha_en_proceso: new Date().toISOString() }
+      const incidenciaActualizada = await updateIncidence(incidenciaId, updates)
+      await logIncidenciaEvent({
+        incidenciaId,
+        actorUid: tecnicoUid,
+        actorRol: userRole,
+        tipo: 'asignacion',
+        estadoNuevo: 'en_proceso',
+        comentario: 'Incidencia asignada y puesta en proceso'
       })
+      return res.json({ success: true, data: incidenciaActualizada, message: 'Incidencia asignada exitosamente' })
     }
 
-    // Actualizar incidencia con el técnico asignado
-    const updates = {
-      id_usuario_tecnico: tecnicoUid,
-      estado: 'en_proceso',
-      fecha_actualizacion: new Date().toISOString()
+    // Técnico: solo puede auto-asignarse si la incidencia pertenece a un proyecto suyo y está sin técnico o ya consigo
+    const { data: inc, error: errInc } = await supabase
+      .from('incidencias')
+      .select('id_usuario_tecnico, viviendas!inner(id_proyecto)')
+      .eq('id_incidencia', incidenciaId)
+      .single()
+    if (errInc) throw errInc
+    if (inc.id_usuario_tecnico && inc.id_usuario_tecnico !== tecnicoUid) {
+      return res.status(403).json({ success:false, message:'Incidencia asignada a otro técnico' })
     }
+    const { data: projects, error: errP } = await supabase
+      .from('proyecto_tecnico')
+      .select('id_proyecto')
+      .eq('tecnico_uid', tecnicoUid)
+    if (errP) throw errP
+    const allowed = (projects || []).some(p => p.id_proyecto === inc.viviendas.id_proyecto)
+    if (!allowed) return res.status(403).json({ success:false, message:'No tienes permisos sobre el proyecto' })
 
+  const updates = { id_usuario_tecnico: tecnicoUid, estado: 'en_proceso', fecha_asignada: new Date().toISOString(), fecha_en_proceso: new Date().toISOString() }
     const incidenciaActualizada = await updateIncidence(incidenciaId, updates)
 
     // Registrar evento en historial
@@ -297,11 +390,7 @@ export async function assignIncidenceToMe(req, res) {
       comentario: 'Incidencia asignada y puesta en proceso'
     })
 
-    return res.json({
-      success: true,
-      data: incidenciaActualizada,
-      message: 'Incidencia asignada exitosamente'
-    })
+    return res.json({ success: true, data: incidenciaActualizada, message: 'Incidencia asignada exitosamente' })
     
   } catch (error) {
     console.error('Error al asignar incidencia:', error)
@@ -372,6 +461,8 @@ export async function getTechnicianStats(req, res) {
  */
 export async function listPosventaForms(req, res) {
   try {
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 20))
     const offset = Math.max(0, Number(req.query.offset) || 0)
     const estado = (req.query.estado || '').toString().trim()
@@ -387,11 +478,26 @@ export async function listPosventaForms(req, res) {
         comentario_tecnico, template_version, pdf_path, pdf_generated_at,
         items_no_ok_count, observaciones_count,
         viviendas: id_vivienda (
-          id_vivienda, direccion, tipo_vivienda,
-          proyecto ( nombre )
+          id_vivienda, direccion, tipo_vivienda, id_proyecto,
+          proyecto ( id_proyecto, nombre )
         ),
         usuarios:beneficiario_uid ( nombre, email, rut )
       `, { count: 'exact' })
+
+    // Si es técnico (no admin), filtrar por proyectos asignados
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      const projectIds = (projects || []).map(p => p.id_proyecto)
+      if (!projectIds.length) {
+        return res.json({ success:true, data: [], meta: { total: 0, limit, offset, hasMore: false } })
+      }
+      // Filtrar por viviendas cuyo id_proyecto esté en la lista
+      query = query.in('viviendas.id_proyecto', projectIds)
+    }
 
     // Filtro por estado si aplica
     if (estado) {
@@ -475,21 +581,37 @@ export async function listPosventaForms(req, res) {
 export async function getPosventaFormDetail(req, res) {
   try {
     const formId = Number(req.params.id)
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
     if (!formId) return res.status(400).json({ success:false, message:'ID inválido' })
 
-    const { data: form, error: formErr } = await supabase
+    let query = supabase
       .from('vivienda_postventa_form')
       .select(`
         id, id_vivienda, beneficiario_uid, estado, fecha_creada, fecha_enviada, fecha_revisada,
         comentario_tecnico, template_version, pdf_path, pdf_generated_at,
         viviendas: id_vivienda (
-          id_vivienda, direccion, tipo_vivienda,
-          proyecto ( nombre, ubicacion )
+          id_vivienda, direccion, tipo_vivienda, id_proyecto,
+          proyecto ( id_proyecto, nombre, ubicacion )
         ),
         usuarios:beneficiario_uid ( nombre, email, rut )
       `)
       .eq('id', formId)
-      .single()
+
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      const projectIds = (projects || []).map(p => p.id_proyecto)
+      if (!projectIds.length) {
+        return res.status(403).json({ success:false, message:'No tienes acceso a este formulario' })
+      }
+      query = query.in('viviendas.id_proyecto', projectIds)
+    }
+
+    const { data: form, error: formErr } = await query.single()
     if (formErr) throw formErr
 
     const { data: items, error: itemsErr } = await supabase
@@ -572,6 +694,8 @@ export async function reviewPosventaForm(req, res) {
       if (modoInc === 'agrupada') {
         // Crear una sola incidencia que agrupe los problemas
         const descripcion = problemItems.map(i => `• ${i.categoria || 'General'}: ${i.item}${i.comentario ? ` — ${i.comentario}` : ''}`).join('\n')
+        const prioridad = computePriority('posventa', descripcion)
+        const fechas = calcularFechasLimite(prioridad, new Date())
         const payload = {
           id_vivienda: form.id_vivienda,
           id_usuario_reporta: form.beneficiario_uid,
@@ -580,7 +704,10 @@ export async function reviewPosventaForm(req, res) {
           categoria: 'posventa',
           estado: 'abierta',
           fecha_reporte: new Date().toISOString(),
-          prioridad: computePriority('posventa', descripcion)
+          prioridad,
+          fuente: 'posventa',
+          fecha_limite_atencion: fechas.fecha_limite_atencion,
+          fecha_limite_cierre: fechas.fecha_limite_cierre
         }
         const created = await createIncidence(payload)
         incidenciasCreadas.push(created)
@@ -589,6 +716,9 @@ export async function reviewPosventaForm(req, res) {
         // Separadas: una por item
         for (const it of problemItems) {
           const desc = `${it.categoria || 'General'} — ${it.item}${it.comentario ? `: ${it.comentario}` : ''}`
+          const prioridad = computePriority(it.categoria || 'posventa', desc)
+          const fechas = calcularFechasLimite(prioridad, new Date())
+          const garantia_tipo = obtenerGarantiaPorCategoria((it.categoria || '').toString())
           const payload = {
             id_vivienda: form.id_vivienda,
             id_usuario_reporta: form.beneficiario_uid,
@@ -597,7 +727,11 @@ export async function reviewPosventaForm(req, res) {
             categoria: it.categoria || 'posventa',
             estado: 'abierta',
             fecha_reporte: new Date().toISOString(),
-            prioridad: computePriority(it.categoria || 'posventa', desc)
+            prioridad,
+            fuente: 'posventa',
+            fecha_limite_atencion: fechas.fecha_limite_atencion,
+            fecha_limite_cierre: fechas.fecha_limite_cierre,
+            garantia_tipo
           }
           const created = await createIncidence(payload)
           incidenciasCreadas.push(created)
@@ -623,5 +757,117 @@ export async function reviewPosventaForm(req, res) {
   } catch (error) {
     console.error('Error revisando formulario posventa:', error)
     return res.status(500).json({ success:false, message:'Error al revisar el formulario de posventa' })
+  }
+}
+
+/**
+ * Lista viviendas visibles para el técnico (o todas si es admin)
+ * Query params: estado (opcional)
+ */
+export async function listTechnicianHousings(req, res) {
+  try {
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    const estado = (req.query.estado || '').toString().trim()
+
+    // Si es técnico, obtener los proyectos asignados
+    let projectIds = []
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      projectIds = (projects || []).map(p => p.id_proyecto)
+      if (!projectIds.length) {
+        return res.json({ success: true, data: [], meta: { total: 0 } })
+      }
+    }
+
+    // Construir consulta de viviendas
+    let query = supabase
+      .from('viviendas')
+      .select(`
+        id_vivienda, estado, id_proyecto, beneficiario_uid, direccion, fecha_entrega,
+        proyecto ( id_proyecto, nombre )
+      `)
+
+    if (userRole !== 'administrador') {
+      query = query.in('id_proyecto', projectIds)
+    }
+    if (estado) {
+      query = query.eq('estado', estado)
+    }
+    query = query.order('id_proyecto', { ascending: true }).order('id_vivienda', { ascending: true })
+
+    const { data, error } = await query
+    if (error) throw error
+
+    const mapped = (data || []).map(v => ({
+      id_vivienda: v.id_vivienda,
+      estado: v.estado,
+      id_proyecto: v.id_proyecto,
+      direccion: v.direccion,
+      beneficiario_uid: v.beneficiario_uid,
+      fecha_entrega: v.fecha_entrega,
+      proyecto_nombre: v.proyecto?.nombre || null,
+      asignada: !!v.beneficiario_uid
+    }))
+
+    return res.json({ success: true, data: mapped, meta: { total: mapped.length } })
+  } catch (error) {
+    console.error('Error listando viviendas para técnico:', error)
+    return res.status(500).json({ success: false, message: 'Error al listar viviendas' })
+  }
+}
+
+/**
+ * Marca como entregada una vivienda, si pertenece a un proyecto del técnico o si es admin
+ */
+export async function deliverTechnicianHousing(req, res) {
+  try {
+    const viviendaId = Number(req.params.id)
+    if (!viviendaId) return res.status(400).json({ success:false, message:'ID inválido' })
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+
+    // Leer vivienda actual
+    const { data: vivienda, error: vErr } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, id_proyecto, estado, beneficiario_uid')
+      .eq('id_vivienda', viviendaId)
+      .single()
+    if (vErr) throw vErr
+    if (!vivienda) return res.status(404).json({ success:false, message:'Vivienda no encontrada' })
+
+    // Validar permisos: si no es admin, debe estar asignado al proyecto
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      const allowed = (projects || []).some(p => p.id_proyecto === vivienda.id_proyecto)
+      if (!allowed) return res.status(403).json({ success:false, message:'No tienes permisos sobre este proyecto' })
+    }
+
+    // Validar estado actual y beneficiario asignado
+    if (vivienda.estado !== 'asignada' || !vivienda.beneficiario_uid) {
+      return res.status(400).json({ success:false, message:'La vivienda debe estar asignada a un beneficiario para poder entregarla' })
+    }
+
+    const updates = { estado: 'entregada', fecha_entrega: new Date().toISOString() }
+    const { data: updated, error: upErr } = await supabase
+      .from('viviendas')
+      .update(updates)
+      .eq('id_vivienda', viviendaId)
+      .select('*')
+      .single()
+    if (upErr) throw upErr
+
+    return res.json({ success:true, data: updated, message: 'Vivienda marcada como entregada' })
+  } catch (error) {
+    console.error('Error entregando vivienda:', error)
+    return res.status(500).json({ success:false, message:'Error al marcar la vivienda como entregada' })
   }
 }

@@ -103,7 +103,7 @@ export async function getProjectTechnicians(projectId) {
   const { data, error } = await supabase
     .from('proyecto_tecnico')
     .select(`
-      id_usuario_tecnico,
+      tecnico_uid,
       usuarios!inner(uid, nombre, email)
     `)
     .eq('id_proyecto', projectId)
@@ -122,7 +122,7 @@ export async function assignTechnicianToProject(projectId, technicianId) {
     .from('proyecto_tecnico')
     .insert([{
       id_proyecto: projectId,
-      id_usuario_tecnico: technicianId
+      tecnico_uid: technicianId
     }])
     
   if (error) throw error
@@ -138,7 +138,7 @@ export async function removeTechnicianFromProject(projectId, technicianId) {
     .from('proyecto_tecnico')
     .delete()
     .eq('id_proyecto', projectId)
-    .eq('id_usuario_tecnico', technicianId)
+    .eq('tecnico_uid', technicianId)
     
   if (error) throw error
 }

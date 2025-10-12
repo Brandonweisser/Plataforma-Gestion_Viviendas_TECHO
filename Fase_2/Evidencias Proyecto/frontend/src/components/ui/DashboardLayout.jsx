@@ -23,7 +23,7 @@ export function DashboardLayout({ title, subtitle, user, onLogout, children, acc
   };
   const accentText = accentTextMap[accent] || accentTextMap.blue;
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-techo-blue-50/40 via-white to-white dark:from-techo-gray-900 dark:via-techo-gray-900 dark:to-techo-gray-900 transition-colors">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-techo-gray-900 transition-colors">
       <header className="sticky top-0 z-30 backdrop-blur bg-white/70 dark:bg-techo-gray-900/70 border-b border-techo-gray-100 dark:border-techo-gray-800">
         <div className="app-container flex items-center justify-between py-4">
           <div className="flex items-center gap-3 min-w-0">

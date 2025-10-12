@@ -5,7 +5,8 @@
 /* Fuente Inter (si el proyecto no la carga vía HTML se puede añadir un link en index.html) */
 @layer base {
   :root {
-    --color-bg-page: theme('colors.techo.gray.50');
+    /* Fondo general blanco (antes: gray.50) */
+    --color-bg-page: theme('colors.white');
     --color-text-primary: theme('colors.techo.gray.800');
     --color-text-secondary: theme('colors.techo.gray.600');
     --color-brand: theme('colors.techo.blue.600');

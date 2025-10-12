@@ -377,7 +377,8 @@ export async function assignTechnician(req, res) {
   try {
     const projectId = Number(req.params.id)
     const { id_usuario_tecnico, tecnico_uid } = req.body || {}
-    const finalTechId = id_usuario_tecnico || tecnico_uid
+    // Compat: aceptar ambos nombres, preferimos tecnico_uid
+    const finalTechId = tecnico_uid || id_usuario_tecnico
     
     if (!finalTechId) {
       return res.status(400).json({ 
@@ -424,7 +425,7 @@ export async function listProjectTechnicians(req, res) {
     const projectId = Number(req.params.id)
     const rows = await getProjectTechnicians(projectId)
     const tecnicos = (rows || []).map(r => ({
-      uid: r.id_usuario_tecnico || r.usuarios?.uid,
+      uid: r.tecnico_uid || r.usuarios?.uid,
       nombre: r.usuarios?.nombre,
       email: r.usuarios?.email
     })).filter(t => t.uid)
@@ -529,6 +530,35 @@ export async function updateHousingById(req, res) {
     }
     
     const prev = await getHousingById(id)
+    // Si se intenta marcar como entregada, validar recepción conforme
+    const toDelivered = (updates?.estado || '').toLowerCase() === 'entregada'
+    if (toDelivered) {
+      // Debe existir una recepción revisada y conforme (sin ítems críticos)
+      const { data: recep, error: errRecep } = await supabase
+        .from('vivienda_recepcion')
+        .select('id, estado')
+        .eq('id_vivienda', id)
+        .order('id', { ascending:false })
+        .limit(1)
+      if (errRecep) throw errRecep
+      const rec = Array.isArray(recep) && recep.length ? recep[0] : null
+      if (!rec || rec.estado !== 'revisada') {
+        return res.status(400).json({ success:false, message:'No se puede entregar: recepción no revisada/conforme' })
+      }
+      // Opcional: verificar que no existan observaciones críticas.
+      const { data: items, error: errItems } = await supabase
+        .from('vivienda_recepcion_item')
+        .select('id, categoria, item, ok')
+        .eq('recepcion_id', rec.id)
+      if (errItems) throw errItems
+      const tieneCriticos = (items||[]).some(i => i.ok === false)
+      if (tieneCriticos) {
+        return res.status(400).json({ success:false, message:'No se puede entregar: existen observaciones pendientes en recepción' })
+      }
+      // Forzar flags de recepción conforme para trazabilidad
+      updates.recepcion_conforme = true
+      updates.fecha_recepcion_conforme = new Date().toISOString()
+    }
     const updated = await updateHousing(id, updates)
 
     // Disparador: si pasa a 'entregada' y tiene beneficiario, crear automáticamente el form de posventa
