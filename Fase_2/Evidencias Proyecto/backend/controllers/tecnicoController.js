@@ -32,6 +32,12 @@ export async function getIncidences(req, res) {
     const tecnicoUid = req.user?.uid || req.user?.sub
     const userRole = req.user?.rol || req.user?.role
   const { includeMedia, asignacion = 'all' } = req.query || {}
+    // Filtros opcionales
+  const estadoFilterRaw = (req.query?.estado || '').toString().trim()
+  const estadosList = estadoFilterRaw ? estadoFilterRaw.split(',').map(s => s.trim()).filter(Boolean) : []
+    const categoriaFilter = (req.query?.categoria || '').toString().trim()
+    const prioridadFilter = (req.query?.prioridad || '').toString().trim()
+    const searchFilter = (req.query?.search || '').toString().trim()
     
     let incidencias
 
@@ -47,7 +53,7 @@ export async function getIncidences(req, res) {
       let results = []
 
       if (seeAllAssigned) {
-        const { data, error } = await supabase
+        let query = supabase
           .from('incidencias')
           .select(`
             *,
@@ -56,6 +62,12 @@ export async function getIncidences(req, res) {
           `)
           .eq('id_usuario_tecnico', tecnicoUid)
           .order('fecha_reporte', { ascending: false })
+  if (estadosList.length === 1) query = query.eq('estado', estadosList[0])
+  if (estadosList.length > 1) query = query.in('estado', estadosList)
+        if (categoriaFilter) query = query.eq('categoria', categoriaFilter)
+        if (prioridadFilter) query = query.eq('prioridad', prioridadFilter)
+        if (searchFilter) query = query.ilike('descripcion', `%${searchFilter}%`)
+        const { data, error } = await query
         if (error) throw error
         results = results.concat(data || [])
       }
@@ -81,6 +93,11 @@ export async function getIncidences(req, res) {
           if (seeUnassigned) {
             query = query.is('id_usuario_tecnico', null)
           }
+          if (estadosList.length === 1) query = query.eq('estado', estadosList[0])
+          if (estadosList.length > 1) query = query.in('estado', estadosList)
+          if (categoriaFilter) query = query.eq('categoria', categoriaFilter)
+          if (prioridadFilter) query = query.eq('prioridad', prioridadFilter)
+          if (searchFilter) query = query.ilike('descripcion', `%${searchFilter}%`)
           const { data: byProject, error: errIncP } = await query
           if (errIncP) throw errIncP
           results = results.concat(byProject || [])
@@ -223,6 +240,101 @@ export async function listIncidenceMedia(req, res) {
 }
 
 /**
+ * Estadísticas mensuales para el panel del técnico
+ * Query: month=YYYY-MM (opcional; por defecto mes actual segun UTC)
+ * Devuelve: { asignadas, pendientes, resueltas }
+ * - asignadas: incidencias con id_usuario_tecnico = tecnico y fecha_asignada dentro del mes
+ * - pendientes: incidencias en estados 'abierta' o 'en_proceso' dentro de proyectos asignados, con fecha_reporte dentro del mes
+ * - resueltas: incidencias con estado 'resuelta' y fecha_resuelta dentro del mes dentro de proyectos asignados
+ */
+export async function getTechnicianDashboardStats(req, res) {
+  try {
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    const monthStr = (req.query.month || '').toString().trim()
+
+    // Calcular rango de fechas [start, end) del mes
+    const now = new Date()
+    const [y, m] = monthStr && /^\d{4}-\d{2}$/.test(monthStr)
+      ? monthStr.split('-').map(Number)
+      : [now.getUTCFullYear(), now.getUTCMonth() + 1]
+    const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0))
+    const end = new Date(Date.UTC(y, m, 1, 0, 0, 0)) // primer día del mes siguiente
+
+    // Determinar proyectos válidos (si no es admin)
+    let projectIds = []
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      projectIds = (projects || []).map(p => p.id_proyecto)
+      if (!projectIds.length) {
+        return res.json({ success:true, data: { asignadas: 0, pendientes: 0, resueltas: 0 }, meta: { month: `${y}-${String(m).padStart(2,'0')}` } })
+      }
+    }
+
+    // 1) Asignadas a mí este mes
+    // Considerar también incidencias que tienen asignación pero no registraron fecha_asignada,
+    // tomando como referencia fecha_reporte del mes
+    let qAsignadasA = supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda, fecha_asignada, viviendas!inner(id_proyecto)')
+      .eq('id_usuario_tecnico', tecnicoUid)
+      .gte('fecha_asignada', start.toISOString())
+      .lt('fecha_asignada', end.toISOString())
+    if (userRole !== 'administrador') qAsignadasA = qAsignadasA.in('viviendas.id_proyecto', projectIds)
+    const { data: asignadasA, error: asgAErr } = await qAsignadasA
+    if (asgAErr) throw asgAErr
+
+    let qAsignadasB = supabase
+      .from('incidencias')
+      .select('id_incidencia, id_vivienda, fecha_asignada, fecha_reporte, viviendas!inner(id_proyecto)')
+      .eq('id_usuario_tecnico', tecnicoUid)
+      .is('fecha_asignada', null)
+      .gte('fecha_reporte', start.toISOString())
+      .lt('fecha_reporte', end.toISOString())
+    if (userRole !== 'administrador') qAsignadasB = qAsignadasB.in('viviendas.id_proyecto', projectIds)
+    const { data: asignadasB, error: asgBErr } = await qAsignadasB
+    if (asgBErr) throw asgBErr
+
+    const mapAsg = new Map()
+    ;(asignadasA || []).forEach(r => mapAsg.set(r.id_incidencia, true))
+    ;(asignadasB || []).forEach(r => mapAsg.set(r.id_incidencia, true))
+    const asignadas = mapAsg.size
+
+  // 2) Pendientes este mes (abierta o en_proceso) reportadas este mes, en proyectos permitidos
+    let qPend = supabase
+      .from('incidencias')
+      .select('id_incidencia, estado, fecha_reporte, viviendas!inner(id_proyecto)')
+      .in('estado', ['abierta', 'en_proceso'])
+      .gte('fecha_reporte', start.toISOString())
+      .lt('fecha_reporte', end.toISOString())
+    if (userRole !== 'administrador') qPend = qPend.in('viviendas.id_proyecto', projectIds)
+    const { data: pendData, error: pendErr } = await qPend
+    if (pendErr) throw pendErr
+    const pendientes = (pendData || []).length
+
+    // 3) Finalizadas este mes (resuelta o cerrada) usando fecha_resuelta ó fecha_cerrada
+    let qRes = supabase
+      .from('incidencias')
+      .select('id_incidencia, estado, fecha_resuelta, fecha_cerrada, viviendas!inner(id_proyecto)')
+      .in('estado', ['resuelta','cerrada'])
+      .or(`and(estado.eq.resuelta,fecha_resuelta.gte.${start.toISOString()},fecha_resuelta.lt.${end.toISOString()}),and(estado.eq.cerrada,fecha_cerrada.gte.${start.toISOString()},fecha_cerrada.lt.${end.toISOString()})`)
+    if (userRole !== 'administrador') qRes = qRes.in('viviendas.id_proyecto', projectIds)
+    const { data: resData, error: resErr } = await qRes
+    if (resErr) throw resErr
+    const finalizadas = (resData || []).length
+
+    return res.json({ success:true, data: { asignadas, pendientes, finalizadas }, meta: { month: `${y}-${String(m).padStart(2,'0')}` } })
+  } catch (error) {
+    console.error('Error en dashboard stats técnico:', error)
+    return res.status(500).json({ success:false, message:'Error al obtener estadísticas' })
+  }
+}
+
+/**
  * Actualiza el estado de una incidencia
  */
 export async function updateIncidenceStatus(req, res) {
@@ -297,6 +409,10 @@ export async function updateIncidenceStatus(req, res) {
       updates.conforme_beneficiario = true
       updates.fecha_conformidad_beneficiario = new Date().toISOString()
       updates.fecha_cerrada = new Date().toISOString()
+      // Si nunca se marcó resuelta, asumimos resolución inmediata antes del cierre
+      if (!incidenciaActual.fecha_resuelta) {
+        updates.fecha_resuelta = new Date().toISOString()
+      }
     }
 
     // Marcar fechas clave según estado

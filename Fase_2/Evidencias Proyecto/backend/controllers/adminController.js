@@ -479,13 +479,27 @@ export async function createNewHousing(req, res) {
         message: 'id_proyecto/proyecto_id y direccion son obligatorios' 
       })
     }
+
+    // Normalización y validación de estado de vivienda
+    const allowedEstados = ['planificada','en_construccion','asignada','entregada']
+    let estadoInput = (estado || '').toString().trim().toLowerCase()
+    const estadoMap = {
+      terminada: 'entregada',
+      construida: 'en_construccion',
+      construccion: 'en_construccion',
+      construido: 'en_construccion'
+    }
+    if (estadoInput && estadoMap[estadoInput]) estadoInput = estadoMap[estadoInput]
+    if (estadoInput && !allowedEstados.includes(estadoInput)) {
+      return res.status(400).json({ success:false, message:`Estado inválido '${estadoInput}'. Permitidos: ${allowedEstados.join(', ')}` })
+    }
     
     const housingDataRaw = {
       id_proyecto: Number(finalProjectId),
       direccion,
       tipo_vivienda: tipo_vivienda || null,
       fecha_entrega: fecha_entrega || null,
-      estado: estado || 'planificada',
+      estado: estadoInput || 'planificada',
       // Campos adicionales utilizados por el panel
       metros_cuadrados: typeof metros_cuadrados === 'number' ? metros_cuadrados : (metros_cuadrados ? Number(metros_cuadrados) : null),
       numero_habitaciones: typeof numero_habitaciones === 'number' ? numero_habitaciones : (numero_habitaciones ? Number(numero_habitaciones) : null),
@@ -529,6 +543,18 @@ export async function updateHousingById(req, res) {
       })
     }
     
+    // Normalización de estado si viene en payload
+    if (typeof updates.estado === 'string') {
+      const allowedEstados = ['planificada','en_construccion','asignada','entregada']
+      let est = updates.estado.toString().trim().toLowerCase()
+      const estadoMap = { terminada:'entregada', construida:'en_construccion', construccion:'en_construccion', construido:'en_construccion' }
+      if (estadoMap[est]) est = estadoMap[est]
+      if (!allowedEstados.includes(est)) {
+        return res.status(400).json({ success:false, message:`Estado inválido '${updates.estado}'. Permitidos: ${allowedEstados.join(', ')}` })
+      }
+      updates.estado = est
+    }
+
     const prev = await getHousingById(id)
     // Si se intenta marcar como entregada, validar recepción conforme
     const toDelivered = (updates?.estado || '').toLowerCase() === 'entregada'

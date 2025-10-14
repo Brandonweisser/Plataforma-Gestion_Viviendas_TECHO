@@ -471,7 +471,8 @@ export default function GestionViviendas() {
                       name="direccion"
                       value={form.direccion}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 placeholder-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
+                      placeholder="Ej: Calle 123, Sector X"
                       required
                     />
                   </div>
@@ -484,7 +485,7 @@ export default function GestionViviendas() {
                       name="proyecto_id"
                       value={form.proyecto_id}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100"
                     >
                       <option value="">Seleccionar proyecto...</option>
                       {proyectos.map((proyecto) => (
@@ -503,7 +504,7 @@ export default function GestionViviendas() {
                       name="tipo_vivienda"
                       value={form.tipo_vivienda}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100"
                     >
                       <option value="">Seleccionar template...</option>
                       {templates.filter(t=>t.activo).map(t => (
@@ -516,20 +517,20 @@ export default function GestionViviendas() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Metros Cuadrados</label>
-                    <input type="number" name="metros_cuadrados" value={form.metros_cuadrados} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
+                    <input type="number" name="metros_cuadrados" value={form.metros_cuadrados} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100" min="1" placeholder="Ej: 36" />
                   </div>
 
                   {modalType !== 'crear' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Número de Habitaciones</label>
-                      <input type="number" name="numero_habitaciones" value={form.numero_habitaciones} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
+                      <input type="number" name="numero_habitaciones" value={form.numero_habitaciones} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100" min="1" placeholder="Ej: 2" />
                     </div>
                   )}
 
                   {modalType !== 'crear' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Número de Baños</label>
-                      <input type="number" name="numero_banos" value={form.numero_banos} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" />
+                      <input type="number" name="numero_banos" value={form.numero_banos} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100" min="1" placeholder="Ej: 1" />
                     </div>
                   )}
 
@@ -541,12 +542,12 @@ export default function GestionViviendas() {
                       name="estado"
                       value={form.estado}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100"
                     >
+                      <option value="planificada">Planificada</option>
                       <option value="en_construccion">En Construcción</option>
-                      <option value="terminada">Terminada</option>
+                      <option value="asignada">Asignada</option>
                       <option value="entregada">Entregada</option>
-                      <option value="en_mantenimiento">En Mantenimiento</option>
                     </select>
                   </div>
 
@@ -559,14 +560,14 @@ export default function GestionViviendas() {
                       name="fecha_entrega"
                       value={form.fecha_entrega}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100"
                     />
                   </div>
 
                   {modalType !== 'crear' && (
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
-                      <textarea name="observaciones" value={form.observaciones} onChange={handleInputChange} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                      <textarea name="observaciones" value={form.observaciones} onChange={handleInputChange} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 placeholder-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400" placeholder="Notas adicionales sobre la vivienda" />
                     </div>
                   )}
                 </div>

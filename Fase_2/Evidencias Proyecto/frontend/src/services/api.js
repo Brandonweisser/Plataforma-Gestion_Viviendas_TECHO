@@ -103,6 +103,9 @@ export const beneficiarioApi = {
   crearIncidencia({ descripcion, categoria }) {
     return request('/api/beneficiario/incidencias', { method: 'POST', body: JSON.stringify({ descripcion, categoria }) });
   },
+  validarIncidencia(id, { conforme, comentario }) {
+    return request(`/api/beneficiario/incidencias/${id}/validar`, { method: 'POST', body: JSON.stringify({ conforme, comentario }) })
+  },
   async listarMediaIncidencia(id) {
     return request(`/api/beneficiario/incidencias/${id}/media`)
   },
@@ -198,6 +201,12 @@ export const tecnicoApi = {
     const data = await res.json().catch(()=>({}))
     if (!res.ok || data.success === false) { const err = new Error(data.message || 'Error subiendo media'); err.data = data; throw err }
     return data
+  }
+  ,
+  dashboardStats(month) {
+    const params = new URLSearchParams()
+    if (month) params.set('month', month)
+    return request(`/api/tecnico/dashboard/stats${params.toString() ? `?${params.toString()}` : ''}`)
   }
 }
 

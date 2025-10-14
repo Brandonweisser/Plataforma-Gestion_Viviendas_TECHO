@@ -1,10 +1,11 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { StatCard } from "../components/ui/StatCard";
 import { ActionCard } from "../components/ui/ActionCard";
 import { SectionPanel } from "../components/ui/SectionPanel";
 import { DashboardLayout } from "../components/ui/DashboardLayout";
+import { tecnicoApi } from "../services/api";
 import {
   ClipboardDocumentListIcon,
   ExclamationTriangleIcon,
@@ -24,6 +25,45 @@ export default function HomeTecnico() {
   const handleLogout = () => { logout(); navigate("/"); };
   const iconSize = 'h-6 w-6';
 
+  // Helper para YYYY-MM actual (UTC)
+  function ymNow() {
+    const d = new Date()
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+    return `${y}-${m}`
+  }
+
+  const [month, setMonth] = useState(ymNow())
+  const [stats, setStats] = useState({ asignadas: 0, pendientes: 0, resueltas: 0 })
+  const [loadingStats, setLoadingStats] = useState(true)
+  const [errorStats, setErrorStats] = useState('')
+  const monthInputRef = useRef(null)
+
+  const monthLabel = useMemo(() => {
+    const [y, m] = (month || '').split('-').map(Number)
+    if (!y || !m) return ''
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  }, [month])
+
+  useEffect(() => {
+    let mounted = true
+    setLoadingStats(true); setErrorStats('')
+    tecnicoApi.dashboardStats(month)
+      .then(res => { if (!mounted) return; setStats(res.data || { asignadas:0, pendientes:0, resueltas:0 }) })
+      .catch(err => { if (!mounted) return; setErrorStats(err.message || 'Error cargando estadísticas') })
+      .finally(() => mounted && setLoadingStats(false))
+    return () => { mounted = false }
+  }, [month])
+
+  function shiftMonth(delta) {
+    const [y, m] = month.split('-').map(Number)
+    const d = new Date(Date.UTC(y, m - 1, 1))
+    d.setUTCMonth(d.getUTCMonth() + delta)
+    const ny = d.getUTCFullYear()
+    const nm = String(d.getUTCMonth() + 1).padStart(2, '0')
+    setMonth(`${ny}-${nm}`)
+  }
+
   console.log('🏠 HomeTecnico - Estado de autenticación:');
   console.log('  - user:', user);
   console.log('  - localStorage user:', localStorage.getItem('user'));
@@ -31,12 +71,12 @@ export default function HomeTecnico() {
 
   const tools = [
     { title: 'Viviendas', description: 'Listado y entrega de viviendas', badge: 'ver', action: () => navigate('/tecnico/viviendas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
-    { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: '12 asignadas', action: () => navigate('/tecnico/incidencias'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
-  { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: '8 pendientes', action: () => navigate('/tecnico/posventa/formularios'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
-    { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: '3 urgentes', action: () => navigate('/tecnico/incidencias'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
-    { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: '5 hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
-    { title: 'Gestión de Inventario', description: 'Control de materiales y herramientas', badge: '85% stock', action: () => console.log('Inventario'), icon: <CubeIcon className={iconSize} />, accent: 'purple' },
-    { title: 'Centro de Comunicación', description: 'Chat con actores relevantes', badge: '4 mensajes', action: () => console.log('Comunicación'), icon: <ChatBubbleBottomCenterTextIcon className={iconSize} />, accent: 'teal' }
+    { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: `${stats.asignadas} asignadas`, action: () => navigate('/tecnico/incidencias?asignacion=asignadas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
+    { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: 'pendientes', action: () => navigate('/tecnico/posventa/formularios'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
+    { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: 'urgente', action: () => navigate('/tecnico/incidencias'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
+    { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: 'hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
+    { title: 'Gestión de Inventario', description: 'Control de materiales y herramientas', badge: 'stock', action: () => console.log('Inventario'), icon: <CubeIcon className={iconSize} />, accent: 'purple' },
+    { title: 'Centro de Comunicación', description: 'Chat con actores relevantes', badge: 'mensajes', action: () => console.log('Comunicación'), icon: <ChatBubbleBottomCenterTextIcon className={iconSize} />, accent: 'teal' }
   ];
 
   const urgentIncidents = [
@@ -70,10 +110,41 @@ export default function HomeTecnico() {
           <h2 className="text-2xl font-semibold tracking-tight text-techo-gray-800 dark:text-white">Panel de Trabajo</h2>
           <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Gestiona asignaciones y resuelve incidencias.</p>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-techo-gray-500">Estadísticas para {monthLabel}</div>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-ghost btn-xs" title="Mes anterior" onClick={() => shiftMonth(-1)}>◀</button>
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-full border border-techo-gray-200 dark:border-techo-gray-700 bg-white dark:bg-techo-gray-800 text-xs font-medium text-techo-gray-700 dark:text-techo-gray-200 hover:border-techo-accent-400 hover:text-techo-accent-600 transition-colors"
+              onClick={() => monthInputRef.current?.showPicker?.() || monthInputRef.current?.focus()}
+            >
+              <span className="inline-flex items-center gap-1">
+                <span className="opacity-70">📅</span> {monthLabel}
+              </span>
+            </button>
+            <input
+              ref={monthInputRef}
+              type="month"
+              className="sr-only absolute opacity-0 pointer-events-none"
+              value={month}
+              onChange={e => setMonth(e.target.value)}
+            />
+            <button className="btn btn-ghost btn-xs" title="Mes siguiente" onClick={() => shiftMonth(1)}>▶</button>
+          </div>
+          {loadingStats && <div className="text-xs text-techo-gray-500">Cargando…</div>}
+          {errorStats && <div className="text-xs text-red-600">{errorStats}</div>}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard icon={<ClipboardDocumentListIcon className={iconSize} />} label="Asignadas" value="12" subtitle="Viviendas" accent='orange' />
-          <StatCard icon={<WrenchScrewdriverIcon className={iconSize} />} label="Pendientes" value="8" subtitle="Incidencias" accent='red' />
-          <StatCard icon={<CheckBadgeIcon className={iconSize} />} label="Resueltas" value="25" subtitle="Este mes" accent='green' />
+          <button className="text-left" onClick={() => navigate('/tecnico/incidencias?asignacion=asignadas')}>
+            <StatCard icon={<ClipboardDocumentListIcon className={iconSize} />} label="Asignadas" value={String(stats.asignadas)} subtitle="Viviendas" accent='orange' />
+          </button>
+          <button className="text-left" onClick={() => navigate('/tecnico/incidencias?estado=abierta,en_proceso')}>
+            <StatCard icon={<WrenchScrewdriverIcon className={iconSize} />} label="Pendientes" value={String(stats.pendientes)} subtitle="Incidencias" accent='red' />
+          </button>
+          <button className="text-left" onClick={() => navigate('/tecnico/incidencias?estado=resuelta,cerrada')}>
+            <StatCard icon={<CheckBadgeIcon className={iconSize} />} label="Finalizadas" value={String(stats.finalizadas || stats.resueltas || 0)} subtitle="Este mes" accent='green' />
+          </button>
           <StatCard icon={<BoltIcon className={iconSize} />} label="Calificación" value="4.8" subtitle="Promedio" accent='purple' />
         </div>
         <SectionPanel title="Herramientas de Trabajo" description="Acciones y módulos frecuentes" as="section">

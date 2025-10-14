@@ -20,7 +20,8 @@ import {
   getPosventaFormDetail,
   reviewPosventaForm,
   listTechnicianHousings,
-  deliverTechnicianHousing
+  deliverTechnicianHousing,
+  getTechnicianDashboardStats
 } from '../controllers/tecnicoController.js'
 
 const router = express.Router()
@@ -51,5 +52,8 @@ router.post('/posventa/form/:id/revisar', reviewPosventaForm)
 // Viviendas del técnico
 router.get('/viviendas', listTechnicianHousings)
 router.post('/viviendas/:id/entregar', deliverTechnicianHousing)
+
+// Dashboard
+router.get('/dashboard/stats', getTechnicianDashboardStats)
 
 export default router

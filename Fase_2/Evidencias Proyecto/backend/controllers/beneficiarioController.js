@@ -277,6 +277,87 @@ export async function getIncidenceDetail(req, res) {
   }
 }
 
+/**
+ * Beneficiario valida (conforme) o rechaza (no conforme) una incidencia que está en estado 'resuelta'.
+ * Flujo:
+ *  - Sólo incidencias del beneficiario y estado actual 'resuelta'.
+ *  - Body { conforme: boolean, comentario?: string }
+ *    * conforme = true  => pasa a 'cerrada', set fecha_cerrada (y fecha_resuelta si faltara), conforme_beneficiario=true
+ *    * conforme = false => regresa a 'en_proceso', limpia conforme_beneficiario (false/null), registra comentario obligatorio.
+ */
+export async function validateIncidence(req, res) {
+  try {
+    const beneficiarioUid = req.user?.uid || req.user?.sub
+    const incidenciaId = Number(req.params.id)
+    const { conforme, comentario } = req.body || {}
+    if (typeof conforme !== 'boolean') return res.status(400).json({ success:false, message:'Campo conforme (boolean) es requerido' })
+
+    // Obtener incidencia asegurando que pertenece al beneficiario
+    const { data: incidencia, error: errInc } = await supabase
+      .from('incidencias')
+      .select('*')
+      .eq('id_incidencia', incidenciaId)
+      .eq('id_usuario_reporta', beneficiarioUid)
+      .maybeSingle()
+    if (errInc) throw errInc
+    if (!incidencia) return res.status(404).json({ success:false, message:'Incidencia no encontrada' })
+    if (incidencia.estado !== 'resuelta') return res.status(400).json({ success:false, message:'La incidencia no está en estado resuelta' })
+
+    const nowIso = new Date().toISOString()
+    let updates = {}
+    let nuevoEstado = null
+    let tipoEvento = null
+    let comentarioEvento = null
+
+    if (conforme) {
+      nuevoEstado = 'cerrada'
+      updates = {
+        estado: 'cerrada',
+        fecha_cerrada: nowIso,
+        fecha_resuelta: incidencia.fecha_resuelta || nowIso,
+        conforme_beneficiario: true,
+        fecha_conformidad_beneficiario: nowIso
+      }
+      tipoEvento = 'validacion_beneficiario'
+      comentarioEvento = comentario || 'Beneficiario valida solución y cierra la incidencia'
+    } else {
+      if (!comentario || !comentario.trim()) return res.status(400).json({ success:false, message:'Comentario es obligatorio cuando no está conforme' })
+      nuevoEstado = 'en_proceso'
+      updates = {
+        estado: 'en_proceso',
+        conforme_beneficiario: false,
+        fecha_conformidad_beneficiario: null,
+        fecha_en_proceso: incidencia.fecha_en_proceso || nowIso
+      }
+      tipoEvento = 'rechazo_beneficiario'
+      comentarioEvento = comentario
+    }
+
+    const { data: updated, error: errUp } = await supabase
+      .from('incidencias')
+      .update(updates)
+      .eq('id_incidencia', incidenciaId)
+      .select('*')
+      .single()
+    if (errUp) throw errUp
+
+    await logIncidenciaEvent({
+      incidenciaId,
+      actorUid: beneficiarioUid,
+      actorRol: 'beneficiario',
+      tipo: tipoEvento,
+      estadoAnterior: 'resuelta',
+      estadoNuevo: nuevoEstado,
+      comentario: comentarioEvento
+    })
+
+    return res.json({ success:true, data: updated, message: conforme ? 'Incidencia cerrada por conformidad del beneficiario' : 'Incidencia devuelta a proceso' })
+  } catch (error) {
+    console.error('Error validateIncidence:', error)
+    return res.status(500).json({ success:false, message:'Error validando la incidencia' })
+  }
+}
+
 /** ==== POSVENTA (Formulario) ==== */
 export async function getPosventaForm(req, res) {
   try {

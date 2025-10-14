@@ -1,15 +1,29 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import CardIncidencia from '../../components/CardIncidencia'
 import { tecnicoApi } from '../../services/api'
 
 export default function IncidenciasListaTecnico() {
+  const location = useLocation()
   const [incidencias, setIncidencias] = useState([])
   const [meta, setMeta] = useState({ total: 0 })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ search: '', estado: '', prioridad: '', asignacion: 'all' })
+
+  // Derivar filtros iniciales desde la URL (?estado=abierta&asignacion=asignadas)
+  const initialFromQuery = useMemo(() => {
+    const p = new URLSearchParams(location.search)
+    const estado = p.get('estado') || ''
+    const asignacion = p.get('asignacion') || ''
+    const normalized = {
+      ...(estado ? { estado } : {}),
+      ...(asignacion ? { asignacion } : {})
+    }
+    return normalized
+  }, [location.search])
 
   async function load(offset = 0) {
     setLoading(true); setError('')
@@ -21,6 +35,14 @@ export default function IncidenciasListaTecnico() {
       setError(e.message || 'Error cargando incidencias')
     } finally { setLoading(false) }
   }
+
+  // Aplicar filtros de la URL una única vez por cambio de querystring
+  useEffect(() => {
+    if (Object.keys(initialFromQuery).length) {
+      setFilters(f => ({ ...f, ...initialFromQuery }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFromQuery])
 
   useEffect(() => { load(0) // eslint-disable-next-line
   }, [filters.search, filters.estado, filters.prioridad, filters.asignacion])
@@ -59,7 +81,7 @@ export default function IncidenciasListaTecnico() {
               <label className='text-xs font-medium text-techo-gray-600'>Asignación</label>
               <select className='input' value={filters.asignacion} onChange={e => setFilters(f => ({ ...f, asignacion: e.target.value }))}>
                 <option value='all'>Todas</option>
-                <option value='mine'>Mis asignadas</option>
+                <option value='asignadas'>Mis asignadas</option>
                 <option value='unassigned'>Sin asignar</option>
               </select>
             </div>

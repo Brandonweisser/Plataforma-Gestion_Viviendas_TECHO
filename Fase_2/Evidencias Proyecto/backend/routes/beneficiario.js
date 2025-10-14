@@ -13,7 +13,8 @@ import {
   getMyReception,
   getMyIncidences,
   createNewIncidence,
-  getIncidenceDetail
+  getIncidenceDetail,
+  validateIncidence
 } from '../controllers/beneficiarioController.js'
 import { 
   getPosventaForm, 
@@ -47,6 +48,7 @@ router.post('/incidencias', createNewIncidence)
 router.get('/incidencias/:id', getIncidenceDetail)
 router.get('/incidencias/:id/media', listIncidenciaMediaBeneficiario)
 router.post('/incidencias/:id/media', uploadIncidenciaMediaBeneficiario)
+router.post('/incidencias/:id/validar', validateIncidence)
 
 // Posventa
 router.get('/posventa/form', getPosventaForm)

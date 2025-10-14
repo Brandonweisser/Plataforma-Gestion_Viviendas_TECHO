@@ -1,7 +1,11 @@
 import React from 'react'
 
 export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allowUpload = false, className = '' }) {
-	if (!incidencia) return null
+	// Hooks deben declararse siempre; evitamos returns antes.
+	// Eliminado flujo inline de validación
+	if (!incidencia) {
+		return <div className={`card-surface p-4 md:p-5 ${className}`} aria-hidden="true" />
+	}
 
 	const statusColor = (s) => {
 		const v = (s || '').toLowerCase()
@@ -78,6 +82,9 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 						<button className='btn-primary btn-sm' onClick={() => onUploadClick(incidencia)}>
 							Agregar fotos
 						</button>
+					)}
+					{incidencia.estado === 'resuelta' && (
+						<span className='inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>Pendiente validación</span>
 					)}
 				</div>
 			</div>

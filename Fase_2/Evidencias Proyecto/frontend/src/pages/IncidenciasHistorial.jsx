@@ -3,6 +3,7 @@ import { fetchHistorialIncidencia, groupEventsByDay, eventIcon } from '../servic
 import { DashboardLayout } from '../components/ui/DashboardLayout';
 import { beneficiarioApi } from '../services/api';
 import CardIncidencia from '../components/CardIncidencia';
+import ValidationModal from '../components/ValidationModal';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,11 +22,13 @@ export default function IncidenciasHistorial() {
   const [loadingHist, setLoadingHist] = useState(false);
   const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
   const [filters, setFilters] = useState({ estado: '', categoria: '', prioridad: '', search: '' });
+  const [actionLoading, setActionLoading] = useState(false)
+  const [showValidationModal, setShowValidationModal] = useState(false)
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const stateChips = [
     { label: 'Todas', value: '' },
     { label: 'Abiertas', value: 'abierta' },
-    { label: 'En progreso', value: 'en_progreso' },
+  { label: 'En proceso', value: 'en_proceso' },
     { label: 'Resueltas', value: 'resuelta' }
   ];
 
@@ -174,6 +177,14 @@ export default function IncidenciasHistorial() {
                 <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
                 <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
                 <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
+                {detailInc.estado === 'resuelta' && (
+                  <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700">
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">¿La solución implementada resolvió tu incidencia?</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button disabled={actionLoading} onClick={()=> setShowValidationModal(true)} className="btn-primary btn-sm disabled:opacity-50">Validar / Rechazar</button>
+                    </div>
+                  </div>
+                )}
                 <div className='mt-4'>
                   <p className='font-medium text-slate-900 dark:text-white mb-1'>Historial</p>
                   {loadingHist && <p className='text-xs text-slate-500'>Cargando historial…</p>}
@@ -223,6 +234,33 @@ export default function IncidenciasHistorial() {
             </div>
           </div>
         </div>
+      )}
+      {showValidationModal && detailInc && (
+        <ValidationModal
+          open={showValidationModal}
+          loading={actionLoading}
+          onClose={()=> setShowValidationModal(false)}
+          onAccept={async ()=>{
+            setActionLoading(true);
+            try {
+              await beneficiarioApi.validarIncidencia(detailInc.id_incidencia,{ conforme:true });
+              await load();
+              const refreshed = incidencias.find(i=>i.id_incidencia===detailInc.id_incidencia); setDetailInc(refreshed || null);
+              setShowValidationModal(false);
+            } catch(e){ throw e } finally { setActionLoading(false) }
+          }}
+          onReject={async ({ comentario, file })=>{
+            setActionLoading(true);
+            try {
+              // Subir foto primero
+              await beneficiarioApi.subirMediaIncidencia(detailInc.id_incidencia, [file]);
+              await beneficiarioApi.validarIncidencia(detailInc.id_incidencia,{ conforme:false, comentario });
+              await load();
+              const refreshed = incidencias.find(i=>i.id_incidencia===detailInc.id_incidencia); setDetailInc(refreshed || null);
+              setShowValidationModal(false);
+            } catch(e){ throw e } finally { setActionLoading(false) }
+          }}
+        />
       )}
     </DashboardLayout>
   );

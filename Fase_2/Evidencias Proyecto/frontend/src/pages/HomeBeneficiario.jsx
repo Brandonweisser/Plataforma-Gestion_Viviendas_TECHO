@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { fetchHistorialIncidencia, groupEventsByDay, eventIcon } from '../services/historial'
+import ValidationModal from '../components/ValidationModal';
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
@@ -34,6 +35,8 @@ export default function HomeBeneficiario() {
   const fileInputRef = React.useRef(null);
   const [uploadTarget, setUploadTarget] = useState(null);
   const [detailInc, setDetailInc] = useState(null);
+  const [validationModalOpen, setValidationModalOpen] = useState(false);
+  const [validationLoading, setValidationLoading] = useState(false);
   const [historialInc, setHistorialInc] = useState([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
@@ -383,6 +386,14 @@ export default function HomeBeneficiario() {
                           <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
                           <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
                           <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
+                          {detailInc.estado === 'resuelta' && (
+                            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700">
+                              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">¿La solución implementada resolvió tu incidencia?</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button className="btn-primary btn-sm" onClick={()=> setValidationModalOpen(true)}>Validar / Rechazar</button>
+                              </div>
+                            </div>
+                          )}
                           <div className='mt-4'>
                             <p className='font-medium text-slate-900 dark:text-white mb-1'>Historial</p>
                             {loadingHistorial && <p className='text-xs text-slate-500'>Cargando historial…</p>}
@@ -435,6 +446,32 @@ export default function HomeBeneficiario() {
                       </div>
                     </div>
                   </div>
+                )}
+                {validationModalOpen && detailInc && (
+                  <ValidationModal
+                    open={validationModalOpen}
+                    loading={validationLoading}
+                    onClose={()=> setValidationModalOpen(false)}
+                    onAccept={async ()=>{
+                      setValidationLoading(true)
+                      try {
+                        await beneficiarioApi.validarIncidencia(detailInc.id_incidencia,{ conforme:true });
+                        await loadData();
+                        const refreshed = incidencias.find(i=>i.id_incidencia===detailInc.id_incidencia); if (refreshed) setDetailInc(refreshed);
+                        setValidationModalOpen(false)
+                      } catch(e){ setError(e.message||'Error validando') } finally { setValidationLoading(false) }
+                    }}
+                    onReject={async ({ comentario, file })=>{
+                      setValidationLoading(true)
+                      try {
+                        await beneficiarioApi.subirMediaIncidencia(detailInc.id_incidencia, [file])
+                        await beneficiarioApi.validarIncidencia(detailInc.id_incidencia,{ conforme:false, comentario });
+                        await loadData();
+                        const refreshed = incidencias.find(i=>i.id_incidencia===detailInc.id_incidencia); if (refreshed) setDetailInc(refreshed);
+                        setValidationModalOpen(false)
+                      } catch(e){ setError(e.message||'Error enviando rechazo') } finally { setValidationLoading(false) }
+                    }}
+                  />
                 )}
 
                 {/* Modal crear incidencia */}
