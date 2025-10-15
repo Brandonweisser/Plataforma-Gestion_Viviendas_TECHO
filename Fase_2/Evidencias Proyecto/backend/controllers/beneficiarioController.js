@@ -384,9 +384,43 @@ export async function getPosventaForm(req, res) {
       .from('vivienda_postventa_item')
       .select('*')
       .eq('form_id', currentForm.id)
-      .order('orden',{ ascending:true })
+      .order('id',{ ascending:true })
     if (errItems) throw errItems
-    return res.json({ success:true, data:{ form: currentForm, items: items || [] } })
+    // Intentar enriquecer con información de habitaciones (rooms) del template usado
+    let enriched = items || []
+    try {
+      // Buscar template que calce con la version usada en el form y tipo de vivienda
+      const { data: tplArr, error: errTpl } = await supabase
+        .from('postventa_template')
+        .select('id, version, tipo_vivienda')
+        .eq('version', currentForm.template_version)
+        .or(`tipo_vivienda.eq.${vivienda.tipo_vivienda},tipo_vivienda.is.null`)
+        .order('tipo_vivienda', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)
+      if (errTpl) throw errTpl
+      const tpl = tplArr?.[0]
+      if (tpl?.id) {
+        const [{ data: tplItems, error: errTplItems }, { data: rooms, error: errRooms }] = await Promise.all([
+          supabase.from('postventa_template_item').select('id, orden, room_id, item').eq('template_id', tpl.id).order('orden', { ascending: true, nullsFirst: false }).order('id', { ascending: true }),
+          supabase.from('postventa_template_room').select('id, nombre').eq('template_id', tpl.id)
+        ])
+        if (errTplItems) throw errTplItems
+        if (errRooms) throw errRooms
+        const tplSeq = tplItems || []
+        const roomNameById = new Map((rooms || []).map(r => [r.id, r.nombre]))
+        enriched = (items || []).map((it, idx) => {
+          const match = tplSeq[idx]
+          const room_id = match?.room_id ?? null
+          const room_nombre = room_id ? (roomNameById.get(room_id) || 'Habitación') : 'General'
+          return { ...it, room_id, room_nombre }
+        })
+      }
+    } catch (e) {
+      // Si falla el enriquecimiento, devolvemos items tal cual
+      console.warn('Posventa: no se pudo enriquecer con rooms:', e?.message || e)
+    }
+    return res.json({ success:true, data:{ form: currentForm, items: enriched } })
   } catch (error) {
     console.error('Error getPosventaForm:', error)
     return res.status(500).json({ success:false, message:'Error obteniendo formulario de posventa' })
@@ -404,7 +438,10 @@ export async function createPosventaForm(req, res) {
       .maybeSingle()
     if (errV) throw errV
     if (!vivienda) return res.status(404).json({ success:false, message:'No tienes una vivienda asignada' })
-    if ((vivienda.estado||'').toLowerCase() !== 'entregada') return res.status(400).json({ success:false, message:'La vivienda aún no ha sido entregada' })
+    const estViv = (vivienda.estado||'').toLowerCase()
+    if (!['entregada','entregada_inicial'].includes(estViv)) {
+      return res.status(400).json({ success:false, message:'La vivienda debe estar en estado Entregada (inicial) para iniciar posventa' })
+    }
     const { data: existing, error: errExist } = await supabase
       .from('vivienda_postventa_form')
       .select('id, estado')
@@ -421,6 +458,7 @@ export async function createPosventaForm(req, res) {
       .or(`tipo_vivienda.eq.${vivienda.tipo_vivienda},tipo_vivienda.is.null`)
       .order('tipo_vivienda',{ ascending:false })
       .order('version',{ ascending:false })
+      .order('id',{ ascending:false })
       .limit(1)
     if (errTpl) throw errTpl
     if (!template?.length) return res.status(400).json({ success:false, message:`No hay template de posventa activo para el tipo de vivienda '${vivienda.tipo_vivienda || 'desconocido'}'` })
@@ -435,10 +473,11 @@ export async function createPosventaForm(req, res) {
       .from('postventa_template_item')
       .select('*')
       .eq('template_id', tpl.id)
-      .order('orden',{ ascending:true })
+      .order('orden',{ ascending:true, nullsFirst: false })
+      .order('id',{ ascending:true })
     if (errTplItems) throw errTplItems
     if (tplItems?.length) {
-      const insertItems = tplItems.map(it => ({ form_id: newForm.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: it.orden }))
+      const insertItems = tplItems.map((it, idx) => ({ form_id: newForm.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: idx + 1 }))
       const { error: errInsItems } = await supabase.from('vivienda_postventa_item').insert(insertItems)
       if (errInsItems) throw errInsItems
     }
@@ -503,5 +542,70 @@ export async function sendPosventaForm(req, res) {
   } catch (error) {
     console.error('Error sendPosventaForm:', error)
     return res.status(500).json({ success:false, message:'Error enviando formulario' })
+  }
+}
+
+// ==== DEV ONLY: Resetear formulario de posventa del beneficiario y recrear desde el template activo ====
+export async function resetPosventaForm(req, res) {
+  try {
+    if ((process.env.NODE_ENV || 'development') === 'production') {
+      return res.status(403).json({ success:false, message:'No permitido en producción' })
+    }
+    const beneficiarioUid = req.user?.uid || req.user?.sub
+    if (!beneficiarioUid) return res.status(401).json({ success:false, message:'No autenticado' })
+    const { data: vivienda, error: errV } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, tipo_vivienda, estado')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (errV) throw errV
+    if (!vivienda) return res.status(404).json({ success:false, message:'No tienes una vivienda asignada' })
+
+    // Eliminar formularios existentes del beneficiario para esta vivienda
+    const { error: errDel } = await supabase
+      .from('vivienda_postventa_form')
+      .delete()
+      .eq('id_vivienda', vivienda.id_vivienda)
+      .eq('beneficiario_uid', beneficiarioUid)
+    if (errDel) throw errDel
+
+    // Crear uno nuevo desde el template activo, sin exigir que la vivienda esté 'entregada' (solo DEV)
+    const { data: template, error: errTpl } = await supabase
+      .from('postventa_template')
+      .select('*')
+      .eq('activo', true)
+      .or(`tipo_vivienda.eq.${vivienda.tipo_vivienda},tipo_vivienda.is.null`)
+      .order('tipo_vivienda',{ ascending:false })
+      .order('version',{ ascending:false })
+      .order('id',{ ascending:false })
+      .limit(1)
+    if (errTpl) throw errTpl
+    if (!template?.length) return res.status(400).json({ success:false, message:`No hay template de posventa activo para el tipo de vivienda '${vivienda.tipo_vivienda || 'general'}'` })
+    const tpl = template[0]
+
+    const { data: newFormArr, error: errForm } = await supabase
+      .from('vivienda_postventa_form')
+      .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version }])
+      .select('*')
+    if (errForm) throw errForm
+    const newForm = newFormArr?.[0]
+
+    const { data: tplItems, error: errTplItems } = await supabase
+      .from('postventa_template_item')
+      .select('*')
+      .eq('template_id', tpl.id)
+      .order('orden',{ ascending:true, nullsFirst: false })
+      .order('id',{ ascending:true })
+    if (errTplItems) throw errTplItems
+    if (tplItems?.length && newForm?.id) {
+      const insertItems = tplItems.map((it, idx) => ({ form_id: newForm.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: idx + 1 }))
+      const { error: errInsItems } = await supabase.from('vivienda_postventa_item').insert(insertItems)
+      if (errInsItems) throw errInsItems
+    }
+    // Devolver el formulario recién creado (enriquecido con rooms si aplica)
+    return getPosventaForm(req, res)
+  } catch (error) {
+    console.error('Error resetPosventaForm:', error)
+    return res.status(500).json({ success:false, message:'Error reseteando formulario de posventa' })
   }
 }

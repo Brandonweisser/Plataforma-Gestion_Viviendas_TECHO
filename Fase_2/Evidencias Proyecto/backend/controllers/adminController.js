@@ -481,13 +481,18 @@ export async function createNewHousing(req, res) {
     }
 
     // Normalización y validación de estado de vivienda
-    const allowedEstados = ['planificada','en_construccion','asignada','entregada']
+    // Nuevos estados: 'construida', 'lista_para_entregar', 'entregada_inicial', 'entregada_definitiva'
+    // Mantenemos 'entregada' por compatibilidad (equivalente a 'entregada_inicial')
+    const allowedEstados = ['planificada','en_construccion','construida','lista_para_entregar','asignada','entregada','entregada_inicial','entregada_definitiva']
     let estadoInput = (estado || '').toString().trim().toLowerCase()
     const estadoMap = {
-      terminada: 'entregada',
-      construida: 'en_construccion',
+      terminada: 'construida',
       construccion: 'en_construccion',
-      construido: 'en_construccion'
+      construido: 'construida',
+      lista: 'lista_para_entregar',
+      listo: 'lista_para_entregar',
+      entrega_inicial: 'entregada_inicial',
+      entrega_definitiva: 'entregada_definitiva'
     }
     if (estadoInput && estadoMap[estadoInput]) estadoInput = estadoMap[estadoInput]
     if (estadoInput && !allowedEstados.includes(estadoInput)) {
@@ -545,9 +550,18 @@ export async function updateHousingById(req, res) {
     
     // Normalización de estado si viene en payload
     if (typeof updates.estado === 'string') {
-      const allowedEstados = ['planificada','en_construccion','asignada','entregada']
+      // Estados ampliados; mantenemos 'entregada' (legacy)
+      const allowedEstados = ['planificada','en_construccion','construida','lista_para_entregar','asignada','entregada','entregada_inicial','entregada_definitiva']
       let est = updates.estado.toString().trim().toLowerCase()
-      const estadoMap = { terminada:'entregada', construida:'en_construccion', construccion:'en_construccion', construido:'en_construccion' }
+      const estadoMap = {
+        terminada: 'construida',
+        construccion: 'en_construccion',
+        construido: 'construida',
+        lista: 'lista_para_entregar',
+        listo: 'lista_para_entregar',
+        entrega_inicial: 'entregada_inicial',
+        entrega_definitiva: 'entregada_definitiva'
+      }
       if (estadoMap[est]) est = estadoMap[est]
       if (!allowedEstados.includes(est)) {
         return res.status(400).json({ success:false, message:`Estado inválido '${updates.estado}'. Permitidos: ${allowedEstados.join(', ')}` })
@@ -556,8 +570,9 @@ export async function updateHousingById(req, res) {
     }
 
     const prev = await getHousingById(id)
-    // Si se intenta marcar como entregada, validar recepción conforme
-    const toDelivered = (updates?.estado || '').toLowerCase() === 'entregada'
+  // Si se intenta marcar como entregada (inicial o legacy), validar recepción conforme
+  const newEstado = (updates?.estado || '').toLowerCase()
+  const toDelivered = newEstado === 'entregada' || newEstado === 'entregada_inicial'
     if (toDelivered) {
       // Debe existir una recepción revisada y conforme (sin ítems críticos)
       const { data: recep, error: errRecep } = await supabase
@@ -587,9 +602,11 @@ export async function updateHousingById(req, res) {
     }
     const updated = await updateHousing(id, updates)
 
-    // Disparador: si pasa a 'entregada' y tiene beneficiario, crear automáticamente el form de posventa
+    // Disparador: si pasa a 'entregada' (legacy) o 'entregada_inicial' y tiene beneficiario, crear automáticamente el form de posventa
     try {
-      const becameDelivered = (prev?.estado || '').toLowerCase() !== 'entregada' && (updated?.estado || '').toLowerCase() === 'entregada'
+      const prevEstado = (prev?.estado || '').toLowerCase()
+      const updatedEstado = (updated?.estado || '').toLowerCase()
+      const becameDelivered = !['entregada','entregada_inicial'].includes(prevEstado) && ['entregada','entregada_inicial'].includes(updatedEstado)
       if (becameDelivered && updated?.beneficiario_uid) {
         // Verificar si ya existe un form activo (borrador/enviada)
         const { data: existing, error: errExist } = await supabase
@@ -610,6 +627,7 @@ export async function updateHousingById(req, res) {
             .or(`tipo_vivienda.eq.${updated.tipo_vivienda || ''},tipo_vivienda.is.null`)
             .order('tipo_vivienda', { ascending: false })
             .order('version', { ascending: false })
+            .order('id', { ascending: false })
             .limit(1)
           if (errTpl) throw errTpl
           if (template && template.length) {
@@ -625,10 +643,11 @@ export async function updateHousingById(req, res) {
               .from('postventa_template_item')
               .select('*')
               .eq('template_id', tpl.id)
-              .order('orden', { ascending: true })
+              .order('orden', { ascending: true, nullsFirst: false })
+              .order('id', { ascending: true })
             if (errTplItems) throw errTplItems
             if (Array.isArray(tplItems) && tplItems.length && form?.id) {
-              const payload = tplItems.map(it => ({ form_id: form.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: it.orden }))
+              const payload = tplItems.map((it, idx) => ({ form_id: form.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: idx + 1 }))
               const { error: errIns } = await supabase.from('vivienda_postventa_item').insert(payload)
               if (errIns) throw errIns
             }

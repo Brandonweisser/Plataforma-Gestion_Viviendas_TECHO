@@ -20,7 +20,8 @@ import {
   getPosventaForm, 
   createPosventaForm, 
   savePosventaItems, 
-  sendPosventaForm 
+  sendPosventaForm,
+  resetPosventaForm
 } from '../controllers/beneficiarioController.js'
 import { 
   uploadIncidenciaMediaBeneficiario,
@@ -55,5 +56,7 @@ router.get('/posventa/form', getPosventaForm)
 router.post('/posventa/form', createPosventaForm)
 router.post('/posventa/form/items', savePosventaItems)
 router.post('/posventa/form/enviar', sendPosventaForm)
+// Dev only: resetear y recrear el formulario desde el template activo
+router.post('/posventa/form/reset', resetPosventaForm)
 
 export default router

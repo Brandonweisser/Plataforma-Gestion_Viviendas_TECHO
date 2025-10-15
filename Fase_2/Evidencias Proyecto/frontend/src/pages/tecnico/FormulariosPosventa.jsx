@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { DashboardLayout } from '../../components/ui/DashboardLayout'
+import { SectionPanel } from '../../components/ui/SectionPanel'
 
 export default function FormulariosPosventa() {
   const [formularios, setFormularios] = useState([]);
@@ -199,95 +201,109 @@ export default function FormulariosPosventa() {
     return 'text-red-600';
   };
 
+  const resumen = useMemo(() => {
+    const total = formularios.length
+    const enviadas = formularios.filter(f => f.estado === 'enviada').length
+    const revisadas = formularios.filter(f => f.estado === 'revisada').length
+    const conPDF = formularios.filter(f => f.pdf?.existe).length
+    const sinPDF = total - conPDF
+    return { total, enviadas, revisadas, conPDF, sinPDF }
+  }, [formularios])
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          📋 Formularios de Posventa
-        </h1>
-        <p className="text-gray-600">
-          Gestiona los formularios de posventa enviados por beneficiarios
-        </p>
-      </div>
+    <DashboardLayout title="Formularios de Posventa" subtitle="Gestiona los formularios enviados por beneficiarios" accent="blue">
+      <div className="space-y-6">
+        <SectionPanel title="Búsqueda y filtros" description="Encuentra rápidamente los formularios que necesitas revisar">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Búsqueda */}
+            <form onSubmit={handleSearch} className="lg:col-span-2">
+              <div className="flex w-full">
+                <input
+                  type="text"
+                  placeholder="Buscar por beneficiario, email o dirección..."
+                  value={filtros.search}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, search: e.target.value }))}
+                  className="input flex-1 rounded-r-none"
+                />
+                <button type="submit" className="btn btn-primary rounded-l-none">Buscar</button>
+              </div>
+            </form>
 
-      {/* Filtros */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Búsqueda */}
-          <form onSubmit={handleSearch} className="md:col-span-2">
-            <div className="flex">
-              <input
-                type="text"
-                placeholder="Buscar por beneficiario, email o dirección..."
-                value={filtros.search}
-                onChange={(e) => setFiltros(prev => ({ ...prev, search: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            {/* Estado y PDF */}
+            <div className="flex flex-col md:flex-row gap-3">
+              <select
+                value={filtros.estado}
+                onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value }))}
+                className="input"
               >
-                🔍
-              </button>
+                <option value="">Todos los estados</option>
+                <option value="enviada">Enviada</option>
+                <option value="revisada">Revisada</option>
+              </select>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFiltros(prev => ({ ...prev, con_pdf: !prev.con_pdf, sin_pdf: false }))}
+                  className={`btn ${filtros.con_pdf ? 'btn-primary' : 'btn-ghost'} btn-sm`}
+                >
+                  Con PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltros(prev => ({ ...prev, sin_pdf: !prev.sin_pdf, con_pdf: false }))}
+                  className={`btn ${filtros.sin_pdf ? 'btn-primary' : 'btn-ghost'} btn-sm`}
+                >
+                  Sin PDF
+                </button>
+              </div>
             </div>
-          </form>
-
-          {/* Estado */}
-          <select
-            value={filtros.estado}
-            onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Todos los estados</option>
-            <option value="enviada">Enviada</option>
-            <option value="revisada">Revisada</option>
-          </select>
-
-          {/* Filtro PDF */}
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={filtros.con_pdf}
-                onChange={(e) => setFiltros(prev => ({ ...prev, con_pdf: e.target.checked, sin_pdf: false }))}
-                className="mr-2"
-              />
-              Con PDF
-            </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={filtros.sin_pdf}
-                onChange={(e) => setFiltros(prev => ({ ...prev, sin_pdf: e.target.checked, con_pdf: false }))}
-                className="mr-2"
-              />
-              Sin PDF
-            </label>
           </div>
-        </div>
-      </div>
 
-      {/* Lista de formularios */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-          {error}
-        </div>
-      )}
+          {/* Resumen */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div className="rounded-lg border border-techo-gray-100 bg-white p-3">
+              <div className="text-[11px] uppercase text-techo-gray-500">Total</div>
+              <div className="text-xl font-semibold">{resumen.total}</div>
+            </div>
+            <div className="rounded-lg border border-techo-gray-100 bg-white p-3">
+              <div className="text-[11px] uppercase text-techo-gray-500">Enviadas</div>
+              <div className="text-xl font-semibold">{resumen.enviadas}</div>
+            </div>
+            <div className="rounded-lg border border-techo-gray-100 bg-white p-3">
+              <div className="text-[11px] uppercase text-techo-gray-500">Revisadas</div>
+              <div className="text-xl font-semibold">{resumen.revisadas}</div>
+            </div>
+            <div className="rounded-lg border border-techo-gray-100 bg-white p-3">
+              <div className="text-[11px] uppercase text-techo-gray-500">Con PDF</div>
+              <div className="text-xl font-semibold">{resumen.conPDF}</div>
+            </div>
+          </div>
+        </SectionPanel>
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-soft border border-techo-gray-100 overflow-hidden">
         {loading && formularios.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Cargando formularios...</p>
+          <div className="p-8">
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-12 bg-gray-100 rounded"></div>
+              <div className="h-12 bg-gray-100 rounded"></div>
+              <div className="h-12 bg-gray-100 rounded"></div>
+            </div>
           </div>
         ) : formularios.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">No se encontraron formularios</p>
+          <div className="p-12 text-center">
+            <div className="text-4xl mb-2">🗂️</div>
+            <p className="text-gray-600 mb-3">No se encontraron formularios</p>
+            <button onClick={() => fetchFormularios(0)} className="btn btn-primary">Recargar</button>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Beneficiario
@@ -312,18 +328,18 @@ export default function FormulariosPosventa() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {formularios.map((form) => (
-                  <tr key={form.id} className="hover:bg-gray-50">
+                  <tr key={form.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {form.beneficiario.nombre}
+                          {form.beneficiario?.nombre || '—'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {form.beneficiario.email}
+                          {form.beneficiario?.email || ''}
                         </div>
-                        {form.beneficiario.rut && (
+                        {form.beneficiario?.rut && (
                           <div className="text-xs text-gray-400">
                             RUT: {form.beneficiario.rut}
                           </div>
@@ -333,13 +349,13 @@ export default function FormulariosPosventa() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          ID: {form.vivienda.id}
+                          ID: {form.vivienda?.id}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {form.vivienda.direccion}
+                          {form.vivienda?.direccion}
                         </div>
                         <div className="text-xs text-gray-400">
-                          Tipo: {form.vivienda.tipo || 'N/A'} • {form.vivienda.proyecto}
+                          Tipo: {form.vivienda?.tipo || 'N/A'} • {form.vivienda?.proyecto}
                         </div>
                       </div>
                     </td>
@@ -359,25 +375,25 @@ export default function FormulariosPosventa() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {form.pdf.existe ? (
+                      {form.pdf?.existe ? (
                         <div className="flex items-center space-x-2">
                           <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                             ✅ Generado
                           </span>
                           <button
                             onClick={() => handleDescargarPDF(form.id)}
-                            className="text-blue-600 hover:text-blue-800 text-xs"
+                            className="btn btn-ghost btn-sm text-blue-700"
                             title="Descargar PDF"
                           >
-                            📥
+                            Descargar
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => handleGenerarPDF(form.id)}
-                          className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                          className="btn btn-primary btn-sm"
                         >
-                          📄 Generar
+                          Generar PDF
                         </button>
                       )}
                     </td>
@@ -388,18 +404,13 @@ export default function FormulariosPosventa() {
                       }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <Link
-                        to={`/tecnico/posventa/formulario/${form.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        👁️ Ver
-                      </Link>
+                      <Link to={`/tecnico/posventa/formulario/${form.id}`} className="btn btn-ghost btn-sm text-blue-700">Ver</Link>
                       {form.estado === 'enviada' && (
                         <button
                           onClick={() => handleRevisarFormulario(form.id)}
-                          className="text-green-600 hover:text-green-900"
+                          className="btn btn-ghost btn-sm text-green-700"
                         >
-                          ✅ Revisar
+                          Revisar
                         </button>
                       )}
                     </td>
@@ -416,7 +427,7 @@ export default function FormulariosPosventa() {
             <button
               onClick={() => fetchFormularios(meta.offset + meta.limit)}
               disabled={loading}
-              className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="btn btn-ghost w-full disabled:opacity-50"
             >
               {loading ? 'Cargando...' : 'Cargar más formularios'}
             </button>
@@ -424,10 +435,11 @@ export default function FormulariosPosventa() {
         )}
       </div>
 
-      {/* Resumen */}
-      <div className="mt-6 text-sm text-gray-600 text-center">
-        Mostrando {formularios.length} de {meta.total} formularios
+      {/* cierre del contenedor principal */}
       </div>
-    </div>
+
+      {/* Resumen final */}
+      <div className="text-center text-sm text-techo-gray-500">Mostrando {formularios.length} de {meta.total} formularios</div>
+    </DashboardLayout>
   );
 }

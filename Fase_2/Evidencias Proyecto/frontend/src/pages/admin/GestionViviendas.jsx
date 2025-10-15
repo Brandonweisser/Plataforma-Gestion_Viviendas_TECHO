@@ -24,6 +24,7 @@ export default function GestionViviendas() {
     direccion: '',
     proyecto_id: '',
     tipo_vivienda: '',
+    selected_template_id: '',
     metros_cuadrados: '',
     numero_habitaciones: '',
     numero_banos: '',
@@ -92,6 +93,7 @@ export default function GestionViviendas() {
       direccion: '',
       proyecto_id: '',
       tipo_vivienda: '',
+      selected_template_id: '',
       metros_cuadrados: '',
       numero_habitaciones: '',
       numero_banos: '',
@@ -110,6 +112,7 @@ export default function GestionViviendas() {
         direccion: vivienda.direccion || '',
         proyecto_id: vivienda.proyecto_id || '',
         tipo_vivienda: vivienda.tipo_vivienda || '',
+        selected_template_id: '',
         metros_cuadrados: vivienda.metros_cuadrados || '',
         numero_habitaciones: vivienda.numero_habitaciones || '',
         numero_banos: vivienda.numero_banos || '',
@@ -157,8 +160,8 @@ export default function GestionViviendas() {
       setError('Debe seleccionar un proyecto')
       return
     }
-    if (modalType === 'crear' && (form.tipo_vivienda ?? '') === '') {
-      setError('Debe seleccionar el tipo de casa (template)')
+    if (modalType === 'crear' && !form.selected_template_id) {
+      setError('Debe seleccionar un template activo de posventa')
       return
     }
 
@@ -166,9 +169,15 @@ export default function GestionViviendas() {
     setError('')
 
     try {
+      // Si el usuario seleccionó un template activo específico, derivamos tipo_vivienda de ese template
+      let derivedTipo = form.tipo_vivienda || ''
+      if (form.selected_template_id) {
+        const tpl = templates.find(t => t.id === Number(form.selected_template_id))
+        if (tpl) derivedTipo = tpl.tipo_vivienda || ''
+      }
       const formData = {
         ...form,
-        tipo_vivienda: form.tipo_vivienda || null,
+        tipo_vivienda: derivedTipo || null,
         metros_cuadrados: form.metros_cuadrados ? parseInt(form.metros_cuadrados) : null,
         numero_habitaciones: form.numero_habitaciones ? parseInt(form.numero_habitaciones) : null,
         numero_banos: form.numero_banos ? parseInt(form.numero_banos) : null,
@@ -244,20 +253,34 @@ export default function GestionViviendas() {
 
   const getStatusColor = (status) => {
     const colors = {
-      'en_construccion': 'bg-yellow-100 text-yellow-800',
-      'terminada': 'bg-blue-100 text-blue-800',
-      'entregada': 'bg-green-100 text-green-800',
-      'en_mantenimiento': 'bg-orange-100 text-orange-800'
+      planificada: 'bg-gray-100 text-gray-800',
+      en_construccion: 'bg-amber-100 text-amber-800',
+      construida: 'bg-blue-100 text-blue-800',
+      lista_para_entregar: 'bg-indigo-100 text-indigo-800',
+      asignada: 'bg-violet-100 text-violet-800',
+      entregada_inicial: 'bg-green-100 text-green-800',
+      entregada_definitiva: 'bg-emerald-100 text-emerald-800',
+      // Legacy/otros
+      entregada: 'bg-green-100 text-green-800',
+      terminada: 'bg-blue-100 text-blue-800',
+      en_mantenimiento: 'bg-orange-100 text-orange-800'
     }
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
   const getStatusText = (status) => {
     const texts = {
-      'en_construccion': 'En Construcción',
-      'terminada': 'Terminada',
-      'entregada': 'Entregada',
-      'en_mantenimiento': 'En Mantenimiento'
+      planificada: 'Planificada',
+      en_construccion: 'En Construcción',
+      construida: 'Construida',
+      lista_para_entregar: 'Lista para Entregar',
+      asignada: 'Asignada',
+      entregada_inicial: 'Entregada (inicial)',
+      entregada_definitiva: 'Entregada (definitiva)',
+      // Legacy/otros
+      entregada: 'Entregada',
+      terminada: 'Terminada',
+      en_mantenimiento: 'En Mantenimiento'
     }
     return texts[status] || status
   }
@@ -347,10 +370,15 @@ export default function GestionViviendas() {
               <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Estado</label>
               <select value={filterEstado} onChange={e=>setFilterEstado(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white dark:bg-gray-800 dark:border-gray-700">
                 <option value="all">Todos</option>
+                <option value="planificada">Planificada</option>
                 <option value="en_construccion">En Construcción</option>
-                <option value="terminada">Terminada</option>
-                <option value="entregada">Entregada</option>
-                <option value="en_mantenimiento">En Mantenimiento</option>
+                <option value="construida">Construida</option>
+                <option value="lista_para_entregar">Lista para Entregar</option>
+                <option value="asignada">Asignada</option>
+                <option value="entregada_inicial">Entregada (inicial)</option>
+                <option value="entregada_definitiva">Entregada (definitiva)</option>
+                {/* Legacy */}
+                <option value="entregada">Entregada (legacy)</option>
               </select>
             </div>
             <div className="flex gap-2 ml-auto">
@@ -385,7 +413,7 @@ export default function GestionViviendas() {
           <div className="space-y-8">
             {gruposOrdenados.map(grupo => {
               const key = grupo.projectId || 'SIN_PROY'
-              const entregadas = grupo.viviendas.filter(v => v.estado === 'entregada').length
+              const entregadas = grupo.viviendas.filter(v => ['entregada','entregada_inicial','entregada_definitiva'].includes((v.estado||'').toLowerCase())).length
               const total = grupo.viviendas.length
               const pct = total ? (entregadas / total) * 100 : 0
               const isCollapsed = collapsed[key]
@@ -498,21 +526,31 @@ export default function GestionViviendas() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo de casa (Template)
+                      Template de posventa activo
                     </label>
                     <select
-                      name="tipo_vivienda"
-                      value={form.tipo_vivienda}
-                      onChange={handleInputChange}
+                      name="selected_template_id"
+                      value={form.selected_template_id || ''}
+                      onChange={(e)=>{
+                        const id = e.target.value ? Number(e.target.value) : ''
+                        const tpl = templates.find(t=>t.id===id)
+                        setForm(prev=>({
+                          ...prev,
+                          selected_template_id: id,
+                          // Derivamos tipo_vivienda del template seleccionado
+                          tipo_vivienda: tpl ? (tpl.tipo_vivienda || '') : ''
+                        }))
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100"
                     >
-                      <option value="">Seleccionar template...</option>
+                      <option value="">(General activo)</option>
                       {templates.filter(t=>t.activo).map(t => (
-                        <option key={t.id} value={t.tipo_vivienda || ''}>
-                          {t.nombre}{t.tipo_vivienda ? ` — ${t.tipo_vivienda}` : ''}
+                        <option key={t.id} value={t.id}>
+                          {t.nombre} — {t.tipo_vivienda || 'General'} (v{t.version})
                         </option>
                       ))}
                     </select>
+                    <p className="mt-1 text-xs text-gray-500">Tipo de vivienda: {form.tipo_vivienda || 'General'}</p>
                   </div>
 
                   <div>
@@ -546,8 +584,12 @@ export default function GestionViviendas() {
                     >
                       <option value="planificada">Planificada</option>
                       <option value="en_construccion">En Construcción</option>
+                      <option value="construida">Construida</option>
+                      <option value="lista_para_entregar">Lista para Entregar</option>
                       <option value="asignada">Asignada</option>
-                      <option value="entregada">Entregada</option>
+                      <option value="entregada_inicial">Entregada (inicial)</option>
+                      <option value="entregada_definitiva">Entregada (definitiva)</option>
+                      {/* No mostramos 'entregada' legacy para nuevas ediciones/creaciones */}
                     </select>
                   </div>
 

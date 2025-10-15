@@ -22,7 +22,7 @@ export default function PosventaFormPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploadingItemId, setUploadingItemId] = useState(null);
-  const [openCats, setOpenCats] = useState({}); // categoria -> bool
+  // Secciones estáticas (sin expand/collapse por categoría)
 
   const load = useCallback(async (autoCreate = true) => {
     setLoading(true); setError(''); if (!autoCreate) setSuccess('');
@@ -50,17 +50,7 @@ export default function PosventaFormPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Mantener estado de categorías abiertas al cambiar items
-  useEffect(() => {
-    const cats = Array.from(new Set(localItems.map(i => i.categoria)));
-    setOpenCats(prev => {
-      const next = { ...prev };
-      cats.forEach(c => { if (typeof next[c] === 'undefined') next[c] = true; });
-      // Limpia categorías que ya no existen
-      Object.keys(next).forEach(k => { if (!cats.includes(k)) delete next[k]; });
-      return next;
-    });
-  }, [localItems]);
+  // (sin estado de apertura por categoría)
 
   // creación automática al cargar si no existe (ver load())
 
@@ -133,12 +123,15 @@ export default function PosventaFormPage() {
   const estado = formState?.form?.estado;
   const isBorrador = estado === 'borrador';
 
-  // Agrupar por categoría para mostrar secciones
-  const grouped = localItems.reduce((acc, it) => {
-    acc[it.categoria] = acc[it.categoria] || [];
-    acc[it.categoria].push(it);
+  // Agrupar por habitación (room) si viene en los items; fallback a 'General'
+  const groupedByRoom = localItems.reduce((acc, it) => {
+    const room = it.room_nombre || 'General';
+    acc[room] = acc[room] || [];
+    acc[room].push(it);
     return acc;
   }, {});
+  // Dentro de cada room, sub-agrupar por categoría para mantener orden lógico del template
+  const roomKeys = Object.keys(groupedByRoom);
 
   return (
     <DashboardLayout
@@ -169,20 +162,22 @@ export default function PosventaFormPage() {
               <div className="text-center py-10 text-slate-500 text-sm">Sin ítems</div>
             )}
             <div className="space-y-10">
-              {Object.keys(grouped).sort().map(cat => {
-                const items = grouped[cat];
+              {roomKeys.sort().map(roomName => {
+                const itemsRoom = groupedByRoom[roomName];
+                // subagrupa por categoría
+                const groupedByCat = itemsRoom.reduce((acc, it) => { (acc[it.categoria] = acc[it.categoria] || []).push(it); return acc; }, {});
                 return (
-                  <div key={cat} className="border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700/50 shadow-sm">
-                    <button type="button" onClick={() => setOpenCats(o => ({ ...o, [cat]: !o[cat] }))} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <span className={`transition-transform text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-200 ${openCats[cat] ? 'rotate-90' : ''}`}>▶</span>
-                        <h3 className="font-semibold text-slate-700 dark:text-slate-200 tracking-wide uppercase text-xs">{cat}</h3>
-                      </div>
-                      <span className="text-[11px] text-slate-400">{items.length} ítem(s)</span>
-                    </button>
-                    {openCats[cat] && (
-                      <ul className="divide-y divide-slate-200 dark:divide-slate-600">
-                        {items.map(it => {
+                  <div key={roomName} className="border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700/50 shadow-sm">
+                    <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-100">{roomName}</h3>
+                      <span className="text-[11px] text-slate-400">{itemsRoom.length} ítem(s)</span>
+                    </div>
+                    <div>
+                      {Object.keys(groupedByCat).sort().map(cat => (
+                        <div key={cat} className="">
+                          <div className="px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 bg-white/60 dark:bg-slate-700/40">{cat}</div>
+                          <ul className="divide-y divide-slate-200 dark:divide-slate-600">
+                            {groupedByCat[cat].map(it => {
                         const idx = localItems.findIndex(r => r.id === it.id);
                         const disabled = !isBorrador;
                         return (
@@ -235,8 +230,10 @@ export default function PosventaFormPage() {
                           </li>
                         )
                       })}
-                      </ul>
-                    )}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
