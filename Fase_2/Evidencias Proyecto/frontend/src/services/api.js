@@ -100,8 +100,8 @@ export const beneficiarioApi = {
     const qs = `limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}&includeMedia=1` + (extraQuery ? `&${extraQuery}` : '');
     return request(`/api/beneficiario/incidencias?${qs}`);
   },
-  crearIncidencia({ descripcion, categoria }) {
-    return request('/api/beneficiario/incidencias', { method: 'POST', body: JSON.stringify({ descripcion, categoria }) });
+  crearIncidencia({ descripcion, categoria, garantia_tipo }) {
+    return request('/api/beneficiario/incidencias', { method: 'POST', body: JSON.stringify({ descripcion, categoria, garantia_tipo }) });
   },
   validarIncidencia(id, { conforme, comentario }) {
     return request(`/api/beneficiario/incidencias/${id}/validar`, { method: 'POST', body: JSON.stringify({ conforme, comentario }) })

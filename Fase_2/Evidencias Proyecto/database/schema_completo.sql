@@ -59,7 +59,18 @@ CREATE TABLE IF NOT EXISTS viviendas (
     id_vivienda BIGINT PRIMARY KEY,
     id_proyecto BIGINT NOT NULL REFERENCES proyecto(id_proyecto) ON UPDATE CASCADE ON DELETE RESTRICT,
     direccion TEXT NOT NULL,
-    estado TEXT NOT NULL CHECK (estado IN ('planificada','en_construccion','asignada','entregada')),
+    estado TEXT NOT NULL CHECK (
+        estado IN (
+            'planificada',
+            'en_construccion',
+            'construida',
+            'lista_para_entregar',
+            'asignada',
+            'entregada_inicial',
+            'entregada_definitiva',
+            'entregada' -- legacy compat
+        )
+    ),
     fecha_entrega DATE,
     beneficiario_uid BIGINT REFERENCES usuarios(uid) ON UPDATE CASCADE ON DELETE SET NULL,
     tipo_vivienda TEXT,
@@ -106,6 +117,11 @@ CREATE TABLE IF NOT EXISTS incidencias (
     fecha_limite_cierre TIMESTAMPTZ,
     conforme_beneficiario BOOLEAN,
     fecha_conformidad_beneficiario TIMESTAMPTZ,
+    -- Garantías DS49
+    garantia_tipo TEXT CHECK (garantia_tipo IN ('terminaciones','instalaciones','estructura')),
+    garantia_vence_el DATE,
+    garantia_vigente BOOLEAN,
+    garantia_fuente TEXT CHECK (garantia_fuente IN ('beneficiario','auto','posventa')),
     version INT NOT NULL DEFAULT 1
 );
 
@@ -266,6 +282,7 @@ CREATE INDEX IF NOT EXISTS idx_incidencias_tecnico ON incidencias(id_usuario_tec
 CREATE INDEX IF NOT EXISTS idx_incidencias_reporta ON incidencias(id_usuario_reporta);
 CREATE INDEX IF NOT EXISTS idx_incidencias_fuente ON incidencias(fuente);
 CREATE INDEX IF NOT EXISTS idx_incidencias_limites ON incidencias(fecha_limite_atencion, fecha_limite_cierre);
+CREATE INDEX IF NOT EXISTS idx_incidencias_garantia ON incidencias(garantia_tipo, garantia_vigente);
 
 -- Historial
 CREATE INDEX IF NOT EXISTS idx_historial_incidencia ON incidencia_historial(incidencia_id);

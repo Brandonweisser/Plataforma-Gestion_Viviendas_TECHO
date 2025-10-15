@@ -14,16 +14,6 @@ export default function NuevaIncidencia() {
   })
   const [files, setFiles] = useState([])
 
-  const categorias = [
-    'Estructura',
-    'Plomería',
-    'Electricidad',
-    'Pintura',
-    'Puertas y Ventanas',
-    'Techumbre',
-    'Pisos',
-    'Otro'
-  ]
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -65,7 +55,7 @@ export default function NuevaIncidencia() {
       // Crear la incidencia
       const response = await beneficiarioApi.crearIncidencia({
         descripcion: form.descripcion.trim(),
-        categoria: form.categoria || 'Otro'
+        categoria: form.categoria || 'otro_terminaciones'
       })
 
       console.log('✅ Incidencia creada:', response.data)
@@ -150,7 +140,7 @@ export default function NuevaIncidencia() {
               </p>
             </div>
 
-            {/* Categoría */}
+            {/* Categoría (agrupada por tipo de garantía) */}
             <div>
               <label htmlFor="categoria" className="block text-sm font-medium text-gray-700 mb-2">
                 Categoría
@@ -164,14 +154,62 @@ export default function NuevaIncidencia() {
                 disabled={loading}
               >
                 <option value="">Seleccionar categoría...</option>
-                {categorias.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+                <optgroup label="Instalaciones (5 años)">
+                  <option value="electricidad">Electricidad</option>
+                  <option value="tablero electrico">Tablero eléctrico y automáticos</option>
+                  <option value="tomas e interruptores">Tomas e interruptores</option>
+                  <option value="cableado">Cableado y empalmes</option>
+                  <option value="iluminacion">Iluminación fija</option>
+                  <option value="gas">Gas (red interior)</option>
+                  <option value="agua potable">Agua potable (fría/caliente)</option>
+                  <option value="plomeria">Plomería / Gasfitería</option>
+                  <option value="artefactos sanitarios">Artefactos sanitarios</option>
+                  <option value="desagues">Desagües</option>
+                  <option value="alcantarillado">Alcantarillado</option>
+                  <option value="aguas lluvias">Aguas lluvias (canaletas y bajadas)</option>
+                  <option value="ventilacion">Ventilación / Extracción</option>
+                  <option value="calefon">Calefón / Termo / Calefacción</option>
+                  <option value="otro_instalaciones">Otro (Instalaciones)</option>
+                </optgroup>
+                <optgroup label="Terminaciones (3 años)">
+                  <option value="pintura">Pintura</option>
+                  <option value="revestimientos muro">Revestimientos de muro</option>
+                  <option value="yeso carton">Yeso-cartón / Tabiques / Cielos</option>
+                  <option value="pisos ceramica">Pisos cerámica</option>
+                  <option value="pisos porcelanato">Pisos porcelanato</option>
+                  <option value="pisos vinilico">Pisos vinílico</option>
+                  <option value="pisos flotante">Pisos flotante</option>
+                  <option value="pisos madera">Pisos madera</option>
+                  <option value="zocalos">Zócalos</option>
+                  <option value="puertas">Puertas</option>
+                  <option value="cerraduras">Cerraduras y herrajes</option>
+                  <option value="ventanas">Ventanas</option>
+                  <option value="vidrios">Vidrios</option>
+                  <option value="sellos silicona">Sellos de silicona</option>
+                  <option value="tapajuntas">Tapajuntas</option>
+                  <option value="molduras">Molduras</option>
+                  <option value="muebles cocina">Muebles de cocina</option>
+                  <option value="muebles bano">Muebles de baño</option>
+                  <option value="cubierta cocina">Cubierta de cocina</option>
+                  <option value="otro_terminaciones">Otro (Terminaciones)</option>
+                </optgroup>
+                <optgroup label="Estructura (10 años)">
+                  <option value="fundaciones">Fundaciones / Cimientos</option>
+                  <option value="estructura muros">Estructura de muros</option>
+                  <option value="estructura techumbre">Estructura de techumbre</option>
+                  <option value="losa">Losas</option>
+                  <option value="vigas">Vigas</option>
+                  <option value="columnas">Columnas</option>
+                  <option value="grietas estructurales">Grietas estructurales / Desplomes</option>
+                  <option value="estructura escalas">Escalas estructurales</option>
+                  <option value="otro_estructura">Otro (Estructura)</option>
+                </optgroup>
               </select>
               <p className="text-sm text-gray-500 mt-1">
                 Ayúdanos a categorizar tu problema para asignarlo al técnico adecuado
               </p>
             </div>
+
 
             {/* Archivos */}
             <div>

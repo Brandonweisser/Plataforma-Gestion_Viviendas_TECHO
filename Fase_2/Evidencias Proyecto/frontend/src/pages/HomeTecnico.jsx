@@ -39,6 +39,11 @@ export default function HomeTecnico() {
   const [errorStats, setErrorStats] = useState('')
   const monthInputRef = useRef(null)
 
+  // Urgentes (prioridad alta)
+  const [urgentIncidents, setUrgentIncidents] = useState([])
+  const [urgentLoading, setUrgentLoading] = useState(true)
+  const [urgentError, setUrgentError] = useState('')
+
   const monthLabel = useMemo(() => {
     const [y, m] = (month || '').split('-').map(Number)
     if (!y || !m) return ''
@@ -54,6 +59,17 @@ export default function HomeTecnico() {
       .finally(() => mounted && setLoadingStats(false))
     return () => { mounted = false }
   }, [month])
+
+  // Cargar incidencias urgentes (alta) al entrar al panel
+  useEffect(() => {
+    let mounted = true
+    setUrgentLoading(true); setUrgentError('')
+    tecnicoApi.listarIncidencias({ prioridad: 'alta', estado: 'abierta,en_proceso', includeMedia: false })
+      .then(r => { if (!mounted) return; setUrgentIncidents(Array.isArray(r.data) ? r.data : []) })
+      .catch(err => { if (!mounted) return; setUrgentError(err.message || 'Error cargando urgentes') })
+      .finally(() => mounted && setUrgentLoading(false))
+    return () => { mounted = false }
+  }, [])
 
   function shiftMonth(delta) {
     const [y, m] = month.split('-').map(Number)
@@ -73,17 +89,12 @@ export default function HomeTecnico() {
     { title: 'Viviendas', description: 'Listado y entrega de viviendas', badge: 'ver', action: () => navigate('/tecnico/viviendas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
     { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: `${stats.asignadas} asignadas`, action: () => navigate('/tecnico/incidencias?asignacion=asignadas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
     { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: 'pendientes', action: () => navigate('/tecnico/posventa/formularios'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
-    { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: 'urgente', action: () => navigate('/tecnico/incidencias'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
+  { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: 'urgente', action: () => navigate('/tecnico/incidencias?prioridad=alta'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
     { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: 'hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
     { title: 'Gestión de Inventario', description: 'Control de materiales y herramientas', badge: 'stock', action: () => console.log('Inventario'), icon: <CubeIcon className={iconSize} />, accent: 'purple' },
     { title: 'Centro de Comunicación', description: 'Chat con actores relevantes', badge: 'mensajes', action: () => console.log('Comunicación'), icon: <ChatBubbleBottomCenterTextIcon className={iconSize} />, accent: 'teal' }
   ];
 
-  const urgentIncidents = [
-    { id: 101, vivienda: 'Casa #45', problema: 'Filtración de agua en techo', prioridad: 'Alta', fecha: '2024-01-16', descripcion: 'Goteras importantes en habitación principal' },
-    { id: 102, vivienda: 'Casa #23', problema: 'Problema eléctrico', prioridad: 'Media', fecha: '2024-01-15', descripcion: 'Cortes intermitentes de energía' },
-    { id: 103, vivienda: 'Casa #67', problema: 'Puerta dañada', prioridad: 'Baja', fecha: '2024-01-14', descripcion: 'Puerta principal no cierra correctamente' }
-  ];
   const priorityColor = (p) => ({
     'Alta': 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
     'Media': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300',
@@ -147,61 +158,73 @@ export default function HomeTecnico() {
           </button>
           <StatCard icon={<BoltIcon className={iconSize} />} label="Calificación" value="4.8" subtitle="Promedio" accent='purple' />
         </div>
-        <SectionPanel title="Herramientas de Trabajo" description="Acciones y módulos frecuentes" as="section">
+  <SectionPanel title="Herramientas de Trabajo" description="Acciones y módulos frecuentes" as="section" showBack={false}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {tools.map((t,i) => (
               <ActionCard key={i} title={t.title} description={t.description} badge={t.badge} urgent={t.urgent} onClick={t.action} icon={t.icon} accent={t.accent} cta={t.urgent ? '¡Atender Urgente!' : undefined} />
             ))}
           </div>
         </SectionPanel>
-  <SectionPanel title="Incidencias Urgentes" description="Prioriza resoluciones críticas" as="section" variant='highlight'>
+  <SectionPanel title="Incidencias Urgentes" description="Prioriza resoluciones críticas" as="section" variant='highlight' showBack={false}>
+          {urgentLoading && <div className="text-sm text-techo-gray-500">Cargando urgentes…</div>}
+          {urgentError && <div className="text-sm text-red-600">{urgentError}</div>}
+          {!urgentLoading && !urgentError && urgentIncidents.length === 0 && (
+            <div className="text-sm text-techo-gray-500">Sin incidencias urgentes por ahora.</div>
+          )}
           <ul className="space-y-3" aria-label="Listado de incidencias urgentes">
-            {urgentIncidents.map(inc => (
+            {urgentIncidents.map(i => {
+              const prioridadRaw = (i.prioridad || '').toLowerCase()
+              const prioridad = prioridadRaw === 'alta' ? 'Alta' : prioridadRaw === 'media' ? 'Media' : prioridadRaw === 'baja' ? 'Baja' : '—'
+              const titulo = i.viviendas?.direccion || `Casa #${i.id_vivienda || i.viviendas?.id_vivienda || ''}`
+              const problema = (i.categoria || 'Incidencia')
+              const descripcion = i.descripcion || ''
+              const fecha = (i.fecha_reporte || '').split('T')[0]
+              return (
               <li 
-                key={inc.id} 
+                key={i.id_incidencia} 
                 className="card-surface p-4 flex flex-col sm:flex-row sm:items-start gap-4 border-l-4 border-orange-500 dark:border-orange-400 hover:bg-gray-50 dark:hover:bg-techo-gray-700 transition-colors cursor-pointer group" 
                 onClick={() => {
-                  console.log('🖱️ Clic en incidencia:', inc.id);
+                  console.log('🖱️ Clic en incidencia:', i.id_incidencia);
                   console.log('🔍 Estado antes de navegar:');
                   console.log('  - user en contexto:', user);
                   console.log('  - localStorage user:', localStorage.getItem('user'));
                   console.log('  - localStorage token:', localStorage.getItem('token'));
-                  navigate(`/tecnico/incidencias/${inc.id}`);
+                  navigate(`/tecnico/incidencias/${i.id_incidencia}`);
                 }}
               >
                 <div className="flex-1">
-                  <h4 className="font-semibold text-sm text-techo-gray-800 dark:text-white mb-0.5 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{inc.vivienda}</h4>
-                  <p className="text-xs text-techo-gray-600 dark:text-techo-gray-400 mb-1">{inc.problema}</p>
-                  {inc.descripcion && (
-                    <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400 mb-1">{inc.descripcion}</p>
+                  <h4 className="font-semibold text-sm text-techo-gray-800 dark:text-white mb-0.5 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{titulo}</h4>
+                  <p className="text-xs text-techo-gray-600 dark:text-techo-gray-400 mb-1">{problema}</p>
+                  {descripcion && (
+                    <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400 mb-1">{descripcion}</p>
                   )}
-                  <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400">Reportado: {inc.fecha}</p>
+                  <p className="text-[11px] text-techo-gray-500 dark:text-techo-gray-400">Reportado: {fecha}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${priorityColor(inc.prioridad)}`}>{inc.prioridad}</span>
+                  <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${priorityColor(prioridad)}`}>{prioridad}</span>
                   <button 
                     className="btn btn-primary text-xs px-3 py-1 group-hover:bg-orange-600 group-hover:border-orange-600 transition-colors" 
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log('🖱️ Clic en botón Ver Detalle:', inc.id);
+                      console.log('🖱️ Clic en botón Ver Detalle:', i.id_incidencia);
                       console.log('🔍 Estado antes de navegar:');
                       console.log('  - user en contexto:', user);
                       console.log('  - localStorage user:', localStorage.getItem('user'));
                       console.log('  - localStorage token:', localStorage.getItem('token'));
-                      navigate(`/tecnico/incidencias/${inc.id}`);
+                      navigate(`/tecnico/incidencias/${i.id_incidencia}`);
                     }}
                   >
                     Ver Detalle
                   </button>
                 </div>
               </li>
-            ))}
+            )})}
           </ul>
           <div className="mt-4 flex justify-end">
-            <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias')}>Ver todas las incidencias</button>
+            <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias?prioridad=alta')}>Ver urgentes</button>
           </div>
         </SectionPanel>
-        <SectionPanel title="Agenda de Hoy" description="Actividades programadas" as="section">
+  <SectionPanel title="Agenda de Hoy" description="Actividades programadas" as="section" showBack={false}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {agenda.map(item => (
               <div key={item.id} className="relative overflow-hidden rounded-xl p-4 bg-white dark:bg-techo-gray-800 border border-techo-gray-100 dark:border-techo-gray-700 shadow-soft">
@@ -215,7 +238,7 @@ export default function HomeTecnico() {
             ))}
           </div>
         </SectionPanel>
-        <SectionPanel title="Acciones Rápidas" description="Atajos inmediatos" as="section" variant='highlight'>
+  <SectionPanel title="Acciones Rápidas" description="Atajos inmediatos" as="section" variant='highlight' showBack={false}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button className="btn btn-secondary flex items-center justify-center gap-2 text-sm"><PhoneIcon className="h-4 w-4" /> Llamar Coordinador</button>
             <button className="btn btn-secondary flex items-center justify-center gap-2 text-sm"><DocumentTextIcon className="h-4 w-4" /> Reportar Progreso</button>

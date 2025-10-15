@@ -7,7 +7,7 @@
 
 import { supabase } from '../supabaseClient.js'
 import { getIncidencesByBeneficiary, createIncidence, computePriority, logIncidenciaEvent } from '../models/Incidence.js'
-import { calcularFechasLimite } from '../utils/posventaConfig.js'
+import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
 
 /**
  * Health check para rutas de beneficiario
@@ -200,19 +200,26 @@ export async function getMyIncidences(req, res) {
 export async function createNewIncidence(req, res) {
   try {
     const beneficiarioUid = req.user?.uid || req.user?.sub
-    const { categoria, descripcion } = req.body || {}
+    const { categoria, descripcion, garantia_tipo: garantiaTipoInput } = req.body || {}
     if (!categoria || !descripcion) return res.status(400).json({ success:false, message:'Categoría y descripción son obligatorias' })
 
     const { data: vivienda, error: errViv } = await supabase
       .from('viviendas')
-      .select('id_vivienda')
+      .select('id_vivienda, fecha_entrega')
       .eq('beneficiario_uid', beneficiarioUid)
       .maybeSingle()
     if (errViv) throw errViv
     if (!vivienda) return res.status(404).json({ success:false, message:'No tienes una vivienda asignada' })
 
-    const prioridad = computePriority(categoria, descripcion)
+  // Prioridad basada SOLO en la categoría (no en la descripción)
+  const prioridad = computePriorityFromCategory(categoria)
     const fechas = calcularFechasLimite(prioridad, new Date())
+    // Garantía: usar input si válido, o deducir por categoría
+    const garantia_tipo = ['terminaciones','instalaciones','estructura'].includes((garantiaTipoInput||'').toString())
+      ? garantiaTipoInput
+      : (obtenerGarantiaPorCategoria(categoria) || null)
+    const garantia_vence_el = calcularVencimientoGarantia(vivienda?.fecha_entrega || null, garantia_tipo)
+    const garantia_vigente = garantia_vence_el ? estaGarantiaVigente(vivienda?.fecha_entrega || null, garantia_tipo) : null
     const incidenciaData = { 
       id_vivienda: vivienda.id_vivienda, 
       id_usuario_reporta: beneficiarioUid, 
@@ -223,7 +230,11 @@ export async function createNewIncidence(req, res) {
       fecha_reporte: new Date().toISOString(),
       fuente: 'beneficiario',
       fecha_limite_atencion: fechas.fecha_limite_atencion,
-      fecha_limite_cierre: fechas.fecha_limite_cierre
+      fecha_limite_cierre: fechas.fecha_limite_cierre,
+      garantia_tipo,
+      garantia_vence_el,
+      garantia_vigente,
+      garantia_fuente: garantiaTipoInput ? 'beneficiario' : (garantia_tipo ? 'auto' : null)
     }
     const nuevaIncidencia = await createIncidence(incidenciaData)
 

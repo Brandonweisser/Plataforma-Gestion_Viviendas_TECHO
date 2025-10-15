@@ -47,7 +47,7 @@ export function ActionCard({ title, description, badge, urgent, onClick, to, ico
             aria-label={urgent ? `${title} - acción urgente` : title}
             onClick={onClick}
           >
-            {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
+            {cta || (urgent ? 'Reportar ahora' : 'Acceder')}
           </Link>
         ) : (
           <button
@@ -55,7 +55,7 @@ export function ActionCard({ title, description, badge, urgent, onClick, to, ico
             className={`mt-auto w-full ${urgent ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500 text-white dark:shadow-none btn' : 'btn-primary bg-gradient-to-r from-techo-blue-600 to-techo-blue-500 hover:from-techo-blue-700 hover:to-techo-blue-600 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-techo-blue-400 text-white shadow-sm'}`}
             aria-label={urgent ? `${title} - acción urgente` : title}
           >
-            {cta || (urgent ? '¡Atender Ahora!' : 'Acceder')}
+            {cta || (urgent ? 'Reportar ahora' : 'Acceder')}
           </button>
         )}
       </div>

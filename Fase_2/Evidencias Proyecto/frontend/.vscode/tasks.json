@@ -12,6 +12,29 @@
 				"$eslint-stylish"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Start React dev server",
+			"type": "shell",
+			"command": "npm start",
+			"isBackground": false,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Start frontend dev server",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"start"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
 		}
 	]
 }

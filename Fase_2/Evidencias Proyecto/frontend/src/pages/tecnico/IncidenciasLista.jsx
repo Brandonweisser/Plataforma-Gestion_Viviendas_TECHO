@@ -18,9 +18,11 @@ export default function IncidenciasListaTecnico() {
     const p = new URLSearchParams(location.search)
     const estado = p.get('estado') || ''
     const asignacion = p.get('asignacion') || ''
+    const prioridad = p.get('prioridad') || ''
     const normalized = {
       ...(estado ? { estado } : {}),
-      ...(asignacion ? { asignacion } : {})
+      ...(asignacion ? { asignacion } : {}),
+      ...(prioridad ? { prioridad } : {})
     }
     return normalized
   }, [location.search])

@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
+import { createPortal } from 'react-dom'
 import { fetchHistorialIncidencia, groupEventsByDay, eventIcon } from '../services/historial'
 import ValidationModal from '../components/ValidationModal';
+import { Modal } from "../components/ui/Modal";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ActionCard } from "../components/ui/ActionCard";
@@ -23,6 +25,14 @@ import {
   BookOpenIcon,
   CalendarDaysIcon
 } from '@heroicons/react/24/outline';
+import { 
+  ShieldCheckIcon, 
+  Cog6ToothIcon, 
+  BoltIcon, 
+  BuildingOffice2Icon, 
+  ScaleIcon, 
+  UsersIcon 
+} from '@heroicons/react/24/outline'
 
 export default function HomeBeneficiario() {
   const { user, logout } = useContext(AuthContext);
@@ -46,6 +56,22 @@ export default function HomeBeneficiario() {
   const [form, setForm] = useState({ descripcion: "", categoria: "" });
   const [modalFiles, setModalFiles] = useState([]); // imágenes seleccionadas en el modal
   const [creating, setCreating] = useState(false);
+
+  // Bloquear scroll de fondo y cerrar con Escape cuando el modal esté abierto
+  useEffect(() => {
+    if (isModalOpen) {
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') setModalOpen(false)
+      }
+      document.addEventListener('keydown', onKeyDown)
+      return () => {
+        document.body.style.overflow = prevOverflow || ''
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
+  }, [isModalOpen])
 
   async function loadData() {
     setLoading(true); setError(""); setSuccess("");
@@ -79,13 +105,115 @@ export default function HomeBeneficiario() {
   // const viviendaId = vivData?.vivienda?.id_vivienda ? `#${vivData.vivienda.id_vivienda}` : "—"; // (ya se muestra dentro del hero)
   const viviendaEstado = vivData?.vivienda?.estado || "—";
   const tecnicoNombre = "Sin asignar"; // No tenemos aún endpoint para técnico asignado
-  const mostrarPosventa = (viviendaEstado || '').toLowerCase() === 'entregada';
+  const mostrarPosventa = ['entregada','entregada_inicial'].includes((viviendaEstado || '').toLowerCase());
+
+  // Helpers para garantías DS49
+  const entregaDate = useMemo(() => {
+    const d = vivData?.vivienda?.fecha_entrega ? new Date(vivData.vivienda.fecha_entrega) : null
+    return d && !isNaN(d) ? d : null
+  }, [vivData?.vivienda?.fecha_entrega])
+
+  function addYears(date, years) {
+    if (!date) return null
+    const d = new Date(date)
+    d.setFullYear(d.getFullYear() + years)
+    return d
+  }
+  function addBusinessDays(date, days) {
+    if (!date) return null
+    let d = new Date(date)
+    let added = 0
+    while (added < days) {
+      d.setDate(d.getDate() + 1)
+      const day = d.getDay() // 0=Sun .. 6=Sat
+      if (day !== 0 && day !== 6) added++
+    }
+    return d
+  }
+  const fmt = (d) => d ? new Date(d).toLocaleDateString('es-CL') : '—'
+  const isFuture = (d) => d ? d.getTime() >= Date.now() : false
 
   function openIncidenciaModal(defaults = {}) {
     setForm({ descripcion: defaults.descripcion || "", categoria: defaults.categoria || "" });
     setModalFiles([])
     setModalOpen(true);
   }
+
+  // Catálogo de categorías agrupadas por garantía
+  const categoriaGroups = useMemo(() => ([
+    {
+      key: 'instalaciones',
+      label: 'Instalaciones (5 años)',
+      options: [
+        { value: 'electricidad', label: 'Electricidad' },
+        { value: 'tablero electrico', label: 'Tablero eléctrico y automáticos' },
+        { value: 'tomas e interruptores', label: 'Tomas e interruptores' },
+        { value: 'cableado', label: 'Cableado y empalmes' },
+        { value: 'iluminacion', label: 'Iluminación fija' },
+        { value: 'gas', label: 'Gas (red interior)' },
+        { value: 'agua potable', label: 'Agua potable (fría/caliente)' },
+        { value: 'plomeria', label: 'Plomería / Gasfitería' },
+        { value: 'artefactos sanitarios', label: 'Artefactos sanitarios' },
+        { value: 'desagues', label: 'Desagües' },
+        { value: 'alcantarillado', label: 'Alcantarillado' },
+        { value: 'aguas lluvias', label: 'Aguas lluvias (canaletas y bajadas)' },
+        { value: 'ventilacion', label: 'Ventilación / Extracción' },
+        { value: 'calefon', label: 'Calefón / Termo / Calefacción' },
+        { value: 'otro_instalaciones', label: 'Otro (Instalaciones)' },
+      ]
+    },
+    {
+      key: 'terminaciones',
+      label: 'Terminaciones (3 años)',
+      options: [
+        { value: 'pintura', label: 'Pintura' },
+        { value: 'revestimientos muro', label: 'Revestimientos de muro' },
+        { value: 'yeso carton', label: 'Yeso-cartón / Tabiques / Cielos' },
+        { value: 'pisos ceramica', label: 'Pisos cerámica' },
+        { value: 'pisos porcelanato', label: 'Pisos porcelanato' },
+        { value: 'pisos vinilico', label: 'Pisos vinílico' },
+        { value: 'pisos flotante', label: 'Pisos flotante' },
+        { value: 'pisos madera', label: 'Pisos madera' },
+        { value: 'zocalos', label: 'Zócalos' },
+        { value: 'puertas', label: 'Puertas' },
+        { value: 'cerraduras', label: 'Cerraduras y herrajes' },
+        { value: 'ventanas', label: 'Ventanas' },
+        { value: 'vidrios', label: 'Vidrios' },
+        { value: 'sellos silicona', label: 'Sellos de silicona' },
+        { value: 'tapajuntas', label: 'Tapajuntas' },
+        { value: 'molduras', label: 'Molduras' },
+        { value: 'muebles cocina', label: 'Muebles de cocina' },
+        { value: 'muebles bano', label: 'Muebles de baño' },
+        { value: 'cubierta cocina', label: 'Cubierta de cocina' },
+        { value: 'otro_terminaciones', label: 'Otro (Terminaciones)' },
+      ]
+    },
+    {
+      key: 'estructura',
+      label: 'Estructura (10 años)',
+      options: [
+        { value: 'fundaciones', label: 'Fundaciones / Cimientos' },
+        { value: 'estructura muros', label: 'Estructura de muros' },
+        { value: 'estructura techumbre', label: 'Estructura de techumbre' },
+        { value: 'losa', label: 'Losas' },
+        { value: 'vigas', label: 'Vigas' },
+        { value: 'columnas', label: 'Columnas' },
+        { value: 'grietas estructurales', label: 'Grietas estructurales / Desplomes' },
+        { value: 'estructura escalas', label: 'Escalas estructurales' },
+        { value: 'otro_estructura', label: 'Otro (Estructura)' },
+      ]
+    }
+  ]), [])
+  const [catOpen, setCatOpen] = useState(false)
+  const [catActiveGroup, setCatActiveGroup] = useState('all') // 'all' | 'instalaciones' | 'terminaciones' | 'estructura'
+  const selectedCatLabel = useMemo(() => {
+    const all = categoriaGroups.flatMap(g => g.options)
+    return all.find(o => o.value === form.categoria)?.label || '(Selecciona)'
+  }, [categoriaGroups, form.categoria])
+  const filteredGroups = useMemo(() => {
+    const base = catActiveGroup === 'all' ? categoriaGroups : categoriaGroups.filter(g => g.key === catActiveGroup)
+    return base
+  }, [categoriaGroups, catActiveGroup])
 
   async function submitIncidencia(e) {
     e?.preventDefault();
@@ -95,7 +223,7 @@ export default function HomeBeneficiario() {
     }
     setCreating(true); setError("");
     try {
-      const r = await beneficiarioApi.crearIncidencia({ descripcion: form.descripcion.trim(), categoria: form.categoria || null });
+  const r = await beneficiarioApi.crearIncidencia({ descripcion: form.descripcion.trim(), categoria: form.categoria || null });
       const nueva = r?.data
       if (nueva?.id_incidencia && modalFiles.length) {
         try { await beneficiarioApi.subirMediaIncidencia(nueva.id_incidencia, modalFiles); setSuccess('Incidencia creada y fotos subidas'); } catch (e) { setError(e.message || 'Error subiendo fotos') }
@@ -134,6 +262,7 @@ export default function HomeBeneficiario() {
       color: "bg-red-500 hover:bg-red-600",
       badge: "24/7",
       urgent: true,
+      cta: 'Reportar ahora',
   action: () => openIncidenciaModal()
     },
     {
@@ -196,10 +325,33 @@ export default function HomeBeneficiario() {
       accent="blue"
       footer={`© ${new Date().getFullYear()} TECHO Chile · Plataforma Beneficiarios`}
     >
+      {/* Fondo colorido inspirado en TECHO (solo en esta página) */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        {/* Radiales de color */}
+        <div
+          className="absolute inset-0 opacity-70 dark:opacity-60"
+          style={{
+            backgroundImage:
+              'radial-gradient(800px 600px at -5% 10%, rgba(37,99,235,0.10), transparent 60%),'+
+              'radial-gradient(700px 600px at 110% 0%, rgba(245,158,11,0.10), transparent 60%),'+
+              'radial-gradient(700px 600px at 0% 100%, rgba(20,184,166,0.10), transparent 60%),'+
+              'radial-gradient(600px 500px at 100% 100%, rgba(59,130,246,0.10), transparent 60%)'
+          }}
+        />
+        {/* Patrón sutil de puntos/diagonales */}
+        <div
+          className="absolute inset-0 opacity-30 dark:opacity-20 mix-blend-multiply"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(30,64,175,0.08) 1px, transparent 0)',
+            backgroundSize: '22px 22px'
+          }}
+        />
+      </div>
       {error && <Toast type="error" message={error} onClose={() => setError('')} />}
       {success && <div className="mb-4"><Toast type="success" message={success} onClose={() => setSuccess('')} /></div>}
       {loading && <Toast type="info" message="Cargando…" />}
-  <div aria-label="Panel principal beneficiario" className="w-full bg-white dark:bg-slate-900">
+  <div aria-label="Panel principal beneficiario" className="w-full">
         {/* Hero bienvenida / info vivienda */}
   <div className="relative mb-10 overflow-hidden rounded-3xl bg-white border border-gray-100 shadow-soft dark:bg-slate-800 dark:border-slate-700">
           {/* Capa de gradiente suave (celeste→blanco→amarillo) - en dark usamos un degradado más luminoso para contraste */}
@@ -300,6 +452,7 @@ export default function HomeBeneficiario() {
                   urgent={section.urgent}
                   onClick={section.action}
                   icon={section.icon}
+                  cta={section.cta}
                 />
               ))}
             </div>
@@ -343,7 +496,7 @@ export default function HomeBeneficiario() {
           </SectionPanel>
         </div>
 
-        {/* Información de la vivienda y contacto */}
+  {/* Información de la vivienda y contacto */}
         <div className="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
           <SectionPanel
             title="Información de tu vivienda"
@@ -371,10 +524,10 @@ export default function HomeBeneficiario() {
                   }
                 }} />
 
-                {/* Modal detalle incidencia */}
-                {detailInc && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-2xl p-6 md:p-7">
+                {/* Modal detalle incidencia (centrado mediante portal) */}
+                <Modal isOpen={!!detailInc} onClose={() => setDetailInc(null)} maxWidth="max-w-3xl">
+                  {detailInc && (
+                    <div className="p-6 md:p-7 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600">
                       <div className="flex items-start justify-between mb-5">
                         <h3 className="text-lg md:text-xl font-semibold text-slate-800 dark:text-white">Detalle reporte #{detailInc.id_incidencia}</h3>
                         <button className="btn-outline" onClick={() => setDetailInc(null)}>Cerrar</button>
@@ -445,8 +598,8 @@ export default function HomeBeneficiario() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </Modal>
                 {validationModalOpen && detailInc && (
                   <ValidationModal
                     open={validationModalOpen}
@@ -475,9 +628,24 @@ export default function HomeBeneficiario() {
                 )}
 
                 {/* Modal crear incidencia */}
-                {isModalOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="reportar-titulo">
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-3xl md:max-w-4xl p-6 md:p-8 max-h-[85vh] overflow-y-auto">
+                {isModalOpen && typeof document !== 'undefined' && createPortal(
+                  <div className="fixed inset-0 z-[200] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="reportar-titulo">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
+                    <div className="relative z-[201] grid min-h-[100svh] place-items-center p-4">
+                      <div
+                        className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-none sm:rounded-xl shadow-2xl w-[96vw] sm:w-full sm:max-w-3xl md:max-w-4xl p-4 sm:p-6 md:p-8 max-h-[96svh] sm:max-h-[90vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                        role="document"
+                      >
+                      {/* Botón Volver (arriba derecha, azul) */}
+                      <button
+                        type="button"
+                        onClick={() => setModalOpen(false)}
+                        aria-label="Volver"
+                        className="absolute top-3 right-3 btn-primary btn-sm"
+                      >
+                        Volver
+                      </button>
                       <h3 id="reportar-titulo" className="text-lg md:text-2xl font-semibold text-slate-800 dark:text-white">Reportar problema</h3>
                       <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">Cuéntanos qué ocurre; mientras más detalles nos des, mejor podremos ayudarte.</p>
                       <form onSubmit={submitIncidencia} className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -500,20 +668,66 @@ export default function HomeBeneficiario() {
                           </div>
                         </div>
 
-                        {/* Categoría */}
-                        <div>
+                        {/* Categoría (dropdown personalizado para evitar recortes) */}
+                        <div className="relative">
                           <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-200">Categoría</label>
-                          <select
-                            className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                            value={form.categoria}
-                            onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                          <button
+                            type="button"
+                            className="w-full text-left rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                            onClick={() => setCatOpen(v => !v)}
+                            aria-haspopup="listbox"
+                            aria-expanded={catOpen}
                           >
-                            <option value="">(Selecciona)</option>
-                            <option value="Eléctrico">Eléctrico</option>
-                            <option value="Plomería">Plomería</option>
-                            <option value="Estructura">Estructura</option>
-                            <option value="Otro">Otro</option>
-                          </select>
+                            {selectedCatLabel}
+                          </button>
+                          {catOpen && (
+                            <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl">
+                              {/* Barra de filtros */}
+                              <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur px-3 pt-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+                                <div className="flex flex-wrap gap-2">
+                                  {[
+                                    { key:'all', label:'Todos' },
+                                    { key:'instalaciones', label:'Instalaciones' },
+                                    { key:'terminaciones', label:'Terminaciones' },
+                                    { key:'estructura', label:'Estructura' }
+                                  ].map(t => (
+                                    <button
+                                      key={t.key}
+                                      type="button"
+                                      className={`px-2.5 py-1 rounded-full text-xs border ${catActiveGroup===t.key ? 'bg-sky-600 text-white border-sky-600' : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-100 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600'}`}
+                                      onClick={() => setCatActiveGroup(t.key)}
+                                    >{t.label}</button>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Lista */}
+                              <div className="max-h-[60vh] overflow-auto">
+                                {filteredGroups.length === 0 ? (
+                                  <div className="px-3 py-4 text-sm text-slate-500">Sin resultados</div>
+                                ) : (
+                                  filteredGroups.map((grp, gi) => (
+                                    <div key={grp.key} className={`py-1 ${gi>0 ? 'border-t border-slate-200 dark:border-slate-700' : ''}`}>
+                                      <div className="px-3 py-1 text-[12px] font-semibold text-slate-600 dark:text-slate-300">
+                                        {grp.label}
+                                      </div>
+                                      <div className="py-1 space-y-1">
+                                        {grp.options.map(opt => (
+                                          <button
+                                            key={opt.value}
+                                            type="button"
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${form.categoria===opt.value ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200' : 'text-slate-800 dark:text-slate-100'}`}
+                                            onClick={() => { setForm({ ...form, categoria: opt.value }); setCatOpen(false); setCatActiveGroup('all') }}
+                                          >
+                                            {opt.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
                           <p className="mt-1 text-[11px] text-slate-500">Usa “Otro” si no encaja; el equipo ajustará la categoría luego.</p>
                         </div>
 
@@ -584,9 +798,10 @@ export default function HomeBeneficiario() {
                           <button type="submit" className="btn-primary" disabled={creating}>{creating ? 'Enviando…' : 'Crear incidencia'}</button>
                         </div>
                       </form>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  </div>, document.body)
+                }
                 {/* Reemplazamos con componente dinámico */}
                 <CardVivienda vivienda={vivData?.vivienda} tecnico={vivData?.tecnico || { nombre: 'Sin asignar', telefono: '—', email: '—', horario: '—' }} />
                 </div>
@@ -614,6 +829,76 @@ export default function HomeBeneficiario() {
             </ul>
           </SectionPanel>
         </div>
+
+        {/* Garantías DS49: información clave para el beneficiario */}
+        <SectionPanel
+          title="Garantías y plazos DS49"
+          description="Conoce hasta cuándo cubre cada garantía de tu vivienda"
+          className="mt-12"
+        >
+          {!entregaDate ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 p-4 text-sm">
+              <p className="font-medium">Aún no registramos la fecha de entrega de tu vivienda.</p>
+              <p className="opacity-90">Cuando se registre, verás aquí las fechas de vencimiento de cada garantía.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Encabezado con fecha de entrega */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <ShieldCheckIcon className="h-6 w-6 text-sky-700"/>
+                  <div>
+                    <p className="text-sm text-techo-gray-600">Fecha de entrega registrada</p>
+                    <p className="text-lg font-semibold">{fmt(entregaDate)}</p>
+                  </div>
+                </div>
+                <div className="text-xs text-techo-gray-500">
+                  Estos plazos son referenciales según normativa DS49 / Ley General de Urbanismo y Construcciones.
+                </div>
+              </div>
+
+              {/* Grid de garantías */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {[
+                  {icon: ClipboardDocumentListIcon, title:'Corrección de observaciones de entrega', plazo:'15–30 días hábiles', vence:addBusinessDays(entregaDate, 30), quien:'Constructor / TECHO', tone:'amber'},
+                  {icon: Cog6ToothIcon, title:'Garantía de terminaciones', plazo:'3 años', vence:addYears(entregaDate, 3), quien:'Constructor', tone:'sky'},
+                  {icon: BoltIcon, title:'Garantía de instalaciones', plazo:'5 años', vence:addYears(entregaDate, 5), quien:'Constructor', tone:'indigo'},
+                  {icon: BuildingOffice2Icon, title:'Garantía estructural', plazo:'10 años', vence:addYears(entregaDate, 10), quien:'Constructor', tone:'emerald'},
+                  {icon: ScaleIcon, title:'Prohibición de venta/arriendo', plazo:'5 años', vence:addYears(entregaDate, 5), quien:'Beneficiario', tone:'rose'},
+                  {icon: UsersIcon, title:'Acompañamiento social (MINVU)', plazo:'Hasta 1 año post-entrega', vence:addYears(entregaDate, 1), quien:'Entidad Patrocinante / TECHO', tone:'purple'},
+                ].map((g, i) => {
+                  const Icon = g.icon
+                  const vence = g.vence
+                  const activo = isFuture(vence)
+                  const chip = activo ? 'Vigente' : 'Vencida'
+                  const chipClass = activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                  return (
+                    <div key={i} className="rounded-xl border border-gray-200 bg-white shadow-soft p-4 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className={`rounded-lg p-2 bg-${g.tone}-50 text-${g.tone}-700`}><Icon className="h-5 w-5"/></span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-snug">{g.title}</p>
+                          <p className="text-xs text-techo-gray-600">Plazo: {g.plazo}</p>
+                        </div>
+                        <span className={`ml-auto inline-flex items-center text-[11px] px-2 py-0.5 rounded-full border ${chipClass}`}>{chip}</span>
+                      </div>
+                      <div className="text-[12px] text-techo-gray-700 flex items-center justify-between">
+                        <div>
+                          <p className="opacity-80">Vence</p>
+                          <p className="font-medium">{fmt(vence)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="opacity-80">Quién responde</p>
+                          <p className="font-medium">{g.quien}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </SectionPanel>
   {/* Galería simple con 3 imágenes */}
         <section aria-label="Galería TECHO" className="mt-12">
           <h3 className="text-base font-semibold text-sky-900 dark:text-sky-100 mb-4">Historias de construcción</h3>

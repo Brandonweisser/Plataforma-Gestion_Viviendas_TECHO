@@ -25,6 +25,20 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 	const firstThumb = media[0]
 	const hasPreview = !!firstThumb
 
+	const garantiaChip = (() => {
+		const tipo = incidencia.garantia_tipo
+		if (!tipo) return null
+		const vigente = incidencia.garantia_vigente
+		const vence = incidencia.garantia_vence_el
+		const labelMap = { terminaciones: 'Terminaciones', instalaciones: 'Instalaciones', estructura: 'Estructural' }
+		const tone = vigente === false ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+		return (
+			<span title={vence ? `Vence: ${vence}` : ''} className={`px-2 py-0.5 rounded-full text-[11px] ${tone}`}>
+				{labelMap[tipo] || tipo}{vigente != null ? (vigente ? ' · Vigente' : ' · Vencida') : ''}
+			</span>
+		)
+	})()
+
 	return (
 		<div className={`card-surface card-interactive p-4 md:p-5 ${className}`}>
 			<div className={`grid items-start gap-4 ${hasPreview ? 'grid-cols-[72px,1fr,auto] md:grid-cols-[88px,1fr,auto]' : 'grid-cols-[1fr,auto]'}`}>
@@ -42,6 +56,7 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 					<div className='flex flex-wrap items-center gap-2 mb-1'>
 						<span className='text-[11px] font-mono text-slate-500 dark:text-slate-400'>#{incidencia.id_incidencia}</span>
 						<span className={`px-2 py-0.5 rounded-full text-[11px] ${statusColor(incidencia.estado)}`}>{incidencia.estado}</span>
+						{garantiaChip}
 						{media.length > 0 && (
 							<span className='px-2 py-0.5 rounded-full text-[11px] bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'>
 								{media.length} foto{media.length > 1 ? 's' : ''}

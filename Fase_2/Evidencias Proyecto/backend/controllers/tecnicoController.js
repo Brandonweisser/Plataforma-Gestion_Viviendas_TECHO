@@ -7,7 +7,7 @@
 
 import { supabase } from '../supabaseClient.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent, createIncidence, computePriority } from '../models/Incidence.js'
-import { calcularFechasLimite, obtenerGarantiaPorCategoria } from '../utils/posventaConfig.js'
+import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
 import multer from 'multer'
 import { listMediaForIncidencias, uploadIncidenciaMedia } from '../services/MediaService.js'
 
@@ -108,6 +108,17 @@ export async function getIncidences(req, res) {
       const map = new Map()
       results.forEach(r => { map.set(r.id_incidencia, r) })
       incidencias = Array.from(map.values())
+
+      // Ordenar por prioridad (alta > media > baja) y, a igualdad, por fecha más reciente
+      const weight = { alta: 3, media: 2, baja: 1 }
+      incidencias.sort((a, b) => {
+        const wa = weight[(a.prioridad || '').toLowerCase()] || 0
+        const wb = weight[(b.prioridad || '').toLowerCase()] || 0
+        if (wb !== wa) return wb - wa
+        const da = new Date(a.fecha_reporte).getTime() || 0
+        const db = new Date(b.fecha_reporte).getTime() || 0
+        return db - da
+      })
     }
 
     if (includeMedia && incidencias.length) {
@@ -810,8 +821,22 @@ export async function reviewPosventaForm(req, res) {
       if (modoInc === 'agrupada') {
         // Crear una sola incidencia que agrupe los problemas
         const descripcion = problemItems.map(i => `• ${i.categoria || 'General'}: ${i.item}${i.comentario ? ` — ${i.comentario}` : ''}`).join('\n')
-        const prioridad = computePriority('posventa', descripcion)
+  const prioridad = computePriorityFromCategory('posventa')
         const fechas = calcularFechasLimite(prioridad, new Date())
+        // Intentar inferir una garantía dominante por frecuencia de categorías
+        let garantia_tipo = null
+        try {
+          const counts = problemItems.reduce((acc, it) => {
+            const gt = obtenerGarantiaPorCategoria((it.categoria || '').toString())
+            if (gt) acc[gt] = (acc[gt] || 0) + 1
+            return acc
+          }, {})
+          const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1])
+          garantia_tipo = sorted.length ? sorted[0][0] : null
+        } catch {}
+        const { data: vivRow } = await supabase.from('viviendas').select('fecha_entrega').eq('id_vivienda', form.id_vivienda).maybeSingle()
+        const garantia_vence_el = calcularVencimientoGarantia(vivRow?.fecha_entrega || null, garantia_tipo)
+        const garantia_vigente = garantia_vence_el ? estaGarantiaVigente(vivRow?.fecha_entrega || null, garantia_tipo) : null
         const payload = {
           id_vivienda: form.id_vivienda,
           id_usuario_reporta: form.beneficiario_uid,
@@ -823,7 +848,11 @@ export async function reviewPosventaForm(req, res) {
           prioridad,
           fuente: 'posventa',
           fecha_limite_atencion: fechas.fecha_limite_atencion,
-          fecha_limite_cierre: fechas.fecha_limite_cierre
+          fecha_limite_cierre: fechas.fecha_limite_cierre,
+          garantia_tipo,
+          garantia_vence_el,
+          garantia_vigente,
+          garantia_fuente: garantia_tipo ? 'posventa' : null
         }
         const created = await createIncidence(payload)
         incidenciasCreadas.push(created)
@@ -832,9 +861,12 @@ export async function reviewPosventaForm(req, res) {
         // Separadas: una por item
         for (const it of problemItems) {
           const desc = `${it.categoria || 'General'} — ${it.item}${it.comentario ? `: ${it.comentario}` : ''}`
-          const prioridad = computePriority(it.categoria || 'posventa', desc)
+          const prioridad = computePriorityFromCategory(it.categoria || 'posventa')
           const fechas = calcularFechasLimite(prioridad, new Date())
           const garantia_tipo = obtenerGarantiaPorCategoria((it.categoria || '').toString())
+          const { data: vivRow } = await supabase.from('viviendas').select('fecha_entrega').eq('id_vivienda', form.id_vivienda).maybeSingle()
+          const garantia_vence_el = calcularVencimientoGarantia(vivRow?.fecha_entrega || null, garantia_tipo)
+          const garantia_vigente = garantia_vence_el ? estaGarantiaVigente(vivRow?.fecha_entrega || null, garantia_tipo) : null
           const payload = {
             id_vivienda: form.id_vivienda,
             id_usuario_reporta: form.beneficiario_uid,
@@ -847,7 +879,10 @@ export async function reviewPosventaForm(req, res) {
             fuente: 'posventa',
             fecha_limite_atencion: fechas.fecha_limite_atencion,
             fecha_limite_cierre: fechas.fecha_limite_cierre,
-            garantia_tipo
+            garantia_tipo,
+            garantia_vence_el,
+            garantia_vigente,
+            garantia_fuente: garantia_tipo ? 'posventa' : null
           }
           const created = await createIncidence(payload)
           incidenciasCreadas.push(created)
