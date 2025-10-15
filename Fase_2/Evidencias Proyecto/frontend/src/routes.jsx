@@ -63,7 +63,7 @@ export default function AppRoutes() {
           <Route path="/beneficiario/incidencias" element={<IncidenciasHistorial />} />
           <Route path="/beneficiario/nueva-incidencia" element={<NuevaIncidencia />} />
 
-          <Route element={<RoleRoute allowed={['tecnico']} fallback="/home" />}>
+          <Route element={<RoleRoute allowed={['tecnico', 'administrador']} fallback="/home" />}>
             {/* Alias legacy path to new list path to avoid dead links */}
             <Route path="/tecnico/posventa" element={<Navigate to="/tecnico/posventa/formularios" replace />} />
             <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
