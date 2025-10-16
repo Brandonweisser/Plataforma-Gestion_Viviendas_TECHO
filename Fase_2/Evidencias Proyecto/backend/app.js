@@ -70,12 +70,12 @@ const PORT = process.env.PORT || 5000
 // Solo iniciar servidor si este archivo se ejecuta directamente (no cuando se importa)
 if (import.meta.url === `file://${process.argv[1]}`) {
   app.listen(PORT, () => {
-    console.log(`🚀 Servidor TECHO corriendo en puerto ${PORT}`)
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`)
-    console.log(`🔐 Auth routes: http://localhost:${PORT}/api/`)
-    console.log(`👑 Admin routes: http://localhost:${PORT}/api/admin/`)
-    console.log(`🏠 Beneficiario routes: http://localhost:${PORT}/api/beneficiario/`)
-    console.log(`🔧 Técnico routes: http://localhost:${PORT}/api/tecnico/`)
+    console.log(`Servidor TECHO corriendo en puerto ${PORT}`)
+    console.log(`Health check: http://localhost:${PORT}/api/health`)
+    console.log(`Auth routes: http://localhost:${PORT}/api/`)
+    console.log(`Admin routes: http://localhost:${PORT}/api/admin/`)
+    console.log(`Beneficiario routes: http://localhost:${PORT}/api/beneficiario/`)
+    console.log(`Técnico routes: http://localhost:${PORT}/api/tecnico/`)
   })
 }
 

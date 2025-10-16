@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Modal de validación de incidencia (beneficiario).
@@ -32,8 +33,8 @@ export default function ValidationModal({ open, onClose, onAccept, onReject, loa
     try { await onReject({ comentario: comentario.trim(), file }); reset(); } catch(e) { setError(e.message || 'Error al rechazar'); }
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true">
+  return createPortal(
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-600 p-6">
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Validar solución</h3>
@@ -88,6 +89,7 @@ export default function ValidationModal({ open, onClose, onAccept, onReject, loa
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    typeof document !== 'undefined' ? document.body : undefined
   );
 }
