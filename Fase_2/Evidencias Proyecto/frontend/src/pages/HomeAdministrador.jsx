@@ -12,7 +12,46 @@ import {
   ClipboardDocumentListIcon,
   ChartBarIcon,
 } from "@heroicons/react/24/outline";
+import { ArrowPathIcon } from "@heroicons/react/24/solid";
 import { adminApi } from "../services/api";
+
+// Utilidad: tiempo relativo en español (e.g., "hace 1 hora")
+function getRelativeTimeString(dateInput, locale = 'es') {
+  if (!dateInput) return '';
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const now = Date.now();
+  const d = new Date(dateInput).getTime();
+  if (Number.isNaN(d)) return '';
+  const diffSeconds = Math.round((d - now) / 1000); // negativo si fue en el pasado
+  const divisions = [
+    { amount: 60, name: 'second' },
+    { amount: 60, name: 'minute' },
+    { amount: 24, name: 'hour' },
+    { amount: 7, name: 'day' },
+    { amount: 4.34524, name: 'week' },
+    { amount: 12, name: 'month' },
+    { amount: Infinity, name: 'year' },
+  ];
+  let duration = diffSeconds;
+  for (const division of divisions) {
+    if (Math.abs(duration) < division.amount) {
+      // map english unit to spanish display by rtf
+      const unit = division.name;
+      return rtf.format(Math.round(duration), unit);
+    }
+    duration /= division.amount;
+  }
+  return '';
+}
+
+function getAbsoluteDateTimeParts(dateInput, locale = 'es-CL') {
+  if (!dateInput) return { date: '', time: '' };
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return { date: '', time: '' };
+  const date = d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return { date, time };
+}
 
 export default function HomeAdministrador() {
   const { user, logout } = useContext(AuthContext);
@@ -176,26 +215,69 @@ export default function HomeAdministrador() {
     accent: "green",
   },
   ];
-  const recentActivity = [
+  // Lista por defecto (fallback) para actividad reciente
+  const defaultRecentActivity = [
     {
       id: 1,
       text: "Nueva vivienda registrada por Juan Pérez",
       color: "bg-green-500",
       time: "Hace 2 horas",
+      dateTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     },
     {
       id: 2,
       text: "Incidencia reportada en Vivienda #45",
       color: "bg-orange-500",
       time: "Hace 4 horas",
+      dateTime: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
     },
     {
       id: 3,
       text: "Técnico asignado a incidencia #123",
       color: "bg-blue-500",
       time: "Hace 6 horas",
+      dateTime: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     },
   ];
+
+  const [recentActivity, setRecentActivity] = useState(defaultRecentActivity);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState(null);
+
+  // Carga de actividad (reutilizable por botón Refrescar)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadActivity() {
+      try {
+        setActivityLoading(true);
+        const res = await adminApi.obtenerActividad();
+        const items = res?.data || res || [];
+        if (!cancelled && Array.isArray(items)) {
+          const normalized = items.map((it, idx) => ({
+            id: it.id ?? idx + 1,
+            text: it.text || it.title || it.descripcion || JSON.stringify(it),
+            color: it.color || (idx % 3 === 0 ? 'bg-green-500' : idx % 3 === 1 ? 'bg-orange-500' : 'bg-blue-500'),
+            time: it.time || it.fecha || it.dateTime || 'Reciente',
+            dateTime: it.dateTime || it.fecha || it.timestamp || null,
+          }));
+          setRecentActivity(normalized);
+        }
+        if (!cancelled) setActivityLoading(false);
+      } catch (e) {
+        if (!cancelled) {
+          setActivityError(e.message || 'No se pudo cargar la actividad');
+          setActivityLoading(false);
+        }
+      }
+    }
+    // Exponer para botón
+    HomeAdministrador.loadActivity = loadActivity;
+    loadActivity();
+    return () => {
+      cancelled = true;
+      HomeAdministrador.loadActivity = undefined;
+    };
+  }, []);
 
   return (
     <DashboardLayout
@@ -261,6 +343,7 @@ export default function HomeAdministrador() {
           title="Herramientas de Administración"
           description="Accesos rápidos a módulos críticos"
           as="section"
+          showBack={false}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {adminSections.map((s, i) => (
@@ -281,6 +364,7 @@ export default function HomeAdministrador() {
           title="Herramientas de Técnico"
           description="Accesos rápidos a módulos técnicos (solo admin)"
           as="section"
+          showBack={false}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {technicianTools.map((tool, i) => (
@@ -300,29 +384,60 @@ export default function HomeAdministrador() {
           title="Actividad Reciente"
           description="Últimos eventos del sistema"
           as="section"
+          showBack={false}
+          actions={
+            <button
+              onClick={() => HomeAdministrador.loadActivity && HomeAdministrador.loadActivity()}
+              disabled={activityLoading}
+              className={`px-2 py-1 text-sm border rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ${activityLoading ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              aria-label="Refrescar actividad"
+            >
+              <span className="inline-flex items-center gap-1">
+                <ArrowPathIcon className={`h-4 w-4 ${activityLoading ? 'animate-spin' : ''}`} />
+                {activityLoading ? 'Actualizando…' : 'Refrescar'}
+              </span>
+            </button>
+          }
         >
-          <ul
-            className="divide-y divide-techo-gray-100 dark:divide-techo-gray-800"
-            aria-label="Lista de actividad reciente"
-          >
-            {recentActivity.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 py-3">
-                <span
-                  aria-hidden
-                  className={`h-2 w-2 rounded-full ${item.color}`}
-                ></span>
-                <span className="flex-1 text-sm text-techo-gray-600 dark:text-techo-gray-300">
-                  {item.text}
-                </span>
-                <time
-                  className="text-[11px] text-techo-gray-400 dark:text-techo-gray-500"
-                  dateTime="2024-01-15"
-                >
-                  {item.time}
-                </time>
-              </li>
-            ))}
-          </ul>
+          <div>
+            <ul
+              className="divide-y divide-techo-gray-100 dark:divide-techo-gray-800"
+              aria-label="Lista de actividad reciente"
+            >
+              {recentActivity.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 py-3">
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 rounded-full ${item.color}`}
+                  ></span>
+                  <span className="flex-1 text-sm text-techo-gray-600 dark:text-techo-gray-300">
+                    {item.text}
+                  </span>
+                  {activityLoading ? (
+                    <span className="text-[11px] text-techo-gray-400 dark:text-techo-gray-500">Cargando...</span>
+                  ) : (
+                    <div className="ml-auto flex flex-col items-end min-w-[160px] text-right">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-techo-gray-100 text-techo-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                        {item.dateTime ? getRelativeTimeString(item.dateTime, 'es-CL') : (typeof item.time === 'string' ? item.time : '')}
+                      </span>
+                      {item.dateTime && (
+                        <time
+                          className="mt-0.5 text-[10px] text-techo-gray-400 dark:text-techo-gray-500"
+                          dateTime={item.dateTime}
+                          title={item.dateTime}
+                        >
+                          {(() => {
+                            const { date, time } = getAbsoluteDateTimeParts(item.dateTime, 'es-CL');
+                            return `${date} · ${time}`;
+                          })()}
+                        </time>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </SectionPanel>
         {/* Se eliminó el bloque inline de KPIs. Ahora solo se accede vía la tarjeta 'KPIs y Métricas'. */}
       </div>

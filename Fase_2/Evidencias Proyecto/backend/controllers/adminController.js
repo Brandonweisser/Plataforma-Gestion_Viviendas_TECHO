@@ -96,6 +96,95 @@ export async function getDashboardStats(req, res) {
   }
 }
 
+/**
+ * Obtiene actividad reciente para el dashboard administrativo
+ * Devuelve una lista simple de eventos normalizados para UI
+ */
+export async function getDashboardActivity(req, res) {
+  try {
+    // Tomamos últimos registros de usuarios, viviendas e incidencias
+    const events = []
+
+    try {
+      const { data: users, error: errUsers } = await supabase
+        .from('usuarios')
+        .select('uid, nombre, created_at')
+        .order('created_at', { ascending: false })
+        .limit(3)
+      if (!errUsers && Array.isArray(users)) {
+        users.forEach((u) => {
+          events.push({
+            id: `u-${u.uid}`,
+            text: `Nuevo usuario registrado: ${u.nombre || u.uid}`,
+            color: 'bg-green-500',
+            time: u.created_at ? new Date(u.created_at).toLocaleString() : 'Reciente',
+            dateTime: u.created_at || null,
+          })
+        })
+      }
+    } catch (e) {
+      console.warn('No se pudo cargar actividad de usuarios:', e.message)
+    }
+
+    try {
+      const { data: housings, error: errH } = await supabase
+        .from('viviendas')
+        .select('id_vivienda, direccion, fecha_entrega')
+        .order('id_vivienda', { ascending: false })
+        .limit(3)
+      if (!errH && Array.isArray(housings)) {
+        housings.forEach((h) => {
+          events.push({
+            id: `v-${h.id_vivienda}`,
+            text: `Nueva vivienda registrada${h.direccion ? ' en ' + h.direccion : ''}`,
+            color: 'bg-green-500',
+            time: h.fecha_entrega || 'Reciente',
+            dateTime: h.fecha_entrega || null,
+          })
+        })
+      }
+    } catch (e) {
+      console.warn('No se pudo cargar actividad de viviendas:', e.message)
+    }
+
+    try {
+      const { data: incs, error: errI } = await supabase
+        .from('incidencias')
+        .select('id_incidencia, id_vivienda, fecha_reporte')
+        .order('fecha_reporte', { ascending: false })
+        .limit(5)
+      if (!errI && Array.isArray(incs)) {
+        incs.forEach((i) => {
+          events.push({
+            id: `i-${i.id_incidencia}`,
+            text: `Incidencia reportada en Vivienda #${i.id_vivienda}`,
+            color: 'bg-orange-500',
+            time: i.fecha_reporte ? new Date(i.fecha_reporte).toLocaleString() : 'Reciente',
+            dateTime: i.fecha_reporte || null,
+          })
+        })
+      }
+    } catch (e) {
+      console.warn('No se pudo cargar actividad de incidencias:', e.message)
+    }
+
+    // Orden aproximado por fecha si está disponible
+    const normalized = events
+      .map((e) => ({
+        ...e,
+        _ts: e.dateTime ? Date.parse(e.dateTime) : 0,
+      }))
+      .sort((a, b) => b._ts - a._ts)
+      .slice(0, 10)
+      .map(({ _ts, ...rest }) => rest)
+
+    res.json({ success: true, data: normalized })
+  } catch (error) {
+    console.error('Error obteniendo actividad del dashboard:', error)
+    res.status(500).json({ success: false, message: 'Error obteniendo actividad' })
+  }
+}
+
 // ==================== GESTIÓN DE USUARIOS ====================
 
 /**
@@ -293,7 +382,7 @@ export async function getProjects(req, res) {
  */
 export async function createNewProject(req, res) {
   try {
-  const { nombre, ubicacion, fecha_inicio, fecha_entrega, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, geocode_provider, geocode_score, geocode_at } = req.body || {}
+  const { nombre, ubicacion, fecha_inicio, fecha_entrega, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, lat, lng, latitude, longitude, geocode_provider, geocode_score, geocode_at } = req.body || {}
     
     if (!nombre || !ubicacion) {
       return res.status(400).json({ 
@@ -302,6 +391,16 @@ export async function createNewProject(req, res) {
       })
     }
     
+    // Normalizar coordenadas (acepta lat/lng, latitude/longitude y strings con coma)
+    const toNum = (v) => {
+      if (v === null || typeof v === 'undefined') return null
+      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
+      return Number.isFinite(n) ? n : null
+    }
+    const inRange = (la, lo) => la != null && lo != null && la >= -90 && la <= 90 && lo >= -180 && lo <= 180
+    const latNum = toNum(latitud ?? latitude ?? lat)
+    const lonNum = toNum(longitud ?? longitude ?? lng)
+
     const projectData = {
       nombre,
       ubicacion,
@@ -309,11 +408,11 @@ export async function createNewProject(req, res) {
       fecha_entrega: fecha_entrega || null,
   ubicacion_normalizada: ubicacion_normalizada || null,
   ubicacion_referencia: ubicacion_referencia || null,
-      latitud: typeof latitud === 'number' ? latitud : null,
-      longitud: typeof longitud === 'number' ? longitud : null,
+      latitud: inRange(latNum, lonNum) ? latNum : null,
+      longitud: inRange(latNum, lonNum) ? lonNum : null,
       geocode_provider: geocode_provider || null,
       geocode_score: typeof geocode_score === 'number' ? geocode_score : null,
-      geocode_at: geocode_at ? new Date(geocode_at) : (latitud && longitud ? new Date() : null)
+      geocode_at: geocode_at ? new Date(geocode_at) : (inRange(latNum, lonNum) ? new Date() : null)
     }
     
     const created = await createProject(projectData)
@@ -333,7 +432,7 @@ export async function createNewProject(req, res) {
 export async function updateProjectById(req, res) {
   try {
     const id = Number(req.params.id)
-    const updates = req.body || {}
+    const updates = { ...(req.body || {}) }
     
     if (!Object.keys(updates).length) {
       return res.status(400).json({ 
@@ -342,7 +441,28 @@ export async function updateProjectById(req, res) {
       })
     }
     
-  const updated = await updateProject(id, updates)
+    // Normalizar posibles alias de coordenadas y tipos string
+    const toNum = (v) => {
+      if (v === null || typeof v === 'undefined') return null
+      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
+      return Number.isFinite(n) ? n : null
+    }
+    const inRange = (la, lo) => la != null && lo != null && la >= -90 && la <= 90 && lo >= -180 && lo <= 180
+    const latNum = toNum(updates.latitud ?? updates.latitude ?? updates.lat)
+    const lonNum = toNum(updates.longitud ?? updates.longitude ?? updates.lng)
+    if (latNum != null || lonNum != null) {
+      // Si alguno viene, ambos deben ser válidos y en rango; si no, los ponemos a null para no guardar basura
+      if (inRange(latNum, lonNum)) {
+        updates.latitud = latNum
+        updates.longitud = lonNum
+      } else {
+        updates.latitud = null
+        updates.longitud = null
+      }
+      delete updates.lat; delete updates.lng; delete updates.latitude; delete updates.longitude
+    }
+
+    const updated = await updateProject(id, updates)
     res.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error actualizando proyecto:', error)

@@ -10,6 +10,7 @@ import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import {
   adminHealth,
   getDashboardStats,
+  getDashboardActivity,
   getUsers,
   createUser,
   updateUserById,
@@ -56,6 +57,7 @@ router.get('/health', adminHealth)
 
 // Dashboard y estadísticas
 router.get('/dashboard/stats', getDashboardStats)
+router.get('/dashboard/activity', getDashboardActivity)
 
 // ==================== GESTIÓN DE USUARIOS ====================
 router.get('/usuarios', getUsers)

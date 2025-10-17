@@ -176,11 +176,13 @@ export async function validateAddress({ address, comuna, region }) {
     return { valid: false, reason: `Región no coincide (${gRegion})` }
   }
   const rp = (f.routable_points && (f.routable_points.points?.[0]?.coordinates || f.routable_points[0]?.coordinates))
-  const coords = Array.isArray(f.geometry?.coordinates)
-    ? f.geometry.coordinates
-    : (Array.isArray(f.center)
-        ? f.center
-        : (Array.isArray(rp) ? rp : null))
+  // Preferir routable_points (más cercano a fachada/calle), luego geometry.coordinates, luego center
+  const coords = (Array.isArray(rp) ? rp
+    : (Array.isArray(f.geometry?.coordinates)
+        ? f.geometry.coordinates
+        : (Array.isArray(f.center)
+            ? f.center
+            : null)))
   const [lng, lat] = coords || []
   if (typeof lat !== 'number' || typeof lng !== 'number') {
     return { valid: false, reason: 'Coordenadas inválidas' }
@@ -215,13 +217,15 @@ export async function validateFromFeature(feature, { comuna, region, addressQuer
 
   // Preferir punto enrutable o geometry.coordinates si existen, si no center
   const rp = feature?.routable_points && (feature.routable_points.points?.[0]?.coordinates || feature.routable_points[0]?.coordinates)
-  const coords = Array.isArray(feature?.geometry?.coordinates)
-    ? feature.geometry.coordinates
-    : (feature.center?.lng != null && feature.center?.lat != null
-        ? [feature.center.lng, feature.center.lat]
-        : (Array.isArray(feature.center)
-            ? feature.center
-            : (Array.isArray(rp) ? rp : null)))
+  // Preferir routable_points, luego geometry.coordinates, luego center
+  const coords = (Array.isArray(rp) ? rp
+    : (Array.isArray(feature?.geometry?.coordinates)
+        ? feature.geometry.coordinates
+        : (feature.center?.lng != null && feature.center?.lat != null
+            ? [feature.center.lng, feature.center.lat]
+            : (Array.isArray(feature.center)
+                ? feature.center
+                : null))))
   const lng = Array.isArray(coords) ? coords[0] : undefined
   const lat = Array.isArray(coords) ? coords[1] : undefined
   if (typeof lat !== 'number' || typeof lng !== 'number') {

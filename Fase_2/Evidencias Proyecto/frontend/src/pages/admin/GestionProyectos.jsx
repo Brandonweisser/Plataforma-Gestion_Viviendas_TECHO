@@ -6,44 +6,39 @@ import { adminApi } from '../../services/api'
 import { searchAddresses as geoSearch, validateAddress as geoValidate } from '../../services/geocoding'
 
 export default function GestionProyectos() {
-  // Utilidad: extraer lat,lng desde texto o URL de Google/OSM
+  // Utilidades: normalizar números y extraer lat,lng desde texto o URL de Google/OSM
+  const toNumber = (v) => {
+    if (v === '' || v === null || typeof v === 'undefined') return null
+    const n = parseFloat(String(v).replace(',', '.'))
+    return Number.isFinite(n) ? n : null
+  }
+  const clamp = (n, min, max) => (n == null ? null : Math.max(min, Math.min(max, n)))
   function parseLatLngFromText(text) {
     if (!text) return null
     const s = String(text).trim()
-    // 1) Par "lat,lng"
-    let m = s.match(/(-?\d{1,2}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
-      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-    }
+    const dd = (t) => parseFloat(String(t).replace(',', '.'))
+    // 1) Par "lat,lng" (con punto o coma)
+    let m = s.match(/(-?\d{1,3}[\.,]\d+)\s*[,;\s]\s*(-?\d{1,3}[\.,]\d+)/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 2) Google Maps URL con @lat,lng,zoomz
-    m = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+),\d+(?:\.\d+)?z/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
-      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-    }
+    m = s.match(/@(-?\d{1,3}[\.,]\d+),(-?\d{1,3}[\.,]\d+),\d+(?:\.\d+)?z/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 3) Google Maps con q=lat,lng
-    m = s.match(/[?&]q=(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
-      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-    }
+    m = s.match(/[?&]q=(-?\d{1,3}[\.,]\d+),(-?\d{1,3}[\.,]\d+)/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 4) Google !3dlat!4dlng
-    m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
-      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-    }
+    m = s.match(/!3d(-?\d{1,3}[\.,]\d+)!4d(-?\d{1,3}[\.,]\d+)/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 5) OSM mlat/mlon
-    m = s.match(/[?&]mlat=(-?\d{1,2}\.\d+).*?[&]mlon=(-?\d{1,3}\.\d+)/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
-      if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-    }
+    m = s.match(/[?&]mlat=(-?\d{1,3}[\.,]\d+).*?[&]mlon=(-?\d{1,3}[\.,]\d+)/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 6) OSM #map=zoom/lat/lon
-    m = s.match(/#map=\d+\/?(-?\d{1,2}\.\d+)\/?(-?\d{1,3}\.\d+)/)
-    if (m) {
-      const lat = parseFloat(m[1]); const lng = parseFloat(m[2])
+    m = s.match(/#map=\d+\/(-?\d{1,3}[\.,]\d+)\/(-?\d{1,3}[\.,]\d+)/)
+    if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
+    // 7) Fallback genérico
+    const nums = s.match(/-?\d{1,3}(?:[\.,]\d+)?/g)
+    if (nums && nums.length >= 2) {
+      const lat = dd(nums[0]); const lng = dd(nums[1])
       if (isFinite(lat) && isFinite(lng)) return { lat, lng }
     }
     return null
@@ -110,6 +105,7 @@ export default function GestionProyectos() {
   const previewMarkerRef = React.useRef(null)
   const pickerMapRef = React.useRef(null)
   const pickerMarkerRef = React.useRef(null)
+  const programmaticPanRef = React.useRef(false)
 
   useEffect(() => {
     loadData()
@@ -152,6 +148,13 @@ export default function GestionProyectos() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
+    // Parseo y validación para lat/lon
+    if (name === 'latitud' || name === 'longitud') {
+      const n = toNumber(value)
+      const clamped = name === 'latitud' ? clamp(n, -90, 90) : clamp(n, -180, 180)
+      setForm(prev => ({ ...prev, [name]: clamped }))
+      return
+    }
     setForm(prev => ({ ...prev, [name]: value }))
     if (name === 'ubicacion' && addressLocked) {
       // Solo resetear si ya había una dirección validada y ahora el usuario la está cambiando
@@ -301,6 +304,7 @@ export default function GestionProyectos() {
     const hasCoords = typeof form.latitud === 'number' && typeof form.longitud === 'number'
     const center = hasCoords ? [form.latitud, form.longitud] : [-33.45, -70.66]
     if (!pickerMapRef.current) {
+      programmaticPanRef.current = true
       const m = L.map(el, { zoomControl: true, attributionControl: false }).setView(center, hasCoords ? 17 : 5)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(m)
       const marker = L.marker(center, { draggable: true }).addTo(m)
@@ -308,14 +312,26 @@ export default function GestionProyectos() {
         const { lat, lng } = marker.getLatLng()
         setForm(prev => ({ ...prev, latitud: lat, longitud: lng }))
       })
+      // Solo sincronizar coordenadas cuando el usuario mueve el mapa (no en pans programáticos)
+      let userPanning = false
+      m.on('movestart', () => { userPanning = !programmaticPanRef.current })
       m.on('moveend', () => {
         const c = m.getCenter()
-        marker.setLatLng(c)
-        setForm(prev => ({ ...prev, latitud: c.lat, longitud: c.lng }))
+        if (programmaticPanRef.current) {
+          // Consumir el pan programático
+          programmaticPanRef.current = false
+          return
+        }
+        if (userPanning) {
+          marker.setLatLng(c)
+          setForm(prev => ({ ...prev, latitud: c.lat, longitud: c.lng }))
+        }
+        userPanning = false
       })
       pickerMapRef.current = m
       pickerMarkerRef.current = marker
     } else {
+      programmaticPanRef.current = true
       pickerMapRef.current.setView(center, pickerMapRef.current.getZoom() || (hasCoords ? 17 : 5))
       if (pickerMarkerRef.current) pickerMarkerRef.current.setLatLng(center)
     }
@@ -584,7 +600,7 @@ export default function GestionProyectos() {
                     )}
                     {geoState.status === 'error' && <span className="text-red-600">{geoState.msg}</span>}
                   </div>
-                  {(form.latitud && form.longitud) ? (
+                  {(typeof form.latitud === 'number' && typeof form.longitud === 'number') ? (
                     <>
                       <div className="mt-2 w-full h-48 rounded border border-gray-200 overflow-hidden" ref={mapRef}></div>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
@@ -624,16 +640,17 @@ export default function GestionProyectos() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Ingresar coordenadas manualmente</label>
                       <div className="flex gap-2">
-                        <input type="number" step="0.000001" name="latitud" value={form.latitud ?? ''} onChange={handleInputChange} placeholder="Latitud" className="w-1/2 px-3 py-2 border rounded" />
-                        <input type="number" step="0.000001" name="longitud" value={form.longitud ?? ''} onChange={handleInputChange} placeholder="Longitud" className="w-1/2 px-3 py-2 border rounded" />
+                        <input type="number" step="0.000001" name="latitud" value={form.latitud ?? ''} onChange={handleInputChange} placeholder="Latitud" className="w-1/2 px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                        <input type="number" step="0.000001" name="longitud" value={form.longitud ?? ''} onChange={handleInputChange} placeholder="Longitud" className="w-1/2 px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">Puedes usar punto o coma. Validamos el rango automáticamente.</p>
                       <div className="mt-3">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Pegar coordenadas o enlace (Google/OSM)</label>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             placeholder="Ej: -33.578015,-70.708008 o enlace de Google Maps/OSM"
-                            className="flex-1 px-3 py-2 border rounded"
+                            className="flex-1 px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -658,7 +675,7 @@ export default function GestionProyectos() {
                             }}
                           >Aplicar</button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Acepta: "-33.57,-70.70", enlaces con @lat,lng o q=lat,lng, OSM con mlat/mlon, o el formato !3dlat!4dlng.</p>
+                         <p className="text-xs text-gray-500 mt-1">Acepta: "-33.57,-70.70" (punto o coma), enlaces con @lat,lng o q=lat,lng, OSM con mlat/mlon, o el formato !3dlat!4dlng.</p>
                       </div>
                     </div>
                   </div>
