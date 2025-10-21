@@ -113,6 +113,19 @@ export async function updateHousing(id, updates) {
   }
   delete finalUpdates.proyecto_id
 
+  // Whitelist de columnas válidas en 'viviendas' para evitar errores PGRST204
+  const allowedKeys = new Set([
+    'id_proyecto', 'direccion', 'estado', 'fecha_entrega', 'beneficiario_uid', 'tipo_vivienda',
+    'latitud', 'longitud', 'direccion_normalizada', 'geocode_provider', 'geocode_score', 'geocode_at',
+    'metros_cuadrados', 'numero_habitaciones', 'numero_banos', 'observaciones',
+    'recepcion_conforme', 'fecha_recepcion_conforme'
+  ])
+  for (const key of Object.keys(finalUpdates)) {
+    if (!allowedKeys.has(key)) {
+      delete finalUpdates[key]
+    }
+  }
+
   // Evitar enviar campos opcionales nulos cuando la columna pudiera no existir aún
   const optionalKeys = ['metros_cuadrados','numero_habitaciones','numero_banos','observaciones']
   for (const key of optionalKeys) {

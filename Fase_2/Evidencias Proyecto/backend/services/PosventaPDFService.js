@@ -81,13 +81,14 @@ class PosventaPDFService {
 
   generarHTMLFormulario(form, items) {
     const fecha = new Date(form.fecha_enviada || form.fecha_creada).toLocaleDateString('es-CL');
-    const fechaRevision = form.fecha_revisada ? 
+    const fechaRevision = form.fecha_revisada ?
       new Date(form.fecha_revisada).toLocaleDateString('es-CL') : 'Pendiente';
 
     // Agrupar items por categoría
     const itemsPorCategoria = items.reduce((acc, item) => {
-      if (!acc[item.categoria]) acc[item.categoria] = [];
-      acc[item.categoria].push(item);
+      const cat = item.categoria || 'General';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(item);
       return acc;
     }, {});
 
@@ -97,6 +98,10 @@ class PosventaPDFService {
       conProblemas: items.filter(i => !i.ok).length
     };
 
+    // Logo: usar variable de entorno si existe; si no, un SVG inline minimalista
+    const logoSrc = (process.env.TECHO_LOGO_URL || '').trim() ||
+      'data:image/svg+xml;base64,' + Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="220" height="60" viewBox="0 0 220 60"><rect width="220" height="60" fill="white"/><text x="0" y="42" font-family="Lato, Arial, sans-serif" font-size="36" font-weight="700" fill="#1d4ed8">TECHO</text></svg>`).toString('base64');
+
     return `
 <!DOCTYPE html>
 <html lang="es">
@@ -104,373 +109,210 @@ class PosventaPDFService {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Formulario de Posventa - ${form.usuarios.nombre}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #333;
-            line-height: 1.6;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        
-        .header .subtitle {
-            margin-top: 10px;
-            font-size: 16px;
-            opacity: 0.9;
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-        
-        .info-section {
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #2563eb;
-        }
-        
-        .info-section h2 {
-            margin-top: 0;
-            color: #1e40af;
-            font-size: 18px;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
-        }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .info-label {
-            font-weight: bold;
-            color: #475569;
-        }
-        
-        .info-value {
-            color: #1e293b;
-        }
-        
-        .resumen {
-            background: #ecfdf5;
-            border: 2px solid #10b981;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .resumen h2 {
-            color: #047857;
-            margin-top: 0;
-            text-align: center;
-        }
-        
-        .resumen-stats {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .stat-item {
-            flex: 1;
-        }
-        
-        .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            display: block;
-        }
-        
-        .stat-number.ok { color: #059669; }
-        .stat-number.problems { color: #dc2626; }
-        .stat-number.total { color: #2563eb; }
-        
-        .categoria {
-            margin-bottom: 30px;
-            break-inside: avoid;
-        }
-        
-        .categoria h3 {
-            background: #2563eb;
-            color: white;
-            padding: 12px 20px;
-            margin: 0 0 15px 0;
-            border-radius: 6px;
-            font-size: 16px;
-        }
-        
-        .item {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .item-nombre {
-            font-weight: bold;
-            color: #1e293b;
-        }
-        
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        
-        .status-ok {
-            background: #dcfce7;
-            color: #166534;
-        }
-        
-        .status-problema {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        
-        .item-comentario {
-            margin-top: 8px;
-            padding: 8px;
-            background: #f1f5f9;
-            border-radius: 4px;
-            font-style: italic;
-            color: #475569;
-        }
-        
-        .severidad {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        
-        .severidad.menor { background: #fef3c7; color: #92400e; }
-        .severidad.media { background: #fed7aa; color: #c2410c; }
-        .severidad.mayor { background: #fecaca; color: #dc2626; }
-        
-        .fotos-section {
-            margin-top: 10px;
-        }
-        
-        .fotos-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 10px;
-            margin-top: 8px;
-        }
-        
-        .foto-item {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            padding: 8px;
-            text-align: center;
-            font-size: 12px;
-            color: #6b7280;
-        }
-        
-        .footer {
-            margin-top: 40px;
-            padding: 20px;
-            background: #f8fafc;
-            border-radius: 8px;
-            text-align: center;
-            color: #64748b;
-        }
-        
-        @media print {
-            body { margin: 0; }
-            .header { break-inside: avoid; }
-            .categoria { break-inside: avoid; }
-            .item { break-inside: avoid; }
-        }
+      :root{
+        --text:#333;
+        --muted:#777;
+        --primary:#1d4ed8; /* azul */
+        --primary-600:#2563eb;
+        --border:#e5e7eb;
+        --bg:#fafafa;
+        --ok-bg:#E6F7F0;
+        --ok:#067647;
+        --ok-border:#22C55E;
+        --err-bg:#FEEFEF;
+        --err:#B91C1C;
+        --err-border:#EF4444;
+      }
+      *{ box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        font-family: 'Lato', sans-serif;
+        color: var(--text);
+        margin: 0;
+        padding: 24px;
+        line-height: 1.55;
+        background: #fff;
+        padding-bottom: 80px; /* espacio para footer fijo */
+      }
+      .container { max-width: 940px; margin: 0 auto; }
+      /* Encabezado */
+      .header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; margin-bottom: 16px; 
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 12px;
+      }
+      .logo { display:flex; align-items:center; gap: 12px; }
+      .logo img { height: 44px; width: auto; display:block; }
+      .title {
+        text-align: right;
+      }
+      .title h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--primary); }
+      .title .subtitle { margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+      /* KPI resumen */
+      .kpi-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 20px;
+      }
+      .kpi-card {
+        border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: #f8fafc;
+      }
+      .kpi-card.total { background: #f5f5f5; }
+      .kpi-card.ok { background: var(--ok-bg); border-color: var(--ok-border); }
+      .kpi-card.err { background: var(--err-bg); border-color: var(--err-border); }
+      .kpi-title { font-size: 12px; color: var(--muted); margin: 0 0 6px 0; text-transform: uppercase; letter-spacing: .02em; }
+      .kpi-value { font-size: 28px; font-weight: 700; margin: 0; }
+
+      /* Secciones de datos */
+      .section { margin-top: 18px; }
+      .section h2 { font-size: 16px; color: #111827; margin: 0 0 10px 0; }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .card { border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 14px 16px; }
+      .data-row { display: flex; gap: 8px; margin: 6px 0; }
+      .label { min-width: 120px; color: var(--muted); }
+      .value { font-weight: 700; color: #111827; }
+
+      /* Categorías e ítems */
+      .category { margin-top: 18px; break-inside: avoid; }
+      .category h2 { font-size: 16px; color: #111827; margin: 0; }
+      .category hr { border: none; height: 1px; background: var(--border); margin: 8px 0 6px; }
+      .item-card { padding: 16px 0; border-bottom: 1px solid #eee; }
+      .item-row { display:flex; align-items:center; justify-content: space-between; gap: 12px; }
+      .item-name { font-weight: 700; color: #111827; }
+      .item-meta { display:flex; align-items:center; gap: 8px; }
+      .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; text-transform: uppercase; }
+      .badge-ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
+      .badge-problema { background: var(--err-bg); color: var(--err); border-color: var(--err-border); }
+      .sev { font-size: 11px; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; padding: 2px 8px; border-radius: 999px; }
+      .comment { margin-top: 8px; padding: 10px; background: #f1f5f9; color: #475569; border-radius: 8px; font-size: 12px; }
+      .comment .ico { margin-right: 6px; }
+      .photos { margin-top: 10px; }
+      .photos-title { font-weight: 700; font-size: 12px; color: #374151; }
+      .photos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; margin-top: 8px; }
+      .photo-ph { height: 70px; border: 2px dashed #cbd5e1; border-radius: 8px; display:flex; align-items:center; justify-content:center; color: #64748b; font-size: 12px; background: #f8fafc; }
+      .auto-inc { margin-top: 8px; font-size: 12px; color: #7c3aed; }
+
+      /* Footer fijo */
+      .footer {
+        position: fixed; left: 24px; right: 24px; bottom: 12px;
+        font-size: 12px; color: #64748b; display:flex; justify-content: space-between; align-items:center;
+        border-top: 1px solid var(--border); padding-top: 8px;
+      }
+
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .item-card { break-inside: avoid; }
+        .category { break-inside: avoid; }
+      }
     </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📋 Formulario de Posventa</h1>
-        <div class="subtitle">TECHO - Plataforma de Gestión de Viviendas</div>
-    </div>
-
-    <div class="info-grid">
-        <div class="info-section">
-            <h2>👤 Datos del Beneficiario</h2>
-            <div class="info-row">
-                <span class="info-label">Nombre:</span>
-                <span class="info-value">${form.usuarios.nombre}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Email:</span>
-                <span class="info-value">${form.usuarios.email}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">RUT:</span>
-                <span class="info-value">${form.usuarios.rut || 'No registrado'}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Dirección:</span>
-                <span class="info-value">${form.usuarios.direccion || 'No registrada'}</span>
-            </div>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <div class="logo">
+          <img src="${logoSrc}" alt="TECHO"/>
         </div>
-
-        <div class="info-section">
-            <h2>🏠 Datos de la Vivienda</h2>
-            <div class="info-row">
-                <span class="info-label">ID:</span>
-                <span class="info-value">${form.viviendas.id_vivienda}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Dirección:</span>
-                <span class="info-value">${form.viviendas.direccion}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Tipo:</span>
-                <span class="info-value">${form.viviendas.tipo_vivienda || 'No especificado'}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Proyecto:</span>
-                <span class="info-value">${form.viviendas.proyecto?.nombre || 'No asignado'}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Fecha Entrega:</span>
-                <span class="info-value">${form.viviendas.fecha_entrega || 'No registrada'}</span>
-            </div>
+        <div class="title">
+          <h1>Formulario de Posventa</h1>
+          <div class="subtitle">ID Formulario: #${form.id}</div>
         </div>
-    </div>
+      </div>
 
-    <div class="info-grid">
-        <div class="info-section">
-            <h2>📅 Datos del Formulario</h2>
-            <div class="info-row">
-                <span class="info-label">ID Formulario:</span>
-                <span class="info-value">#${form.id}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Estado:</span>
-                <span class="info-value">${form.estado.toUpperCase()}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Fecha Creación:</span>
-                <span class="info-value">${new Date(form.fecha_creada).toLocaleDateString('es-CL')}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Fecha Envío:</span>
-                <span class="info-value">${fecha}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Fecha Revisión:</span>
-                <span class="info-value">${fechaRevision}</span>
-            </div>
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card total">
+          <div class="kpi-title">Total Items</div>
+          <p class="kpi-value">${resumenItems.total}</p>
         </div>
-
-        <div class="info-section">
-            <h2>📊 Template Utilizado</h2>
-            <div class="info-row">
-                <span class="info-label">Versión Template:</span>
-                <span class="info-value">${form.template_version || 'No especificada'}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Items No OK:</span>
-                <span class="info-value">${form.items_no_ok_count}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Observaciones:</span>
-                <span class="info-value">${form.observaciones_count}</span>
-            </div>
+        <div class="kpi-card ok">
+          <div class="kpi-title">Correctos</div>
+          <p class="kpi-value">${resumenItems.correctos}</p>
         </div>
-    </div>
-
-    <div class="resumen">
-        <h2>📈 Resumen del Formulario</h2>
-        <div class="resumen-stats">
-            <div class="stat-item">
-                <span class="stat-number total">${resumenItems.total}</span>
-                <div>Total Items</div>
-            </div>
-            <div class="stat-item">
-                <span class="stat-number ok">${resumenItems.correctos}</span>
-                <div>Correctos</div>
-            </div>
-            <div class="stat-item">
-                <span class="stat-number problems">${resumenItems.conProblemas}</span>
-                <div>Con Problemas</div>
-            </div>
+        <div class="kpi-card err">
+          <div class="kpi-title">Con Problemas</div>
+          <p class="kpi-value">${resumenItems.conProblemas}</p>
         </div>
-    </div>
+      </div>
 
-    ${Object.entries(itemsPorCategoria).map(([categoria, itemsCategoria]) => `
-    <div class="categoria">
-        <h3>🔧 ${categoria}</h3>
-        ${itemsCategoria.map(item => `
-        <div class="item">
-            <div class="item-header">
-                <span class="item-nombre">${item.item}</span>
-                <div>
-                    <span class="status-badge ${item.ok ? 'status-ok' : 'status-problema'}">
-                        ${item.ok ? '✅ OK' : '❌ Problema'}
-                    </span>
-                    ${item.severidad ? `<span class="severidad ${item.severidad}">${item.severidad.toUpperCase()}</span>` : ''}
+      <!-- Datos principales -->
+      <div class="section">
+        <div class="grid-2">
+          <div class="card">
+            <h2>Datos del Beneficiario</h2>
+            <div class="data-row"><span class="label">Nombre:</span><span class="value">${form.usuarios.nombre}</span></div>
+            <div class="data-row"><span class="label">Email:</span><span class="value">${form.usuarios.email}</span></div>
+            <div class="data-row"><span class="label">RUT:</span><span class="value">${form.usuarios.rut || 'No registrado'}</span></div>
+            <div class="data-row"><span class="label">Dirección:</span><span class="value">${form.usuarios.direccion || 'No registrada'}</span></div>
+          </div>
+          <div class="card">
+            <h2>Datos de la Vivienda</h2>
+            <div class="data-row"><span class="label">ID Vivienda:</span><span class="value">${form.viviendas.id_vivienda}</span></div>
+            <div class="data-row"><span class="label">Dirección:</span><span class="value">${form.viviendas.direccion}</span></div>
+            <div class="data-row"><span class="label">Tipo:</span><span class="value">${form.viviendas.tipo_vivienda || 'No especificado'}</span></div>
+            <div class="data-row"><span class="label">Proyecto:</span><span class="value">${form.viviendas.proyecto?.nombre || 'No asignado'}</span></div>
+            <div class="data-row"><span class="label">Fecha Entrega:</span><span class="value">${form.viviendas.fecha_entrega || 'No registrada'}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="card">
+          <h2>Datos del Formulario</h2>
+          <div class="grid-2">
+            <div>
+              <div class="data-row"><span class="label">Estado:</span><span class="value">${(form.estado || '').toString().toUpperCase()}</span></div>
+              <div class="data-row"><span class="label">Fecha Creación:</span><span class="value">${new Date(form.fecha_creada).toLocaleDateString('es-CL')}</span></div>
+              <div class="data-row"><span class="label">Fecha Envío:</span><span class="value">${fecha}</span></div>
+              <div class="data-row"><span class="label">Fecha Revisión:</span><span class="value">${fechaRevision}</span></div>
+            </div>
+            <div>
+              <div class="data-row"><span class="label">Versión Template:</span><span class="value">${form.template_version || 'No especificada'}</span></div>
+              <div class="data-row"><span class="label">Items No OK:</span><span class="value">${form.items_no_ok_count ?? resumenItems.conProblemas}</span></div>
+              <div class="data-row"><span class="label">Observaciones:</span><span class="value">${form.observaciones_count ?? 0}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ítems por categoría -->
+      ${Object.entries(itemsPorCategoria).map(([categoria, itemsCategoria]) => `
+        <div class="category">
+          <h2>${categoria}</h2>
+          <hr/>
+          ${itemsCategoria.map(item => `
+            <div class="item-card">
+              <div class="item-row">
+                <div class="item-name">${item.item}</div>
+                <div class="item-meta">
+                  <span class="badge ${item.ok ? 'badge-ok' : 'badge-problema'}">${item.ok ? 'OK' : 'PROBLEMA'}</span>
+                  ${item.severidad ? `<span class="sev">${String(item.severidad).toUpperCase()}</span>` : ''}
                 </div>
-            </div>
-            ${item.comentario ? `<div class="item-comentario">💬 ${item.comentario}</div>` : ''}
-            ${item.fotos_json && Array.isArray(item.fotos_json) && item.fotos_json.length > 0 ? `
-            <div class="fotos-section">
-                <strong>📸 Fotos adjuntas:</strong>
-                <div class="fotos-grid">
-                    ${item.fotos_json.map((foto, index) => `
-                    <div class="foto-item">📷 Foto ${index + 1}</div>
-                    `).join('')}
+              </div>
+              ${item.comentario ? `<div class="comment"><span class="ico">💬</span>${item.comentario}</div>` : ''}
+              ${(item.fotos_json && Array.isArray(item.fotos_json) && item.fotos_json.length > 0) ? `
+                <div class="photos">
+                  <div class="photos-title">Fotos adjuntas</div>
+                  <div class="photos-grid">
+                    ${item.fotos_json.map((_, idx) => `<div class="photo-ph">📷 Foto ${idx + 1}</div>`).join('')}
+                  </div>
                 </div>
+              ` : ''}
+              ${item.crear_incidencia ? `<div class="auto-inc">🎯 Se creará incidencia automáticamente</div>` : ''}
             </div>
-            ` : ''}
-            ${item.crear_incidencia ? `
-            <div style="margin-top: 8px; font-size: 12px; color: #7c3aed;">
-                🎯 Se creará incidencia automáticamente
-            </div>
-            ` : ''}
+          `).join('')}
         </div>
-        `).join('')}
+      `).join('')}
     </div>
-    `).join('')}
 
     <div class="footer">
-        <p><strong>TECHO - Construyendo dignidad a través de la vivienda</strong></p>
-        <p>Documento generado automáticamente el ${new Date().toLocaleString('es-CL')}</p>
+      <div>TECHO - Construyendo dignidad a través de la vivienda</div>
+      <div>Documento generado el ${new Date().toLocaleDateString('es-CL')}</div>
     </div>
-</body>
-</html>`;
+  </body>
+  </html>`;
   }
 
   async generarPDF(formId) {
