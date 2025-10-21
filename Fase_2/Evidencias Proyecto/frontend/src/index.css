@@ -81,3 +81,24 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ===== ApexCharts: Forzar tooltips legibles en tema oscuro ===== */
+.apexcharts-tooltip {
+  background-color: #111827 !important; /* slate-900 */
+  border: 1px solid #334155 !important;  /* slate-700 */
+  color: #e5e7eb !important;             /* slate-200 */
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05) !important;
+  z-index: 9999 !important;
+}
+.apexcharts-tooltip-title {
+  background-color: #0f172a !important;  /* slate-950 */
+  border-bottom-color: #334155 !important;
+  color: #e5e7eb !important;
+}
+.apexcharts-tooltip * { color: #e5e7eb !important; }
+.apexcharts-xaxistooltip, .apexcharts-yaxistooltip {
+  background-color: #111827 !important;
+  border: 1px solid #334155 !important;
+  color: #e5e7eb !important;
+  z-index: 9999 !important;
+}

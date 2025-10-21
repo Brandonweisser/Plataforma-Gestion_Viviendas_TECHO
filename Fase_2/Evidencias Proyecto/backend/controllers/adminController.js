@@ -185,6 +185,246 @@ export async function getDashboardActivity(req, res) {
   }
 }
 
+/**
+ * Analytics avanzados para KPIs administrativos
+ * Devuelve agregaciones de incidencias (categorías, estado, prioridad, proyectos, técnicos, backlog)
+ */
+export async function getDashboardAnalytics(req, res) {
+  try {
+    const days = Math.max(1, parseInt(req.query.days || '90', 10));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const sinceIso = since.toISOString();
+
+    // Cargar incidencias del periodo con campos mínimos + relación a viviendas/proyecto
+    const selectCols = `id_incidencia,id_vivienda,categoria,estado,prioridad,fecha_reporte,fecha_asignada,fecha_resuelta,fecha_cerrada,id_usuario_tecnico,fecha_limite_atencion,fecha_limite_cierre,fuente,viviendas(id_vivienda,id_proyecto,direccion,proyecto(nombre,id_proyecto))`;
+    const { data: incs, error: errIncs } = await supabase
+      .from('incidencias')
+      .select(selectCols)
+      .gte('fecha_reporte', sinceIso)
+      .order('fecha_reporte', { ascending: false });
+    if (errIncs) throw errIncs;
+
+    // Cargar viviendas para contar por proyecto (ratio)
+    const { data: vivs, error: errVivs } = await supabase
+      .from('viviendas')
+      .select('id_vivienda,id_proyecto');
+    if (errVivs) throw errVivs;
+
+    const viviendasPorProyecto = new Map();
+    (vivs || []).forEach(v => {
+      const pid = v.id_proyecto;
+      if (!pid) return;
+      viviendasPorProyecto.set(pid, (viviendasPorProyecto.get(pid) || 0) + 1);
+    });
+
+    const now = Date.now();
+    const isOpen = (st) => ['abierta','en_proceso','en_espera','open','pendiente'].includes(String(st || '').toLowerCase());
+
+    // Agregaciones
+    const catCount = new Map();
+    const statusCount = new Map();
+    const prioCount = new Map();
+    const projCount = new Map(); // key=proyectoId, {nombre,count}
+    const tecLoad = new Map(); // key=tecnico_uid -> {open, closed30d, total, durResHoras[]}
+    const vivCount = new Map(); // key=viviendaId -> {count,direccion}
+
+    let abiertas = 0, cerradas = 0;
+
+    (incs || []).forEach(i => {
+      const cat = (i.categoria || 'Sin categoría').trim();
+      catCount.set(cat, (catCount.get(cat) || 0) + 1);
+
+      const st = (i.estado || 'desconocido').toLowerCase();
+      statusCount.set(st, (statusCount.get(st) || 0) + 1);
+      if (['cerrada','resuelta'].includes(st)) cerradas++; else if (isOpen(st)) abiertas++;
+
+      const pr = (i.prioridad || 'sin').toLowerCase();
+      prioCount.set(pr, (prioCount.get(pr) || 0) + 1);
+
+      const vivienda = i.viviendas || {};
+      const pid = vivienda?.id_proyecto || vivienda?.proyecto?.id_proyecto;
+      const pnombre = vivienda?.proyecto?.nombre || '—';
+      if (pid) {
+        const prev = projCount.get(pid) || { id: pid, nombre: pnombre, count: 0 };
+        prev.count += 1;
+        projCount.set(pid, prev);
+      }
+
+      // Técnicos
+      const tec = i.id_usuario_tecnico;
+      if (tec) {
+        const prev = tecLoad.get(tec) || { tecnico_uid: tec, open: 0, closed30d: 0, total: 0, durResHoras: [] };
+        prev.total += 1;
+        if (isOpen(st)) prev.open += 1;
+        const fechaCierre = i.fecha_cerrada || i.fecha_resuelta;
+        if (fechaCierre) {
+          const f = new Date(fechaCierre).getTime();
+          if (now - f <= 30 * 24 * 60 * 60 * 1000) prev.closed30d += 1;
+          const fr = new Date(i.fecha_reporte).getTime();
+          if (Number.isFinite(fr) && Number.isFinite(f)) {
+            const horas = (f - fr) / (1000 * 60 * 60);
+            if (horas >= 0) prev.durResHoras.push(horas);
+          }
+        }
+        tecLoad.set(tec, prev);
+      }
+
+      // Viviendas
+      if (i.id_vivienda) {
+        const prevV = vivCount.get(i.id_vivienda) || { id_vivienda: i.id_vivienda, count: 0, direccion: vivienda?.direccion || null };
+        prevV.count += 1;
+        vivCount.set(i.id_vivienda, prevV);
+      }
+    });
+
+    // Backlog por antigüedad (solo abiertas)
+    const buckets = { '0-7d': 0, '8-14d': 0, '15-30d': 0, '31-60d': 0, '61-90d': 0, '90d+': 0 };
+    let sumaAnios = 0, cntAnios = 0;
+    (incs || []).forEach(i => {
+      if (!isOpen(i.estado)) return;
+      const fr = new Date(i.fecha_reporte).getTime();
+      if (!Number.isFinite(fr)) return;
+      const dias = Math.floor((now - fr) / (1000 * 60 * 60 * 24));
+      sumaAnios += dias; cntAnios += 1;
+      if (dias <= 7) buckets['0-7d']++; else if (dias <= 14) buckets['8-14d']++; else if (dias <= 30) buckets['15-30d']++; else if (dias <= 60) buckets['31-60d']++; else if (dias <= 90) buckets['61-90d']++; else buckets['90d+']++;
+    });
+
+    // SLA (si existen fechas límite)
+    let dentroAtencion = 0, totalAtencion = 0, dentroCierre = 0, totalCierre = 0;
+    (incs || []).forEach(i => {
+      if (i.fecha_limite_atencion) {
+        totalAtencion++;
+        if (i.fecha_asignada) {
+          if (new Date(i.fecha_asignada).getTime() <= new Date(i.fecha_limite_atencion).getTime()) dentroAtencion++;
+        }
+      }
+      if (i.fecha_limite_cierre && (i.fecha_cerrada || i.fecha_resuelta)) {
+        totalCierre++;
+        const cierre = new Date(i.fecha_cerrada || i.fecha_resuelta).getTime();
+        if (cierre <= new Date(i.fecha_limite_cierre).getTime()) dentroCierre++;
+      }
+    });
+
+    function sortEntries(map, { asc = false } = {}) {
+      const arr = Array.from(map.entries()).map(([k, v]) => ({ key: k, value: v }));
+      arr.sort((a, b) => asc ? (a.value - b.value) : (b.value - a.value));
+      return arr;
+    }
+
+    const categoriasTop = sortEntries(catCount, { asc: false }).slice(0, 5);
+    const categoriasBottom = sortEntries(catCount, { asc: true }).filter(e => e.key && e.key !== 'Sin categoría').slice(0, 5);
+    const estados = sortEntries(statusCount);
+    const prioridades = sortEntries(prioCount);
+
+    // Proyectos
+    const proyectosTop = Array.from(projCount.values()).sort((a, b) => b.count - a.count).slice(0, 5).map(p => ({ id: p.id, nombre: p.nombre, count: p.count, viviendas: viviendasPorProyecto.get(p.id) || 0, ratioIncPorViv: (viviendasPorProyecto.get(p.id) || 0) > 0 ? p.count / (viviendasPorProyecto.get(p.id) || 1) : null }));
+
+    // Técnicos
+    const tecnicosCarga = Array.from(tecLoad.values()).map(t => ({ ...t, avgResHoras: t.durResHoras.length ? (t.durResHoras.reduce((a, b) => a + b, 0) / t.durResHoras.length) : null }));
+    tecnicosCarga.sort((a, b) => b.open - a.open);
+    const tecnicosTopCarga = tecnicosCarga.slice(0, 5);
+    const tecnicosTopResoluciones = [...tecnicosCarga].sort((a, b) => b.closed30d - a.closed30d).slice(0, 5);
+
+    // Enriquecer con nombres/emails desde 'usuarios'
+    const allTecUidsRaw = Array.from(new Set([
+      ...tecnicosTopCarga.map(t => t.tecnico_uid).filter(Boolean),
+      ...tecnicosTopResoluciones.map(t => t.tecnico_uid).filter(Boolean)
+    ]));
+    const allTecUids = allTecUidsRaw
+      .map(v => (typeof v === 'number' ? v : Number(v)))
+      .filter(v => Number.isFinite(v));
+    const tecInfoMap = new Map();
+    if (allTecUids.length) {
+      try {
+        const { data: tecUsers, error: errTecUsers } = await supabase
+          .from('usuarios')
+          .select('uid,nombre,email')
+          .in('uid', allTecUids);
+        if (!errTecUsers && Array.isArray(tecUsers)) {
+          tecUsers.forEach(u => {
+            const key = typeof u.uid === 'number' ? u.uid : Number(u.uid);
+            tecInfoMap.set(key, { nombre: u.nombre || null, email: u.email || null });
+          });
+        }
+      } catch (e) {
+        console.warn('No se pudo enriquecer nombres de técnicos (continuando):', e.message);
+      }
+    }
+    const attachTecInfo = (arr) => arr.map(t => ({
+      ...t,
+      ...(tecInfoMap.get(typeof t.tecnico_uid === 'number' ? t.tecnico_uid : Number(t.tecnico_uid)) || {})
+    }));
+    let tecnicosTopCargaInfo = attachTecInfo(tecnicosTopCarga);
+    let tecnicosTopResolucionesInfo = attachTecInfo(tecnicosTopResoluciones);
+
+    // Fallback: si no hay actividad en 90 días, devolver técnicos del sistema (rol = 'tecnico') con contadores 0
+    if ((!tecnicosTopCargaInfo.length) && (!tecnicosTopResolucionesInfo.length)) {
+      try {
+        const { data: tusers, error: errTusers } = await supabase
+          .from('usuarios')
+          .select('uid,nombre,email')
+          .eq('rol', 'tecnico')
+          .order('uid', { ascending: true })
+          .limit(5);
+        if (!errTusers && Array.isArray(tusers) && tusers.length) {
+          const defaults = tusers.map(u => ({
+            tecnico_uid: typeof u.uid === 'number' ? u.uid : Number(u.uid),
+            nombre: u.nombre || null,
+            email: u.email || null,
+            open: 0, closed30d: 0, total: 0, avgResHoras: null
+          }));
+          tecnicosTopCargaInfo = defaults;
+          tecnicosTopResolucionesInfo = defaults;
+        }
+      } catch (e) {
+        console.warn('Fallback técnicos sin actividad no disponible:', e.message);
+      }
+    }
+
+    // Viviendas
+    const viviendasTop = Array.from(vivCount.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+
+    res.json({
+      success: true,
+      data: {
+        timeframeDays: days,
+        totals: {
+          incidencias: (incs || []).length,
+          abiertas,
+          cerradas,
+        },
+        categorias: {
+          top: categoriasTop,
+          bottom: categoriasBottom,
+        },
+        estados,
+        prioridades,
+        proyectos: {
+          topReportes: proyectosTop,
+        },
+        tecnicos: {
+          topCarga: tecnicosTopCargaInfo,
+          topResoluciones30d: tecnicosTopResolucionesInfo,
+        },
+        viviendas: {
+          topReportes: viviendasTop,
+        },
+        backlog: {
+          buckets,
+          antiguedadPromedioDias: cntAnios ? (sumaAnios / cntAnios) : null,
+        },
+        sla: {
+          atencionDentro: totalAtencion ? dentroAtencion / totalAtencion : null,
+          cierreDentro: totalCierre ? dentroCierre / totalCierre : null,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo analytics del dashboard:', error);
+    res.status(500).json({ success: false, message: 'Error obteniendo analytics' });
+  }
+}
+
 // ==================== GESTIÓN DE USUARIOS ====================
 
 /**

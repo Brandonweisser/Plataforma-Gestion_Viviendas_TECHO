@@ -900,25 +900,97 @@ export default function HomeBeneficiario() {
           )}
         </SectionPanel>
   {/* Galería simple con 3 imágenes */}
-        <section aria-label="Galería TECHO" className="mt-12">
-          <h3 className="text-base font-semibold text-sky-900 dark:text-sky-100 mb-4">Historias de construcción</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {["voluntariado-1.jpg","voluntariado-2.jpg","construccion-1.jpg"].map((img) => (
-              <div key={img} className="relative rounded-xl overflow-hidden border border-sky-100 dark:border-slate-600 bg-sky-50/40 dark:bg-slate-700/40">
-                <img
-                  src={`${process.env.PUBLIC_URL || ''}/assets/techo/${img}`}
-                  alt="TECHO Chile"
-                  className="h-40 w-full object-cover"
-                  loading="lazy"
-                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `${process.env.PUBLIC_URL || ''}/assets/techo/placeholder.svg`; }}
-                />
+        <section aria-label="Últimas noticias" className="mt-12">
+          <h3 className="text-2xl sm:text-3xl font-bold text-[#241B33] dark:text-white mb-6 text-center">Últimas noticias</h3>
+          {(() => {
+            // Noticias reales desde cl.techo.Sorg/noticias/
+            const posts = [
+              {
+                img: 'https://cl.techo.org/wp-content/uploads/sites/9/2025/09/Grupal-1-1024x683.png',
+                title: 'REPRESENTANTES DE MATTHEI Y JARA SE REÚNEN CON VECINOS DE CAMPAMENTOS EN DIÁLOGO ORGANIZADO POR TECHO-CHILE',
+                date: '2025-09-10',
+                tag: 'COMUNICADOS',
+                url: 'https://cl.techo.org/representantes-de-matthei-y-jara-se-reunen-con-vecinos-de-campamentos-en-dialogo-organizado-por-techo-chile/'
+              },
+              {
+                img: 'https://cl.techo.org/wp-content/uploads/sites/9/2025/06/DSC01221-1024x684.jpg',
+                title: 'LOS CAMPAMENTOS SIGUEN AL ALZA: AUMENTARON EN MÁS DE SEIS MIL FAMILIAS ENTRE 2023 Y 2025',
+                date: '2025-05-06',
+                tag: 'COMUNICADOS',
+                url: 'https://cl.techo.org/los-campamentos-siguen-al-alza-aumentaron-en-mas-de-seis-mil-familias-entre-2023-y-2025/'
+              },
+              {
+                img: 'https://cl.techo.org/wp-content/uploads/sites/9/2025/05/IMG_5583-1024x576.jpg',
+                title: 'DE CAMPAMENTO A CONDOMINIO: INNOVADOR PROYECTO HABITACIONAL DA SOLUCIÓN A 185 FAMILIAS',
+                date: '2025-03-12',
+                tag: 'COMUNICADOS',
+                url: 'https://cl.techo.org/de-campamento-a-condominio-innovador-proyecto-habitacional-da-solucion-a-185-familias/'
+              }
+            ];
+            const fmtDate = (s) => {
+              const d = new Date(s);
+              if (isNaN(d)) return '';
+              const opts = { day: '2-digit', month: 'long', year: 'numeric' };
+              return d.toLocaleDateString('es-CL', opts);
+            };
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {posts.map((p, i) => (
+                  <article key={i} className="group rounded-3xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <a href={p.url} target="_blank" rel="noopener noreferrer" className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+                      <div className="relative">
+                        <img
+                          src={/^https?:\/\//.test(p.img) ? p.img : `${process.env.PUBLIC_URL || ''}/assets/techo/${p.img}`}
+                          alt={p.title}
+                          className="w-full h-52 sm:h-56 object-cover"
+                          loading="lazy"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `${process.env.PUBLIC_URL || ''}/assets/techo/placeholder.svg`; }}
+                        />
+                        {/* Badge de categoría en esquina superior derecha */}
+                        <div className="absolute top-3 right-3">
+                          <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-semibold uppercase bg-sky-100 text-sky-800 border border-sky-200 shadow-sm">
+                            {p.tag}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-4 py-4">
+                        <h4 className="text-[15px] sm:text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white line-clamp-2 group-hover:text-sky-700 dark:group-hover:text-sky-300">
+                          {p.title}
+                        </h4>
+                        <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-300 uppercase tracking-wide">
+                          {fmtDate(p.date)}
+                        </p>
+                      </div>
+                    </a>
+                  </article>
+                ))}
               </div>
-            ))}
+            );
+          })()}
+          {/* Botón Leer más */}
+          <div className="mt-6 flex justify-center">
+            <a
+              href="https://cl.techo.org/noticias/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center px-8 py-3 rounded-2xl bg-[#0098EA] hover:bg-[#0085CC] text-white font-semibold shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0098EA]"
+            >
+              LEER MÁS
+            </a>
           </div>
         </section>
       </div>
       {/* Botón flotante para reportar problema rápido */}
-  <ReportFab label="Involúcrate" href="https://cl.techo.org/" />
+  {/* CTA estilo TECHO, fijo abajo a la derecha */}
+  <ReportFab
+    label="Involúcrate"
+    href="https://cl.techo.org/involucrate/"
+    animate={true}
+    fixed={true}
+    variant="techo"
+    side="right"
+    offset={24}
+  />
     </DashboardLayout>
   );
 }

@@ -288,6 +288,12 @@ export const adminApi = {
   obtenerActividad() {
     return request('/api/admin/dashboard/activity')
   },
+  obtenerAnalytics({ days } = {}) {
+    const params = new URLSearchParams()
+    if (days) params.set('days', String(days))
+    const qs = params.toString()
+    return request(`/api/admin/dashboard/analytics${qs ? `?${qs}` : ''}`)
+  },
 
   // ---- Templates de Postventa ----
   listarTemplates({ tipo_vivienda, activo } = {}) {

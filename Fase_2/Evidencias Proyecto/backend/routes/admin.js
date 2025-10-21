@@ -11,6 +11,7 @@ import {
   adminHealth,
   getDashboardStats,
   getDashboardActivity,
+  getDashboardAnalytics,
   getUsers,
   createUser,
   updateUserById,
@@ -58,6 +59,7 @@ router.get('/health', adminHealth)
 // Dashboard y estadísticas
 router.get('/dashboard/stats', getDashboardStats)
 router.get('/dashboard/activity', getDashboardActivity)
+router.get('/dashboard/analytics', getDashboardAnalytics)
 
 // ==================== GESTIÓN DE USUARIOS ====================
 router.get('/usuarios', getUsers)

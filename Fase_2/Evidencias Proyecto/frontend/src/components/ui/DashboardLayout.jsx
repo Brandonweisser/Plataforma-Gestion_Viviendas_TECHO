@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { ArrowRightOnRectangleIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import FooterTecho from './FooterTecho';
 
 /**
  * DashboardLayout: Contenedor profesional para paneles.
@@ -59,9 +60,8 @@ export function DashboardLayout({ title, subtitle, user, onLogout, children, acc
       <main className="app-container flex-1 py-8 space-y-10" role="main">
         {children}
       </main>
-      <footer className="mt-auto pt-4 pb-8 border-t border-techo-gray-100 dark:border-techo-gray-800 text-center text-xs text-techo-gray-400 dark:text-techo-gray-500">
-        {footer || `© ${new Date().getFullYear()} TECHO – Plataforma`}
-      </footer>
+      {/* Footer global estilo TECHO */}
+      <FooterTecho />
     </div>
   );
 }
