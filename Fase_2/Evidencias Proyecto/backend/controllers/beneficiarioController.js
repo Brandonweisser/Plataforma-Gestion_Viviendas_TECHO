@@ -475,11 +475,27 @@ export async function createPosventaForm(req, res) {
     if (errTpl) throw errTpl
     if (!template?.length) return res.status(400).json({ success:false, message:`No hay template de posventa activo para el tipo de vivienda '${vivienda.tipo_vivienda || 'desconocido'}'` })
     const tpl = template[0]
-    const { data: newFormArr, error: errForm } = await supabase
-      .from('vivienda_postventa_form')
-      .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version }])
-      .select('*')
-    if (errForm) throw errForm
+    let newFormArr = null
+    try {
+      const res = await supabase
+        .from('vivienda_postventa_form')
+        .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version, template_id: tpl.id }])
+        .select('*')
+      if (res.error) throw res.error
+      newFormArr = res.data
+    } catch (e) {
+      if (e?.code === '42703') {
+        // Columna template_id no existe aún: insertar sin ese campo
+        const res2 = await supabase
+          .from('vivienda_postventa_form')
+          .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version }])
+          .select('*')
+        if (res2.error) throw res2.error
+        newFormArr = res2.data
+      } else {
+        throw e
+      }
+    }
     const newForm = newFormArr[0]
     const { data: tplItems, error: errTplItems } = await supabase
       .from('postventa_template_item')
@@ -570,17 +586,41 @@ export async function getPosventaPlans(req, res) {
       .maybeSingle()
     if (errV) throw errV
     if (!vivienda) return res.status(404).json({ success:false, message:'No tienes vivienda asignada' })
-    const { data: formArr, error: errF } = await supabase
-      .from('vivienda_postventa_form')
-      .select('id, template_version')
-      .eq('id_vivienda', vivienda.id_vivienda)
-      .eq('beneficiario_uid', beneficiarioUid)
-      .order('id',{ ascending:false })
-      .limit(1)
-    if (errF) throw errF
+    let formArr = null
+    try {
+      const res = await supabase
+        .from('vivienda_postventa_form')
+        .select('id, template_version, template_id')
+        .eq('id_vivienda', vivienda.id_vivienda)
+        .eq('beneficiario_uid', beneficiarioUid)
+        .order('id',{ ascending:false })
+        .limit(1)
+      if (res.error) throw res.error
+      formArr = res.data
+    } catch (e) {
+      // Fallback si la columna template_id no existe aún
+      if (e?.code === '42703') {
+        const res2 = await supabase
+          .from('vivienda_postventa_form')
+          .select('id, template_version')
+          .eq('id_vivienda', vivienda.id_vivienda)
+          .eq('beneficiario_uid', beneficiarioUid)
+          .order('id',{ ascending:false })
+          .limit(1)
+        if (res2.error) throw res2.error
+        formArr = res2.data
+      } else {
+        throw e
+      }
+    }
     if (!formArr?.length) return res.json({ success:true, data: [] })
     const form = formArr[0]
-    // Resolver template por version y tipo
+    // Si el form ya guarda template_id, usarlo directamente
+    if (form.template_id) {
+      const files = await listTemplatePlans(form.template_id)
+      if (files?.length) return res.json({ success:true, data: files })
+    }
+    // Resolver template por version y tipo (fallback)
     const { data: tplArr, error: errTpl } = await supabase
       .from('postventa_template')
       .select('id, version, tipo_vivienda')
@@ -590,10 +630,44 @@ export async function getPosventaPlans(req, res) {
       .order('id', { ascending: false })
       .limit(1)
     if (errTpl) throw errTpl
-    const tpl = tplArr?.[0]
-    if (!tpl?.id) return res.json({ success:true, data: [] })
-    const files = await listTemplatePlans(tpl.id)
-    return res.json({ success:true, data: files })
+    let tpl = tplArr?.[0] || null
+    let files = []
+    if (tpl?.id) {
+      files = await listTemplatePlans(tpl.id)
+    }
+    // Fallback: buscar cualquier template con la misma versión que tenga archivos
+    if (!files?.length) {
+      const { data: allSameVersion, error: errAll } = await supabase
+        .from('postventa_template')
+        .select('id, version, tipo_vivienda')
+        .eq('version', form.template_version)
+        .order('tipo_vivienda', { ascending: false })
+        .order('id', { ascending: false })
+      if (errAll) throw errAll
+      for (const t of allSameVersion || []) {
+        const f = await listTemplatePlans(t.id)
+        if (f?.length) { files = f; tpl = t; break }
+      }
+    }
+    // Último fallback: template activo más reciente para el tipo de vivienda
+    if (!files?.length) {
+      const { data: activeTpl, error: errAct } = await supabase
+        .from('postventa_template')
+        .select('id, version, tipo_vivienda')
+        .eq('activo', true)
+        .or(`tipo_vivienda.eq.${vivienda.tipo_vivienda || ''},tipo_vivienda.is.null`)
+        .order('tipo_vivienda', { ascending: false })
+        .order('version', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)
+      if (errAct) throw errAct
+      const t = activeTpl?.[0]
+      if (t?.id) {
+        const f = await listTemplatePlans(t.id)
+        if (f?.length) files = f
+      }
+    }
+    return res.json({ success:true, data: files || [] })
   } catch (error) {
     console.error('Error getPosventaPlans:', error)
     return res.status(500).json({ success:false, message:'Error obteniendo planos' })
@@ -638,11 +712,26 @@ export async function resetPosventaForm(req, res) {
     if (!template?.length) return res.status(400).json({ success:false, message:`No hay template de posventa activo para el tipo de vivienda '${vivienda.tipo_vivienda || 'general'}'` })
     const tpl = template[0]
 
-    const { data: newFormArr, error: errForm } = await supabase
-      .from('vivienda_postventa_form')
-      .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version }])
-      .select('*')
-    if (errForm) throw errForm
+    let newFormArr = null
+    try {
+      const res = await supabase
+        .from('vivienda_postventa_form')
+        .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version, template_id: tpl.id }])
+        .select('*')
+      if (res.error) throw res.error
+      newFormArr = res.data
+    } catch (e) {
+      if (e?.code === '42703') {
+        const res2 = await supabase
+          .from('vivienda_postventa_form')
+          .insert([{ id_vivienda: vivienda.id_vivienda, beneficiario_uid: beneficiarioUid, estado:'borrador', template_version: tpl.version }])
+          .select('*')
+        if (res2.error) throw res2.error
+        newFormArr = res2.data
+      } else {
+        throw e
+      }
+    }
     const newForm = newFormArr?.[0]
 
     const { data: tplItems, error: errTplItems } = await supabase

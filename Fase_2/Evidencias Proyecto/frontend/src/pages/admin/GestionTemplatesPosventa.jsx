@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { adminApi } from '../../services/api'
+import { Modal } from '../../components/ui/Modal'
 
 export default function GestionTemplatesPosventa() {
   const [loading, setLoading] = useState(true)
@@ -12,6 +13,7 @@ export default function GestionTemplatesPosventa() {
   const [items, setItems] = useState([])
   const [rooms, setRooms] = useState([])
   const [files, setFiles] = useState([])
+  const [previewPlan, setPreviewPlan] = useState(null)
   const [newTpl, setNewTpl] = useState({ nombre: '', tipo_vivienda: '' })
   // Rooms and items state
   const [newRoom, setNewRoom] = useState({ nombre: '' })
@@ -269,6 +271,9 @@ export default function GestionTemplatesPosventa() {
           {!activeTemplateId && <div className="text-sm text-gray-500">Seleccione un template para gestionar sus planos</div>}
           {activeTemplateId && (
             <>
+              <div className="mb-4 p-3 border border-blue-200 bg-blue-50 text-blue-800 rounded text-sm">
+                Recomendación: para asegurar la visualización en todos los dispositivos y navegadores, sube también una versión <strong>PDF</strong> del plano. Los formatos DWG intentaremos mostrarlos con un visor online, pero pueden no funcionar en todos los casos.
+              </div>
               <div className="flex items-center gap-3 mb-3">
                 <input type="file" accept=".pdf,.dwg,.png,.jpg,.jpeg" onChange={async (e)=>{
                   const f = e.target.files?.[0]; if (!f) return;
@@ -286,15 +291,72 @@ export default function GestionTemplatesPosventa() {
                 {(files||[]).map(f => (
                   <li key={f.id} className="py-2 flex items-center justify-between">
                     <div className="text-sm text-gray-700 dark:text-gray-200 truncate">{f.url.split('/').pop()}</div>
-                    <a className="text-blue-600 text-sm" href={f.url} target="_blank" rel="noreferrer">Ver/Descargar</a>
+                    <div className="flex items-center gap-2">
+                      <button className="text-sm px-2 py-1 border rounded" onClick={()=>setPreviewPlan(f)}>Previsualizar</button>
+                      <a className="text-blue-600 text-sm" href={f.url} target="_blank" rel="noreferrer">Abrir</a>
+                      <button className="text-sm px-2 py-1 border border-red-300 text-red-700 rounded" onClick={async ()=>{
+                        if (!(window && window.confirm && window.confirm('¿Eliminar este archivo?'))) return;
+                        try {
+                          setLoading(true); setError(''); setSuccess('')
+                          await adminApi.eliminarArchivoTemplate(activeTemplateId, f.id)
+                          const rf = await adminApi.listarArchivosTemplate(activeTemplateId)
+                          setFiles(rf.data || [])
+                          setSuccess('Archivo eliminado')
+                        } catch (er) { setError(er.message || 'Error eliminando archivo') }
+                        finally { setLoading(false) }
+                      }}>Eliminar</button>
+                    </div>
                   </li>
                 ))}
                 {(!files||!files.length) && <li className="py-2 text-sm text-gray-500">Aún no hay archivos</li>}
               </ul>
+              {/* Modal de previsualización */}
+              <PlanPreviewModal open={!!previewPlan} plan={previewPlan} onClose={()=>setPreviewPlan(null)} />
             </>
           )}
         </SectionPanel>
       </div>
     </DashboardLayout>
+  )
+}
+
+function PlanPreviewModal({ open, onClose, plan }) {
+  if (!open) return null
+  const url = plan?.url || ''
+  const mime = (plan?.mime || '').toLowerCase()
+  const isPdf = mime.includes('pdf') || url.toLowerCase().endsWith('.pdf')
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(url)
+  const cadViewerUrl = url ? `https://sharecad.org/cadframe/load?url=${encodeURIComponent(url)}` : ''
+
+  return (
+    <Modal isOpen={open} onClose={onClose} maxWidth="max-w-5xl">
+      <div className="p-4 border-b flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800">Plano del template</h3>
+        <div className="flex items-center gap-2">
+          {url ? (
+            <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm hover:bg-slate-200">Abrir en pestaña</a>
+          ) : null}
+          <button onClick={onClose} className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm">Cerrar</button>
+        </div>
+      </div>
+      <div className="p-4">
+        {isPdf ? (
+          <iframe title="Plano PDF" src={url} className="w-full h-[80vh] border rounded" />
+        ) : isImage ? (
+          <div className="w-full flex items-center justify-center">
+            <img src={url} alt="Plano" className="max-h-[80vh] w-auto object-contain" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-6 text-sm text-gray-700">
+              No se puede previsualizar este tipo de archivo de forma nativa. Intentaremos usar un visor CAD online.
+            </div>
+            {cadViewerUrl ? (
+              <iframe title="Plano CAD" src={cadViewerUrl} className="w-full h-[80vh] border rounded" />
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }

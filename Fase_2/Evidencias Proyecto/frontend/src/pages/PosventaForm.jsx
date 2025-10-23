@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { DashboardLayout } from '../components/ui/DashboardLayout';
 import { SectionPanel } from '../components/ui/SectionPanel';
 import { PhotoIcon } from '@heroicons/react/24/outline';
+import { Modal } from '../components/ui/Modal';
 
 // Este componente ahora refleja la versión "plantilla" inmutable:
 // - Ya no se pueden agregar ni eliminar ítems.
@@ -22,6 +23,8 @@ export default function PosventaFormPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploadingItemId, setUploadingItemId] = useState(null);
+  const [planos, setPlanos] = useState([]);
+  const [openPlan, setOpenPlan] = useState(false);
   // Secciones estáticas (sin expand/collapse por categoría)
 
   const load = useCallback(async (autoCreate = true) => {
@@ -34,7 +37,15 @@ export default function PosventaFormPage() {
           try {
             await beneficiarioApi.posventaCrearForm();
             const r2 = await beneficiarioApi.posventaGetForm();
-            if (r2.data) { setFormState(r2.data); setLocalItems(r2.data.items || []); return; }
+            if (r2.data) {
+              setFormState(r2.data); setLocalItems(r2.data.items || []);
+              // Cargar planos del template asociado (nuevo formulario)
+              try {
+                const pf = await beneficiarioApi.posventaListarPlanos();
+                setPlanos(pf.data || []);
+              } catch (_) { /* no bloquear */ }
+              return;
+            }
           } catch (eCreate) {
             setError(eCreate.message || 'No se pudo crear el formulario automáticamente');
           }
@@ -42,6 +53,10 @@ export default function PosventaFormPage() {
         setFormState(null); setLocalItems([]);
       } else {
         setFormState(r.data); setLocalItems(r.data.items || []);
+        try {
+          const pf = await beneficiarioApi.posventaListarPlanos();
+          setPlanos(pf.data || [])
+        } catch (e) { /* opcional: no bloquear */ }
       }
     } catch (e) {
       setError(e.message || 'Error cargando formulario');
@@ -150,6 +165,9 @@ export default function PosventaFormPage() {
             description={estado === 'borrador' ? 'Puedes editar y guardar los ítems.' : 'Formulario enviado. Pendiente revisión técnica.'}
           >
             <div className="flex flex-wrap gap-3 mb-5">
+              {planos?.length ? (
+                <button className="btn-outline btn-sm" onClick={() => setOpenPlan(true)}>Ver plano</button>
+              ) : null}
               {isBorrador && (
                 <>
                   <button className="btn-primary btn-sm" onClick={guardarItems} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
@@ -242,6 +260,48 @@ export default function PosventaFormPage() {
           </SectionPanel>
         </>
       )}
+      <PlanPreviewModal open={openPlan} onClose={() => setOpenPlan(false)} plan={planos?.[0]} />
     </DashboardLayout>
   );
+}
+
+function PlanPreviewModal({ open, onClose, plan }) {
+  if (!open) return null
+  const url = plan?.url || ''
+  const mime = (plan?.mime || '').toLowerCase()
+  const isPdf = mime.includes('pdf') || url.toLowerCase().endsWith('.pdf')
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(url)
+  const cadViewerUrl = url ? `https://sharecad.org/cadframe/load?url=${encodeURIComponent(url)}` : ''
+
+  return (
+    <Modal isOpen={open} onClose={onClose} maxWidth="max-w-5xl">
+      <div className="p-4 border-b flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800">Plano del template</h3>
+        <div className="flex items-center gap-2">
+          {url ? (
+            <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm hover:bg-slate-200">Abrir en pestaña</a>
+          ) : null}
+          <button onClick={onClose} className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm">Cerrar</button>
+        </div>
+      </div>
+      <div className="p-4">
+        {isPdf ? (
+          <iframe title="Plano PDF" src={url} className="w-full h-[80vh] border rounded" />
+        ) : isImage ? (
+          <div className="w-full flex items-center justify-center">
+            <img src={url} alt="Plano" className="max-h-[80vh] w-auto object-contain" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-6 text-sm text-gray-700">
+              No se puede previsualizar este tipo de archivo de forma nativa. Intentaremos usar un visor CAD online.
+            </div>
+            {cadViewerUrl ? (
+              <iframe title="Plano CAD" src={cadViewerUrl} className="w-full h-[80vh] border rounded" />
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
 }

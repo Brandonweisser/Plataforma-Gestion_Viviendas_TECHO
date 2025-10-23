@@ -787,31 +787,66 @@ export async function listPosventaFormPlans(req, res) {
     if (!formId) return res.status(400).json({ success:false, message:'ID inválido' })
 
     // Obtener form con vivienda para validar acceso (misma lógica de getPosventaFormDetail)
-    let query = supabase
-      .from('vivienda_postventa_form')
-      .select(`
-        id, id_vivienda, template_version,
-        viviendas: id_vivienda ( id_vivienda, tipo_vivienda, id_proyecto )
-      `)
-      .eq('id', formId)
+    let form = null
+    // Intentar seleccionar con template_id; si no existe la columna, hacer fallback sin ella
+    try {
+      let query = supabase
+        .from('vivienda_postventa_form')
+        .select(`
+          id, id_vivienda, template_version, template_id,
+          viviendas: id_vivienda ( id_vivienda, tipo_vivienda, id_proyecto )
+        `)
+        .eq('id', formId)
 
-    if (userRole !== 'administrador') {
-      const { data: projects, error: errP } = await supabase
-        .from('proyecto_tecnico')
-        .select('id_proyecto')
-        .eq('tecnico_uid', tecnicoUid)
-      if (errP) throw errP
-      const projectIds = (projects || []).map(p => p.id_proyecto)
-      if (!projectIds.length) return res.status(403).json({ success:false, message:'Sin acceso' })
-      query = query.in('viviendas.id_proyecto', projectIds)
+      if (userRole !== 'administrador') {
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const projectIds = (projects || []).map(p => p.id_proyecto)
+        if (!projectIds.length) return res.status(403).json({ success:false, message:'Sin acceso' })
+        query = query.in('viviendas.id_proyecto', projectIds)
+      }
+
+      const { data: f, error: formErr } = await query.single()
+      if (formErr) throw formErr
+      form = f
+    } catch (e) {
+      if (e?.code === '42703') {
+        let query = supabase
+          .from('vivienda_postventa_form')
+          .select(`
+            id, id_vivienda, template_version,
+            viviendas: id_vivienda ( id_vivienda, tipo_vivienda, id_proyecto )
+          `)
+          .eq('id', formId)
+        if (userRole !== 'administrador') {
+          const { data: projects, error: errP } = await supabase
+            .from('proyecto_tecnico')
+            .select('id_proyecto')
+            .eq('tecnico_uid', tecnicoUid)
+          if (errP) throw errP
+          const projectIds = (projects || []).map(p => p.id_proyecto)
+          if (!projectIds.length) return res.status(403).json({ success:false, message:'Sin acceso' })
+          query = query.in('viviendas.id_proyecto', projectIds)
+        }
+        const { data: f, error: formErr } = await query.single()
+        if (formErr) throw formErr
+        form = f
+      } else {
+        throw e
+      }
     }
-
-    const { data: form, error: formErr } = await query.single()
-    if (formErr) throw formErr
 
     // Resolver template por version y tipo_vivienda (como en beneficiarioController)
     const tipoViv = form?.viviendas?.tipo_vivienda || null
     const version = form?.template_version || null
+    // Si tenemos template_id guardado en el form, usarlo primero
+    if (form?.template_id) {
+      const files = await listTemplatePlans(form.template_id)
+      if (files?.length) return res.json({ success:true, data: files })
+    }
     const { data: tplArr, error: errTpl } = await supabase
       .from('postventa_template')
       .select('id, version, tipo_vivienda')
@@ -821,11 +856,42 @@ export async function listPosventaFormPlans(req, res) {
       .order('id', { ascending: false })
       .limit(1)
     if (errTpl) throw errTpl
-    const tpl = tplArr?.[0]
-    if (!tpl?.id) return res.json({ success:true, data: [] })
-
-    const files = await listTemplatePlans(tpl.id)
-    return res.json({ success:true, data: files })
+    let tpl = tplArr?.[0] || null
+    let files = []
+    if (tpl?.id) files = await listTemplatePlans(tpl.id)
+    // Fallback: cualquier template con misma versión que tenga archivos
+    if (!files?.length && version) {
+      const { data: allSameVersion, error: errAll } = await supabase
+        .from('postventa_template')
+        .select('id, version, tipo_vivienda')
+        .eq('version', version)
+        .order('tipo_vivienda', { ascending: false })
+        .order('id', { ascending: false })
+      if (errAll) throw errAll
+      for (const t of allSameVersion || []) {
+        const f = await listTemplatePlans(t.id)
+        if (f?.length) { files = f; tpl = t; break }
+      }
+    }
+    // Último fallback: template activo del tipo de vivienda
+    if (!files?.length) {
+      const { data: activeTpl, error: errAct } = await supabase
+        .from('postventa_template')
+        .select('id, version, tipo_vivienda')
+        .eq('activo', true)
+        .or(`tipo_vivienda.eq.${tipoViv || ''},tipo_vivienda.is.null`)
+        .order('tipo_vivienda', { ascending: false })
+        .order('version', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)
+      if (errAct) throw errAct
+      const t = activeTpl?.[0]
+      if (t?.id) {
+        const f = await listTemplatePlans(t.id)
+        if (f?.length) files = f
+      }
+    }
+    return res.json({ success:true, data: files || [] })
   } catch (error) {
     console.error('Error listando planos del formulario:', error)
     return res.status(500).json({ success:false, message:'Error listando planos' })

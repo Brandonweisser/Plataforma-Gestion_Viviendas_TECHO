@@ -6,6 +6,28 @@ import { supabase } from '../supabaseClient.js'
 const DEFAULT_BUCKET = process.env.MEDIA_BUCKET || 'incidencias'
 const PLANOS_BUCKET = process.env.PLANOS_BUCKET || 'planos'
 
+async function ensureStorageBucket(bucket, options = { public: true }) {
+  try {
+    // Verificar si el bucket existe
+    const { data: existing, error: getErr } = await supabase.storage.getBucket(bucket)
+    if (existing && !getErr) return true
+  } catch (_) {
+    // si falla getBucket, intentamos crear
+  }
+  try {
+    const { error: createErr } = await supabase.storage.createBucket(bucket, options)
+    if (createErr) {
+      // Si ya existe, ignoramos; otros errores se propagan
+      const msg = createErr?.message || ''
+      if (!/exists|already/i.test(msg)) throw createErr
+    }
+    return true
+  } catch (e) {
+    // No pudimos garantizar el bucket; se propagará y el caller decidirá
+    throw e
+  }
+}
+
 async function urlFor(path, bucket = DEFAULT_BUCKET) {
   try {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
@@ -90,6 +112,9 @@ export async function uploadTemplatePlan(templateId, file, uploaderUid) {
   const fileName = `${Date.now()}_${sanitizeFilename(file.originalname || 'plano')}`
   const storagePath = `templates/${templateId}/${fileName}`
 
+  // Asegurar que el bucket para planos exista (crea si no existe)
+  await ensureStorageBucket(PLANOS_BUCKET, { public: true })
+
   const { error: upErr } = await supabase
     .storage
     .from(PLANOS_BUCKET)
@@ -105,4 +130,33 @@ export async function uploadTemplatePlan(templateId, file, uploaderUid) {
 
   const url = await urlFor(row.path, PLANOS_BUCKET)
   return { id: row.id, url: url || row.path, mime: row.mime, bytes: row.bytes, created_at: row.created_at }
+}
+
+export async function deleteTemplatePlan(templateId, fileId) {
+  // Buscar el registro para obtener el path
+  const { data: row, error: selErr } = await supabase
+    .from('media')
+    .select('id, path')
+    .eq('entity_type', 'postventa_template')
+    .eq('entity_id', templateId)
+    .eq('id', fileId)
+    .single()
+  if (selErr) throw selErr
+  if (!row) return { success: false, message: 'Archivo no encontrado' }
+
+  // Eliminar del storage (ignorar error si no existe)
+  try {
+    await ensureStorageBucket(PLANOS_BUCKET, { public: true })
+    await supabase.storage.from(PLANOS_BUCKET).remove([row.path])
+  } catch (_) {}
+
+  // Eliminar metadata de DB
+  const { error: delErr } = await supabase
+    .from('media')
+    .delete()
+    .eq('id', fileId)
+    .eq('entity_type', 'postventa_template')
+    .eq('entity_id', templateId)
+  if (delErr) throw delErr
+  return { success: true }
 }

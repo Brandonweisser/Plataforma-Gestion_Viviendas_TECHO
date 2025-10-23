@@ -3,7 +3,7 @@
  */
 import { supabase } from '../supabaseClient.js'
 import multer from 'multer'
-import { listTemplatePlans, uploadTemplatePlan } from '../services/MediaService.js'
+import { listTemplatePlans, uploadTemplatePlan, deleteTemplatePlan } from '../services/MediaService.js'
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 function runMulter(req, res) {
@@ -275,6 +275,19 @@ export async function uploadTemplateFile(req, res) {
   } catch (error) {
     console.error('Error subiendo plano del template:', error)
     return res.status(500).json({ success:false, message:'Error subiendo archivo' })
+  }
+}
+
+export async function deleteTemplateFile(req, res) {
+  try {
+    const templateId = Number(req.params.id)
+    const fileId = Number(req.params.fileId)
+    if (!templateId || !fileId) return res.status(400).json({ success:false, message:'Parámetros inválidos' })
+    await deleteTemplatePlan(templateId, fileId)
+    return res.json({ success:true })
+  } catch (error) {
+    console.error('Error eliminando plano del template:', error)
+    return res.status(500).json({ success:false, message:'Error eliminando archivo' })
   }
 }
 

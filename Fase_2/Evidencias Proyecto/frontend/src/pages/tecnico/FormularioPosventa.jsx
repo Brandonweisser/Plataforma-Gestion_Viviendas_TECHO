@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { tecnicoApi } from '../../services/api';
+import { Modal } from '../../components/ui/Modal';
 
 export default function FormularioPosventa() {
   const { id } = useParams();
@@ -10,6 +11,7 @@ export default function FormularioPosventa() {
   const [modoIncidencias, setModoIncidencias] = useState('separadas');
   const [error, setError] = useState(null);
   const [planos, setPlanos] = useState([]);
+  const [openPlan, setOpenPlan] = useState(false);
 
   const fetchFormulario = useCallback(async () => {
     try {
@@ -215,7 +217,7 @@ export default function FormularioPosventa() {
             </div>
             <div className="flex items-center space-x-4">
               {planos?.length ? (
-                <a href={planos[0].url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">Ver plano</a>
+                <button onClick={() => setOpenPlan(true)} className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">Ver plano</button>
               ) : null}
               <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(formulario.estado)}`}>
                 {formulario.estado.toUpperCase()}
@@ -375,6 +377,50 @@ export default function FormularioPosventa() {
           </div>
         )}
       </div>
+      {/* Modal de plano */}
+      <PlanPreviewModal open={openPlan} onClose={() => setOpenPlan(false)} plan={planos?.[0]} />
     </div>
   );
+}
+
+// Modal de previsualización del plano
+function PlanPreviewModal({ open, onClose, plan }) {
+  if (!open) return null
+  const url = plan?.url || ''
+  const mime = (plan?.mime || '').toLowerCase()
+  const isPdf = mime.includes('pdf') || url.toLowerCase().endsWith('.pdf')
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(url)
+  const cadViewerUrl = url ? `https://sharecad.org/cadframe/load?url=${encodeURIComponent(url)}` : ''
+
+  return (
+    <Modal isOpen={open} onClose={onClose} maxWidth="max-w-5xl">
+      <div className="p-4 border-b flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800">Plano del template</h3>
+        <div className="flex items-center gap-2">
+          {url ? (
+            <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-slate-100 text-slate-700 text-sm hover:bg-slate-200">Abrir en pestaña</a>
+          ) : null}
+          <button onClick={onClose} className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm">Cerrar</button>
+        </div>
+      </div>
+      <div className="p-4">
+        {isPdf ? (
+          <iframe title="Plano PDF" src={url} className="w-full h-[80vh] border rounded" />
+        ) : isImage ? (
+          <div className="w-full flex items-center justify-center">
+            <img src={url} alt="Plano" className="max-h-[80vh] w-auto object-contain" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-6 text-sm text-gray-700">
+              No se puede previsualizar este tipo de archivo de forma nativa. Intentaremos usar un visor CAD online.
+            </div>
+            {cadViewerUrl ? (
+              <iframe title="Plano CAD" src={cadViewerUrl} className="w-full h-[80vh] border rounded" />
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
 }

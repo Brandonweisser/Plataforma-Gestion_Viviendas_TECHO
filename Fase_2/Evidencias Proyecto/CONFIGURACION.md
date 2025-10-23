@@ -19,7 +19,8 @@ Esta estructura mejora significativamente la mantenibilidad y escalabilidad del 
 ```env
 # Configuración de Supabase
 SUPABASE_URL=https://[tu-proyecto].supabase.co
-SUPABASE_SERVICE_ROLE_KEY=[tu-service-role-key]
+# Clave recomendada: usar la Service Role Key en SUPABASE_KEY (así la usa el backend actualmente).
+SUPABASE_KEY=[tu-service-role-key]
 SUPABASE_ANON_KEY=[tu-anon-key]
 
 # Configuración JWT
@@ -32,6 +33,11 @@ NODE_ENV=development
 # Configuración de Recuperación de Contraseñas
 RECOVERY_ALLOWED_ROLES=beneficiario
 BCRYPT_SALT_ROUNDS=10
+
+# Storage de Planos (opcional)
+# Nombre del bucket de Supabase Storage para guardar planos de templates de postventa.
+# Si no se define, el sistema usará 'planos' por defecto.
+PLANOS_BUCKET=planos
 ```
 
 ### Frontend
@@ -58,7 +64,16 @@ El frontend se configura automáticamente para conectar con el backend en `http:
 ### 4. Configurar Storage
 1. Ir a Storage en Supabase
 2. Crear bucket público llamado "media"
-3. Configurar políticas de acceso según necesidades
+3. Crear bucket para planos llamado "planos" (o el nombre definido en PLANOS_BUCKET)
+4. Configurar políticas de acceso según necesidades
+
+Sugerencia de configuración para el bucket de planos:
+- Para simplicidad, se puede dejar el bucket como público y el backend generará URLs públicas.
+- Si prefieres URLs firmadas, puedes mantener el bucket privado y el backend intentará generar Signed URLs al listar archivos. En ese caso, asegúrate de que `SUPABASE_SERVICE_ROLE_KEY` esté configurado y accesible en el backend.
+
+Notas:
+- El sistema guarda los planos asociados a Templates de Postventa bajo `entity_type = 'postventa_template'` en la tabla `media`.
+- Al subir un plano desde el panel de Admin → Templates de Posventa, el archivo se guarda en el bucket de `PLANOS_BUCKET` y se registra su metadata en la tabla `media`.
 
 ## Configuración de Desarrollo
 

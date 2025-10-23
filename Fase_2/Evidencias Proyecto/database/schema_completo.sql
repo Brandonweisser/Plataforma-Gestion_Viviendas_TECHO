@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS vivienda_postventa_form (
     id BIGSERIAL PRIMARY KEY,
     id_vivienda BIGINT NOT NULL REFERENCES viviendas(id_vivienda) ON DELETE CASCADE,
     beneficiario_uid BIGINT NOT NULL REFERENCES usuarios(uid) ON DELETE RESTRICT,
+    template_id BIGINT REFERENCES postventa_template(id) ON DELETE SET NULL,
     estado TEXT NOT NULL CHECK (estado IN ('borrador','enviada','revisado_correcto','revisado_con_problemas')),
     fecha_creada TIMESTAMPTZ NOT NULL DEFAULT now(),
     fecha_enviada TIMESTAMPTZ,
@@ -311,6 +312,7 @@ CREATE INDEX IF NOT EXISTS idx_recepcion_item_recepcion ON vivienda_recepcion_it
 -- Postventa
 CREATE INDEX IF NOT EXISTS idx_postventa_vivienda ON vivienda_postventa_form(id_vivienda);
 CREATE INDEX IF NOT EXISTS idx_postventa_beneficiario ON vivienda_postventa_form(beneficiario_uid);
+CREATE INDEX IF NOT EXISTS idx_postventa_form_template_id ON vivienda_postventa_form(template_id);
 CREATE INDEX IF NOT EXISTS idx_postventa_item_form ON vivienda_postventa_item(form_id);
 CREATE INDEX IF NOT EXISTS idx_postventa_template_tipo ON postventa_template(tipo_vivienda, activo);
 CREATE INDEX IF NOT EXISTS idx_postventa_template_item_template ON postventa_template_item(template_id);

@@ -158,6 +158,9 @@ export const beneficiarioApi = {
       throw error
     }
     return data
+  },
+  posventaListarPlanos() {
+    return request('/api/beneficiario/posventa/planos')
   }
 }
 
@@ -323,6 +326,9 @@ export const adminApi = {
   },
   listarArchivosTemplate(templateId) {
     return request(`/api/admin/postventa/templates/${templateId}/files`)
+  },
+  eliminarArchivoTemplate(templateId, fileId) {
+    return request(`/api/admin/postventa/templates/${templateId}/files/${fileId}`, { method: 'DELETE' })
   },
   async subirArchivoTemplate(templateId, file) {
     const form = new FormData()

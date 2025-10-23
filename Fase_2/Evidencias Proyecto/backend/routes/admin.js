@@ -109,8 +109,9 @@ router.put('/postventa/templates/:id/rooms/:roomId', updateRoom)
 router.delete('/postventa/templates/:id/rooms/:roomId', deleteRoom)
 
 // Archivos (planos) por template
-import { listTemplateFiles, uploadTemplateFile } from '../controllers/postventaTemplateController.js'
+import { listTemplateFiles, uploadTemplateFile, deleteTemplateFile } from '../controllers/postventaTemplateController.js'
 router.get('/postventa/templates/:id/files', listTemplateFiles)
 router.post('/postventa/templates/:id/files', uploadTemplateFile)
+router.delete('/postventa/templates/:id/files/:fileId', deleteTemplateFile)
 
 export default router
