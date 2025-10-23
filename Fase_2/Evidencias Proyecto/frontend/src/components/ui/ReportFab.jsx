@@ -60,7 +60,7 @@ export function ReportFab({
       window.removeEventListener('scroll', onScroll)
       if (idleTimer) window.clearTimeout(idleTimer)
     }
-  }, [autoHideOnScroll, hideDirection, scrollDelta])
+  }, [autoHideOnScroll, hideDirection, scrollDelta, idleMs, showOnIdle])
   const base = [
     'group',
     'inline-flex items-center gap-2 px-6 h-12 rounded-full',

@@ -175,6 +175,9 @@ export const tecnicoApi = {
     if (asignacion) params.set('asignacion', asignacion)
     return request(`/api/tecnico/incidencias?${params.toString()}`)
   },
+  planosFormularioPosventa(id) {
+    return request(`/api/tecnico/posventa/form/${id}/planos`)
+  },
   detalleIncidencia(id) {
     return request(`/api/tecnico/incidencias/${id}`)
   },
@@ -224,6 +227,9 @@ export const adminApi = {
   },
   eliminarUsuario(id) {
     return request(`/api/admin/usuarios/${id}`, { method: 'DELETE' })
+  },
+  invitarUsuario({ email, nombre, rol }) {
+    return request('/api/admin/usuarios/invitar', { method: 'POST', body: JSON.stringify({ email, nombre, rol }) })
   },
   
   // Gestión de proyectos
@@ -315,6 +321,17 @@ export const adminApi = {
   listarItemsTemplate(templateId) {
     return request(`/api/admin/postventa/templates/${templateId}/items`)
   },
+  listarArchivosTemplate(templateId) {
+    return request(`/api/admin/postventa/templates/${templateId}/files`)
+  },
+  async subirArchivoTemplate(templateId, file) {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE_URL}/api/admin/postventa/templates/${templateId}/files`, { method: 'POST', headers: { ...authHeaders() }, body: form })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || data.success === false) { const err = new Error(data.message || 'Error subiendo archivo'); err.data = data; throw err }
+    return data
+  },
   agregarItemsTemplate(templateId, items) {
     return request(`/api/admin/postventa/templates/${templateId}/items`, { method: 'POST', body: JSON.stringify({ items }) })
   },
@@ -336,5 +353,26 @@ export const adminApi = {
   },
   eliminarRoom(templateId, roomId) {
     return request(`/api/admin/postventa/templates/${templateId}/rooms/${roomId}`, { method: 'DELETE' })
+  }
+}
+
+// Invitaciones públicas
+export const invitationApi = {
+  validar(token) {
+    const params = new URLSearchParams({ token })
+    return request(`/api/invite/validate?${params.toString()}`)
+  },
+  aceptar({ token, password, nombre }) {
+    return request('/api/invite/accept', { method: 'POST', body: JSON.stringify({ token, password, nombre }) })
+  }
+}
+
+// Setup inicial
+export const setupApi = {
+  estado() {
+    return request('/api/setup/estado')
+  },
+  crearPrimerAdmin({ email, password, nombre }) {
+    return request('/api/setup/primer-admin', { method: 'POST', body: JSON.stringify({ email, password, nombre }) })
   }
 }

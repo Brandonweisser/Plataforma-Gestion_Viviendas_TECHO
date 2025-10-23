@@ -18,25 +18,25 @@ export default function GestionProyectos() {
     const s = String(text).trim()
     const dd = (t) => parseFloat(String(t).replace(',', '.'))
     // 1) Par "lat,lng" (con punto o coma)
-    let m = s.match(/(-?\d{1,3}[\.,]\d+)\s*[,;\s]\s*(-?\d{1,3}[\.,]\d+)/)
+  let m = s.match(/(-?\d{1,3}[.,]\d+)\s*[,;\s]\s*(-?\d{1,3}[.,]\d+)/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 2) Google Maps URL con @lat,lng,zoomz
-    m = s.match(/@(-?\d{1,3}[\.,]\d+),(-?\d{1,3}[\.,]\d+),\d+(?:\.\d+)?z/)
+  m = s.match(/@(-?\d{1,3}[.,]\d+),(-?\d{1,3}[.,]\d+),\d+(?:\.\d+)?z/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 3) Google Maps con q=lat,lng
-    m = s.match(/[?&]q=(-?\d{1,3}[\.,]\d+),(-?\d{1,3}[\.,]\d+)/)
+  m = s.match(/[?&]q=(-?\d{1,3}[.,]\d+),(-?\d{1,3}[.,]\d+)/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 4) Google !3dlat!4dlng
-    m = s.match(/!3d(-?\d{1,3}[\.,]\d+)!4d(-?\d{1,3}[\.,]\d+)/)
+  m = s.match(/!3d(-?\d{1,3}[.,]\d+)!4d(-?\d{1,3}[.,]\d+)/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 5) OSM mlat/mlon
-    m = s.match(/[?&]mlat=(-?\d{1,3}[\.,]\d+).*?[&]mlon=(-?\d{1,3}[\.,]\d+)/)
+  m = s.match(/[?&]mlat=(-?\d{1,3}[.,]\d+).*?[&]mlon=(-?\d{1,3}[.,]\d+)/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 6) OSM #map=zoom/lat/lon
-    m = s.match(/#map=\d+\/(-?\d{1,3}[\.,]\d+)\/(-?\d{1,3}[\.,]\d+)/)
+  m = s.match(/#map=\d+\/(-?\d{1,3}[.,]\d+)\/(-?\d{1,3}[.,]\d+)/)
     if (m) { const lat = dd(m[1]); const lng = dd(m[2]); if (isFinite(lat) && isFinite(lng)) return { lat, lng } }
     // 7) Fallback genérico
-    const nums = s.match(/-?\d{1,3}(?:[\.,]\d+)?/g)
+  const nums = s.match(/-?\d{1,3}(?:[.,]\d+)?/g)
     if (nums && nums.length >= 2) {
       const lat = dd(nums[0]); const lng = dd(nums[1])
       if (isFinite(lat) && isFinite(lng)) return { lat, lng }
@@ -84,7 +84,6 @@ export default function GestionProyectos() {
   const [success, setSuccess] = useState('')
   const [proyectos, setProyectos] = useState([])
   const [tecnicos, setTecnicos] = useState([])
-  const [usuarios, setUsuarios] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState('crear')
   const [selectedProject, setSelectedProject] = useState(null)
@@ -135,7 +134,6 @@ export default function GestionProyectos() {
 
       if (usuariosRes.status === 'fulfilled') {
         const allUsers = usuariosRes.value.data || []
-        setUsuarios(allUsers)
         setTecnicos(allUsers.filter(u => u.rol === 'tecnico'))
       }
 

@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../supabaseClient.js'
+import { listTemplatePlans } from '../services/MediaService.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent, createIncidence, computePriority } from '../models/Incidence.js'
 import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
 import multer from 'multer'
@@ -290,7 +291,7 @@ export async function getTechnicianDashboardStats(req, res) {
     // Considerar también incidencias que tienen asignación pero no registraron fecha_asignada,
     // tomando como referencia fecha_reporte del mes
     let qAsignadasA = supabase
-      .from('incidencias')
+          // Determinar proyectos válidos (si no es admin)
       .select('id_incidencia, id_vivienda, fecha_asignada, viviendas!inner(id_proyecto)')
       .eq('id_usuario_tecnico', tecnicoUid)
       .gte('fecha_asignada', start.toISOString())
@@ -774,6 +775,60 @@ export async function getPosventaFormDetail(req, res) {
   } catch (error) {
     console.error('Error obteniendo detalle de formulario posventa:', error)
     return res.status(500).json({ success:false, message:'Error al obtener el formulario de posventa' })
+  }
+}
+
+// Lista planos asociados al template utilizado por un formulario de posventa
+export async function listPosventaFormPlans(req, res) {
+  try {
+    const formId = Number(req.params.id)
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    if (!formId) return res.status(400).json({ success:false, message:'ID inválido' })
+
+    // Obtener form con vivienda para validar acceso (misma lógica de getPosventaFormDetail)
+    let query = supabase
+      .from('vivienda_postventa_form')
+      .select(`
+        id, id_vivienda, template_version,
+        viviendas: id_vivienda ( id_vivienda, tipo_vivienda, id_proyecto )
+      `)
+      .eq('id', formId)
+
+    if (userRole !== 'administrador') {
+      const { data: projects, error: errP } = await supabase
+        .from('proyecto_tecnico')
+        .select('id_proyecto')
+        .eq('tecnico_uid', tecnicoUid)
+      if (errP) throw errP
+      const projectIds = (projects || []).map(p => p.id_proyecto)
+      if (!projectIds.length) return res.status(403).json({ success:false, message:'Sin acceso' })
+      query = query.in('viviendas.id_proyecto', projectIds)
+    }
+
+    const { data: form, error: formErr } = await query.single()
+    if (formErr) throw formErr
+
+    // Resolver template por version y tipo_vivienda (como en beneficiarioController)
+    const tipoViv = form?.viviendas?.tipo_vivienda || null
+    const version = form?.template_version || null
+    const { data: tplArr, error: errTpl } = await supabase
+      .from('postventa_template')
+      .select('id, version, tipo_vivienda')
+      .eq('version', version)
+      .or(`tipo_vivienda.eq.${tipoViv || ''},tipo_vivienda.is.null`)
+      .order('tipo_vivienda', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+    if (errTpl) throw errTpl
+    const tpl = tplArr?.[0]
+    if (!tpl?.id) return res.json({ success:true, data: [] })
+
+    const files = await listTemplatePlans(tpl.id)
+    return res.json({ success:true, data: files })
+  } catch (error) {
+    console.error('Error listando planos del formulario:', error)
+    return res.status(500).json({ success:false, message:'Error listando planos' })
   }
 }
 

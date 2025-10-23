@@ -25,6 +25,8 @@ import PosventaFormPage from './pages/PosventaForm.jsx';
 import Registro from './pages/registrar.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import AceptarInvitacion from './pages/auth/AceptarInvitacion.jsx';
+import FirstAdmin from './pages/setup/FirstAdmin.jsx';
 
 export default function AppRoutes() {
   const { isLoading } = useContext(AuthContext);
@@ -51,6 +53,8 @@ export default function AppRoutes() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+  <Route path="/aceptar-invitacion" element={<AceptarInvitacion />} />
+  <Route path="/setup" element={<FirstAdmin />} />
   {/* Rutas debug removidas */}
         
         <Route element={<ProtectedRoute redirectTo="/" />}>

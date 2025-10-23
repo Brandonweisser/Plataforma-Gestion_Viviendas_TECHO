@@ -64,84 +64,8 @@ export default function KpisMetricas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Métricas derivadas (heurísticas, no histórica)
-  const derivadas = (() => {
-    const admins = safe(stats?.usuarios?.administrador);
-    const tecnicos = safe(stats?.usuarios?.tecnico);
-    const beneficiarios = safe(stats?.usuarios?.beneficiario);
-    const usuariosTotal = safe(stats?.usuarios?.total);
-    const vivTotal = safe(stats?.viviendas?.total);
-    const incidAbiertas = safe(stats?.incidencias?.abiertas);
-    const incidCerradas = safe(stats?.incidencias?.cerradas);
-    const densidadIncidencias = vivTotal > 0 ? incidAbiertas / vivTotal : 0; // incidencias por vivienda
-    const ratioTecViv = vivTotal > 0 ? tecnicos / vivTotal : 0; // técnicos por vivienda
-    const ratioBenViv = vivTotal > 0 ? beneficiarios / vivTotal : 0; // beneficiarios vs viviendas
-    const porcAdmins = usuariosTotal > 0 ? (admins / usuariosTotal) : 0;
-    const usuariosPorVivienda = vivTotal > 0 ? usuariosTotal / vivTotal : 0;
-    const cierreEstimado = (incidAbiertas + incidCerradas) > 0 ? (incidCerradas / (incidAbiertas + incidCerradas)) : null;
-
-    function labelEstado(v, { warn, crit, invert = false }) {
-      if (invert) { // invert => valores bajos son buenos
-        if (v <= warn) return 'Óptimo';
-        if (v <= crit) return 'Atención';
-        return 'Riesgo';
-      }
-      if (v < warn) return 'Óptimo';
-      if (v < crit) return 'Atención';
-      return 'Crítico';
-    }
-
-    return [
-      {
-        key: 'densidadIncidencias',
-        titulo: 'Densidad de Incidencias',
-        valor: densidadIncidencias,
-        formato: (v) => (v * 100).toFixed(1) + '%',
-        estado: labelEstado(densidadIncidencias, { warn: 0.15, crit: 0.40 }),
-        descripcion: 'Incidencias abiertas sobre viviendas totales (ideal < 15%).'
-      },
-      {
-        key: 'ratioTecViv',
-        titulo: 'Técnicos por Vivienda',
-        valor: ratioTecViv,
-        formato: (v) => (v * 100).toFixed(2) + '%',
-        estado: labelEstado(ratioTecViv, { warn: 0.02, crit: 0.05, invert: true }),
-        descripcion: 'Porcentaje de técnicos respecto a viviendas (más bajo puede saturar soporte).'
-      },
-      {
-        key: 'ratioBenViv',
-        titulo: 'Beneficiarios vs Viviendas',
-        valor: ratioBenViv,
-        formato: (v) => (v * 100).toFixed(1) + '%',
-        estado: labelEstado(ratioBenViv, { warn: 0.50, crit: 0.85 }),
-        descripcion: 'Cobertura de beneficiarios; por encima de 85% implica casi completa asignación.'
-      },
-      {
-        key: 'porcAdmins',
-        titulo: 'Administradores',
-        valor: porcAdmins,
-        formato: (v) => (v * 100).toFixed(1) + '%',
-        estado: labelEstado(porcAdmins, { warn: 0.05, crit: 0.15 }),
-        descripcion: 'Proporción de cuentas administradoras (demasiadas elevan riesgo de cambios no controlados).'
-      },
-      {
-        key: 'usuariosPorVivienda',
-        titulo: 'Usuarios por Vivienda',
-        valor: usuariosPorVivienda,
-        formato: (v) => v.toFixed(2),
-        estado: labelEstado(usuariosPorVivienda, { warn: 2.5, crit: 4 }),
-        descripcion: 'Carga administrativa: usuarios totales divididos por viviendas.'
-      },
-      {
-        key: 'tasaCierre',
-        titulo: 'Tasa de Cierre Estimada',
-        valor: cierreEstimado,
-        formato: (v) => v == null ? '—' : (v * 100).toFixed(1) + '%',
-        estado: cierreEstimado == null ? 'N/D' : labelEstado(1 - cierreEstimado, { warn: 0.6, crit: 0.8 }),
-        descripcion: 'Incidencias cerradas sobre el total (si el backend entrega "cerradas").'
-      }
-    ];
-  })();
+  // Métricas derivadas (desactivadas temporalmente)
+  // Nota: Si se requieren, mover a un hook y renderizarlas explícitamente para evitar cálculos no usados.
 
   const exportCsv = () => {
     if (!statsHistory.length) return;

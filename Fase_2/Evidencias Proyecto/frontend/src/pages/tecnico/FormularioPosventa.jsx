@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { tecnicoApi } from '../../services/api';
 
 export default function FormularioPosventa() {
   const { id } = useParams();
@@ -8,6 +9,7 @@ export default function FormularioPosventa() {
   const [loading, setLoading] = useState(true);
   const [modoIncidencias, setModoIncidencias] = useState('separadas');
   const [error, setError] = useState(null);
+  const [planos, setPlanos] = useState([]);
 
   const fetchFormulario = useCallback(async () => {
     try {
@@ -38,6 +40,13 @@ export default function FormularioPosventa() {
         setFormulario(data.data.formulario);
         setItems(data.data.items || []);
         console.log('✅ Formulario cargado exitosamente');
+        // Cargar planos del template asociado
+        try {
+          const pf = await tecnicoApi.planosFormularioPosventa(id)
+          setPlanos(pf.data || [])
+        } catch (e) {
+          console.warn('No se pudieron cargar planos:', e?.message || e)
+        }
       } else {
         setError(data.message || 'Error al cargar formulario');
         console.error('❌ Error en respuesta del servidor:', data.message);
@@ -205,6 +214,9 @@ export default function FormularioPosventa() {
               </Link>
             </div>
             <div className="flex items-center space-x-4">
+              {planos?.length ? (
+                <a href={planos[0].url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">Ver plano</a>
+              ) : null}
               <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(formulario.estado)}`}>
                 {formulario.estado.toUpperCase()}
               </span>

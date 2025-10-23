@@ -242,7 +242,6 @@ export default function HomeAdministrador() {
 
   const [recentActivity, setRecentActivity] = useState(defaultRecentActivity);
   const [activityLoading, setActivityLoading] = useState(true);
-  const [activityError, setActivityError] = useState(null);
 
   // Carga de actividad (reutilizable por botón Refrescar)
   useEffect(() => {
@@ -265,7 +264,7 @@ export default function HomeAdministrador() {
         if (!cancelled) setActivityLoading(false);
       } catch (e) {
         if (!cancelled) {
-          setActivityError(e.message || 'No se pudo cargar la actividad');
+          // Mantener simple: solo marcamos loading=false; el UI puede mostrar fallback genérico
           setActivityLoading(false);
         }
       }

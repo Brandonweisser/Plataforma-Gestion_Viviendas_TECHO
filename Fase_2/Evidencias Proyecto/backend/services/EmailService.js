@@ -258,3 +258,48 @@ export async function verifyEmailConfig() {
     return false
   }
 }
+
+/**
+ * Enviar email de invitación con enlace
+ */
+export async function sendInvitationEmail(email, { nombre = '', rol = 'usuario', acceptUrl }) {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_MODE === 'development') {
+    console.log('MODO DESARROLLO - Invitación:')
+    console.log(`Para: ${email}`)
+    console.log(`Nombre: ${nombre}`)
+    console.log(`Rol: ${rol}`)
+    console.log(`URL de aceptación: ${acceptUrl}`)
+    return true
+  }
+
+  try {
+    const transporter = createTransporter()
+    const mailOptions = {
+      from: {
+        name: 'TECHO Chile - Invitaciones',
+        address: process.env.EMAIL_USER
+      },
+      to: email,
+      subject: 'Invitación a Plataforma TECHO',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+          <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #1e40af;">Invitación a la Plataforma de Gestión</h2>
+            <p>Hola ${nombre || ''}, has sido invitado con rol <strong>${rol}</strong>.</p>
+            <p>Para activar tu cuenta, haz clic en el siguiente enlace:</p>
+            <p><a href="${acceptUrl}" style="display:inline-block;background:#1e40af;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Aceptar invitación</a></p>
+            <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+            <p><a href="${acceptUrl}">${acceptUrl}</a></p>
+          </div>
+        </div>
+      `,
+      text: `Has sido invitado a TECHO con rol ${rol}. Acepta aquí: ${acceptUrl}`
+    }
+    await transporter.sendMail(mailOptions)
+    return true
+  } catch (err) {
+    console.error('Error enviando invitación:', err.message)
+    console.log('FALLBACK - Invitación en consola:', acceptUrl)
+    return false
+  }
+}

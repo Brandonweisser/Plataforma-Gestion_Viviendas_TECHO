@@ -16,6 +16,7 @@ import {
   createUser,
   updateUserById,
   deleteUserById,
+  inviteUser,
   getProjects,
   createNewProject,
   updateProjectById,
@@ -67,6 +68,9 @@ router.post('/usuarios', createUser)
 router.put('/usuarios/:uid', updateUserById)
 router.delete('/usuarios/:uid', deleteUserById)
 
+// Invitaciones de usuarios (admin)
+router.post('/usuarios/invitar', inviteUser)
+
 // ==================== GESTIÓN DE PROYECTOS ====================
 router.get('/proyectos', getProjects)
 router.post('/proyectos', createNewProject)
@@ -103,5 +107,10 @@ router.get('/postventa/templates/:id/rooms', listRooms)
 router.post('/postventa/templates/:id/rooms', createRoom)
 router.put('/postventa/templates/:id/rooms/:roomId', updateRoom)
 router.delete('/postventa/templates/:id/rooms/:roomId', deleteRoom)
+
+// Archivos (planos) por template
+import { listTemplateFiles, uploadTemplateFile } from '../controllers/postventaTemplateController.js'
+router.get('/postventa/templates/:id/files', listTemplateFiles)
+router.post('/postventa/templates/:id/files', uploadTemplateFile)
 
 export default router

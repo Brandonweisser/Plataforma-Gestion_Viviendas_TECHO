@@ -15,6 +15,7 @@ import {
   forgotPassword,
   resetPassword
 } from '../controllers/authController.js'
+import { validateInvitation, acceptInvitation } from '../controllers/invitationController.js'
 import { verifyToken } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -53,5 +54,9 @@ router.post('/forgot-password', forgotPassword)
 
 // Restablecer contraseña con código de recuperación
 router.post('/reset-password', resetPassword)
+
+// Invitaciones: públicas (validar y aceptar)
+router.get('/invite/validate', validateInvitation)
+router.post('/invite/accept', acceptInvitation)
 
 export default router

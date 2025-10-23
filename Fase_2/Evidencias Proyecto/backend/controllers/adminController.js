@@ -28,6 +28,7 @@ import {
   unassignBeneficiaryFromHousing,
   getHousingStats
 } from '../models/Housing.js'
+import { createInvitationAndSend } from '../models/Invitation.js'
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10)
 
@@ -581,6 +582,39 @@ export async function deleteUserById(req, res) {
       success: false, 
       message: 'Error eliminando usuario' 
     })
+  }
+}
+
+/**
+ * Invitar a un usuario por email (flujo de invitación)
+ * Admin Only
+ */
+export async function inviteUser(req, res) {
+  try {
+    const { email, nombre, rol } = req.body || {}
+    if (!email || !rol) {
+      return res.status(400).json({ success: false, message: 'email y rol son obligatorios' })
+    }
+    // Crear invitación (token) y enviar email; si la tabla aún no existe, entregamos 501 para no romper el sistema
+    try {
+      const result = await createInvitationAndSend({
+        email,
+        nombre: nombre || '',
+        rol,
+        invitedByUid: req.user?.uid || null
+      })
+      return res.status(201).json({ success: true, data: result })
+    } catch (e) {
+      const msg = (e?.message || '').toLowerCase()
+      if (msg.includes('relation') && msg.includes('user_invitations')) {
+        return res.status(501).json({ success: false, message: 'Invitaciones no configuradas en base de datos. Agrega tabla user_invitations para habilitar.' })
+      }
+      console.error('Error en invitación:', e)
+      return res.status(500).json({ success: false, message: 'No se pudo crear la invitación' })
+    }
+  } catch (error) {
+    console.error('Error invitando usuario:', error)
+    res.status(500).json({ success: false, message: 'Error invitando usuario' })
   }
 }
 

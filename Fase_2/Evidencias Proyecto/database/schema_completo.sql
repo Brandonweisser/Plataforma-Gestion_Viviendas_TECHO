@@ -261,6 +261,21 @@ CREATE TABLE IF NOT EXISTS password_recovery_codes (
 );
 
 -- ========================================
+-- INVITACIONES DE USUARIOS (ALTA POR EMAIL)
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_invitations (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    nombre TEXT,
+    rol TEXT NOT NULL CHECK (rol IN ('administrador','tecnico','beneficiario')),
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    created_by BIGINT REFERENCES usuarios(uid) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ========================================
 -- ÍNDICES PARA OPTIMIZACIÓN
 -- ========================================
 
@@ -312,6 +327,11 @@ CREATE INDEX IF NOT EXISTS idx_proyecto_lat_long ON proyecto(latitud, longitud);
 CREATE INDEX IF NOT EXISTS idx_recovery_email ON password_recovery_codes(email);
 CREATE INDEX IF NOT EXISTS idx_recovery_code ON password_recovery_codes(code);
 CREATE INDEX IF NOT EXISTS idx_recovery_expires ON password_recovery_codes(expires_at);
+
+-- Invitaciones
+CREATE INDEX IF NOT EXISTS idx_invite_email ON user_invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invite_token ON user_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invite_expires ON user_invitations(expires_at);
 
 -- ========================================
 -- RESTRICCIONES ESPECIALES

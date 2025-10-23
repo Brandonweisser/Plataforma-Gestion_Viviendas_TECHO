@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DashboardLayout } from '../../components/ui/DashboardLayout';
 import { SectionPanel } from '../../components/ui/SectionPanel';
 import { adminApi } from '../../services/api';
-import { XMarkIcon, MapPinIcon, UserGroupIcon, CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/solid'
+import { XMarkIcon, MapPinIcon, UserGroupIcon, CheckCircleIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/solid'
 
 // Carga dinámica de Leaflet solo cuando se monta (evita SSR y reduce bundle inicial)
 function useLeaflet() {
@@ -238,7 +238,7 @@ export default function MapaViviendas() {
         try { mapInstance.current.fitBounds(group.getBounds().pad(0.2)); } catch {}
       }
     }
-  }, [L, data, projects, search, selectedProjectId]);
+  }, [L, data, projects, search, selectedProjectId, editMode]);
 
   
 

@@ -19,13 +19,16 @@ export default function GestionUsuarios() {
   const [success, setSuccess] = useState('');
   const [usuarios, setUsuarios] = useState([]);
   const [viviendas, setViviendas] = useState([]);
+  const [proyectos, setProyectos] = useState([]);
   const [buscar, setBuscar] = useState('');
   const [rolFiltro, setRolFiltro] = useState('todos');
+  const [proyectoFiltro, setProyectoFiltro] = useState('todos');
   const [soloSinVivienda, setSoloSinVivienda] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('crear'); // crear | editar
   const [selectedUser, setSelectedUser] = useState(null);
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'beneficiario' });
+  const [invite, setInvite] = useState({ email: '', nombre: '', rol: 'beneficiario' });
 
   // Sólo queremos cargar una vez al montar; loadData está estable (no depende de props externas relevantes)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -34,9 +37,10 @@ export default function GestionUsuarios() {
   async function loadData() {
     setLoading(true); setError(''); setSuccess('');
     try {
-      const [uRes, vRes] = await Promise.allSettled([
+      const [uRes, vRes, pRes] = await Promise.allSettled([
         adminApi.listarUsuarios(),
-        adminApi.listarViviendas()
+        adminApi.listarViviendas(),
+        adminApi.listarProyectos()
       ]);
 
       if (uRes.status === 'fulfilled') {
@@ -66,7 +70,8 @@ export default function GestionUsuarios() {
         }
       }
 
-      if (vRes.status === 'fulfilled') setViviendas(vRes.value.data || []);
+  if (vRes.status === 'fulfilled') setViviendas(vRes.value.data || []);
+  if (pRes.status === 'fulfilled') setProyectos(pRes.value.data || []);
     } catch (e) {
       setError(e.message || 'Error cargando datos');
     } finally { setLoading(false); }
@@ -78,12 +83,7 @@ export default function GestionUsuarios() {
     return map;
   }, [viviendas]);
 
-  function openCreate() {
-    setModalMode('crear');
-    setSelectedUser(null);
-    setForm({ nombre: '', email: '', password: '', rol: 'beneficiario' });
-    setShowModal(true);
-  }
+  // Crear usuario se ha deshabilitado: los usuarios se crean por invitación.
 
   function openEdit(user) {
     setModalMode('editar');
@@ -168,6 +168,14 @@ export default function GestionUsuarios() {
 
   const filtrados = usuarios.filter(u => {
     if (rolFiltro !== 'todos' && u.rol !== rolFiltro) return false;
+    // Filtro por proyecto: aplica solo a beneficiarios y requiere vivienda asignada
+    if (proyectoFiltro !== 'todos') {
+      if (u.rol !== 'beneficiario') return false;
+      const v = viviendasPorBeneficiario.get(u.uid);
+      if (!v) return false;
+      const pid = v.proyecto_id ?? v.id_proyecto;
+      if (String(pid) !== String(proyectoFiltro)) return false;
+    }
     if (soloSinVivienda && u.rol === 'beneficiario' && viviendasPorBeneficiario.has(u.uid)) return false;
     if (!buscar) return true;
     const q = buscar.toLowerCase();
@@ -198,15 +206,15 @@ export default function GestionUsuarios() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Cabecera: solo título + acciones globales (Volver, Recargar) y métricas */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Gestión de Usuarios</h1>
-                <p className="text-gray-600 dark:text-gray-300 text-sm">Crear, editar y bloquear cuentas del sistema</p>
               </div>
               <div className="flex gap-2 items-center">
+                <button onClick={() => navigate(-1)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Volver</button>
                 <button onClick={loadData} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Recargar</button>
-                <button onClick={openCreate} className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Nuevo Usuario</button>
               </div>
             </div>
             <div className="flex flex-wrap gap-3 text-xs">
@@ -217,6 +225,30 @@ export default function GestionUsuarios() {
               <span className="px-3 py-1 rounded bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300">Beneficiarios con vivienda: {stats.beneficiariosAsignados}</span>
             </div>
         </div>
+
+        {/* Invitar Usuario (bajo el título). Sin botón Volver interno */}
+        <SectionPanel title="Invitar Usuario" description="Envía un enlace para que el usuario cree su contraseña" className="dark:bg-gray-900/40" showBack={false}>
+          <form onSubmit={async (e)=>{
+            e.preventDefault(); setError(''); setSuccess('');
+            try {
+              await adminApi.invitarUsuario(invite);
+              setSuccess('Invitación enviada (si EMAIL_MODE=development verás la URL en la consola del servidor)');
+              setInvite(prev=>({ email: '', nombre: '', rol: prev.rol }));
+            } catch (er) {
+              if (er.status === 501) setError('Invitaciones no configuradas en BD. Crea la tabla user_invitations (ver docs).');
+              else setError(er.message || 'No se pudo enviar la invitación');
+            }
+          }} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input type="email" required placeholder="Email" value={invite.email} onChange={e=>setInvite(v=>({ ...v, email: e.target.value }))} className="px-3 py-2 border rounded" />
+            <input type="text" placeholder="Nombre (opcional)" value={invite.nombre} onChange={e=>setInvite(v=>({ ...v, nombre: e.target.value }))} className="px-3 py-2 border rounded" />
+            <select value={invite.rol} onChange={e=>setInvite(v=>({ ...v, rol: e.target.value }))} className="px-3 py-2 border rounded">
+              <option value="beneficiario">Beneficiario</option>
+              <option value="tecnico">Técnico</option>
+              <option value="administrador">Administrador</option>
+            </select>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Enviar invitación</button>
+          </form>
+        </SectionPanel>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start justify-between gap-4 text-sm">
@@ -237,8 +269,8 @@ export default function GestionUsuarios() {
         )}
         {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">{success}</div>}
 
-        <SectionPanel title="Filtros" description="Refinar búsqueda" className="dark:bg-gray-900/40">
-          <div className="grid gap-4 md:grid-cols-5 items-end">
+        <SectionPanel title="Filtros" description="Refinar búsqueda" className="dark:bg-gray-900/40" showBack={false}>
+          <div className="grid gap-4 md:grid-cols-6 items-end">
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Buscar</label>
               <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Nombre, email o UID" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500" />
@@ -252,6 +284,15 @@ export default function GestionUsuarios() {
                 <option value="beneficiario">Beneficiario</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Proyecto</label>
+              <select value={proyectoFiltro} onChange={e => setProyectoFiltro(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="todos">Todos</option>
+                {proyectos.map(p => (
+                  <option key={p.id_proyecto ?? p.id} value={String(p.id_proyecto ?? p.id)}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex items-center gap-2">
               <input id="soloSinV" type="checkbox" checked={soloSinVivienda} onChange={e => setSoloSinVivienda(e.target.checked)} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded" />
               <label htmlFor="soloSinV" className="text-xs text-gray-600 dark:text-gray-300">Sólo beneficiarios sin vivienda</label>
@@ -260,7 +301,7 @@ export default function GestionUsuarios() {
           </div>
         </SectionPanel>
 
-        <SectionPanel title="Usuarios" description="Listado general" className="dark:bg-gray-900/40">
+  <SectionPanel title="Usuarios" description="Listado general" className="dark:bg-gray-900/40" showBack={false}>
           <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="min-w-full text-sm">
               <thead>

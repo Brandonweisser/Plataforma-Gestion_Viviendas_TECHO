@@ -11,6 +11,7 @@ export default function GestionTemplatesPosventa() {
   const [activeTemplateId, setActiveTemplateId] = useState(null)
   const [items, setItems] = useState([])
   const [rooms, setRooms] = useState([])
+  const [files, setFiles] = useState([])
   const [newTpl, setNewTpl] = useState({ nombre: '', tipo_vivienda: '' })
   // Rooms and items state
   const [newRoom, setNewRoom] = useState({ nombre: '' })
@@ -32,15 +33,17 @@ export default function GestionTemplatesPosventa() {
 
   async function selectTemplate(id) {
     setActiveTemplateId(id)
-    setItems([]); setRooms([]); setError(''); setSuccess('')
+    setItems([]); setRooms([]); setFiles([]); setError(''); setSuccess('')
     if (!id) return
     try {
-      const [ri, rr] = await Promise.all([
+      const [ri, rr, rf] = await Promise.all([
         adminApi.listarItemsTemplate(id),
-        adminApi.listarRooms(id)
+        adminApi.listarRooms(id),
+        adminApi.listarArchivosTemplate(id)
       ])
       setItems(ri.data || [])
       setRooms(rr.data || [])
+      setFiles(rf.data || [])
     } catch (e) { setError(e.message || 'Error cargando items') }
   }
 
@@ -152,7 +155,7 @@ export default function GestionTemplatesPosventa() {
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
         {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">{success}</div>}
 
-        <SectionPanel title="Crear nuevo template" description="Define un nombre y opcionalmente un tipo de vivienda (ej. A1, 2B, 3C)">
+  <SectionPanel title="Crear nuevo template" description="Define un nombre y opcionalmente un tipo de vivienda (ej. A1, 2B, 3C)" showBack={false}>
           <form onSubmit={handleCreateTemplate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -168,7 +171,7 @@ export default function GestionTemplatesPosventa() {
           </form>
         </SectionPanel>
 
-  <SectionPanel title="Templates" description="Selecciona un template para gestionar habitaciones e ítems">
+  <SectionPanel title="Templates" description="Selecciona un template para gestionar habitaciones, ítems y planos" showBack={false}>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
               {(templates || []).map(tpl => (
@@ -259,6 +262,37 @@ export default function GestionTemplatesPosventa() {
               </form>
             </div>
           </div>
+        </SectionPanel>
+
+        {/* Planos del template */}
+        <SectionPanel title="Planos del template" description="Adjunta el plano (PDF, DWG o imagen) asociado a este template" showBack={false}>
+          {!activeTemplateId && <div className="text-sm text-gray-500">Seleccione un template para gestionar sus planos</div>}
+          {activeTemplateId && (
+            <>
+              <div className="flex items-center gap-3 mb-3">
+                <input type="file" accept=".pdf,.dwg,.png,.jpg,.jpeg" onChange={async (e)=>{
+                  const f = e.target.files?.[0]; if (!f) return;
+                  setLoading(true); setError(''); setSuccess('')
+                  try {
+                    await adminApi.subirArchivoTemplate(activeTemplateId, f)
+                    const rf = await adminApi.listarArchivosTemplate(activeTemplateId)
+                    setFiles(rf.data || [])
+                    setSuccess('Archivo subido')
+                  } catch (er) { setError(er.message || 'Error subiendo archivo') }
+                  finally { setLoading(false); e.target.value = '' }
+                }} />
+              </div>
+              <ul className="divide-y">
+                {(files||[]).map(f => (
+                  <li key={f.id} className="py-2 flex items-center justify-between">
+                    <div className="text-sm text-gray-700 dark:text-gray-200 truncate">{f.url.split('/').pop()}</div>
+                    <a className="text-blue-600 text-sm" href={f.url} target="_blank" rel="noreferrer">Ver/Descargar</a>
+                  </li>
+                ))}
+                {(!files||!files.length) && <li className="py-2 text-sm text-gray-500">Aún no hay archivos</li>}
+              </ul>
+            </>
+          )}
         </SectionPanel>
       </div>
     </DashboardLayout>

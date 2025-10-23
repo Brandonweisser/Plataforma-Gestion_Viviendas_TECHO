@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../supabaseClient.js'
+import { listTemplatePlans } from '../services/MediaService.js'
 import { getIncidencesByBeneficiary, createIncidence, computePriority, logIncidenciaEvent } from '../models/Incidence.js'
 import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
 
@@ -553,6 +554,49 @@ export async function sendPosventaForm(req, res) {
   } catch (error) {
     console.error('Error sendPosventaForm:', error)
     return res.status(500).json({ success:false, message:'Error enviando formulario' })
+  }
+}
+
+// Devuelve los planos del template asociado al formulario de posventa activo del beneficiario
+export async function getPosventaPlans(req, res) {
+  try {
+    const beneficiarioUid = req.user?.uid || req.user?.sub
+    if (!beneficiarioUid) return res.status(401).json({ success:false, message:'No autenticado' })
+    // Obtener vivienda y formulario más reciente
+    const { data: vivienda, error: errV } = await supabase
+      .from('viviendas')
+      .select('id_vivienda, tipo_vivienda')
+      .eq('beneficiario_uid', beneficiarioUid)
+      .maybeSingle()
+    if (errV) throw errV
+    if (!vivienda) return res.status(404).json({ success:false, message:'No tienes vivienda asignada' })
+    const { data: formArr, error: errF } = await supabase
+      .from('vivienda_postventa_form')
+      .select('id, template_version')
+      .eq('id_vivienda', vivienda.id_vivienda)
+      .eq('beneficiario_uid', beneficiarioUid)
+      .order('id',{ ascending:false })
+      .limit(1)
+    if (errF) throw errF
+    if (!formArr?.length) return res.json({ success:true, data: [] })
+    const form = formArr[0]
+    // Resolver template por version y tipo
+    const { data: tplArr, error: errTpl } = await supabase
+      .from('postventa_template')
+      .select('id, version, tipo_vivienda')
+      .eq('version', form.template_version)
+      .or(`tipo_vivienda.eq.${vivienda.tipo_vivienda || ''},tipo_vivienda.is.null`)
+      .order('tipo_vivienda', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+    if (errTpl) throw errTpl
+    const tpl = tplArr?.[0]
+    if (!tpl?.id) return res.json({ success:true, data: [] })
+    const files = await listTemplatePlans(tpl.id)
+    return res.json({ success:true, data: files })
+  } catch (error) {
+    console.error('Error getPosventaPlans:', error)
+    return res.status(500).json({ success:false, message:'Error obteniendo planos' })
   }
 }
 

@@ -22,16 +22,20 @@ export default function EstadoVivienda() {
     incidenciasTotal: 0
   })
 
+  // Valor de éxito proveniente de la navegación (estable y seguro para dependencias)
+  const navSuccess = Boolean(location.state?.success)
+  const navSuccessMsg = typeof location.state?.success === 'string' ? location.state.success : ''
+
   useEffect(() => {
     loadAllData()
     
     // Manejar mensajes de éxito desde navegación
-    if (location.state?.success) {
-      setSuccess(location.state.success)
+    if (navSuccess) {
+      setSuccess(navSuccessMsg)
       // Limpiar el estado para evitar que se muestre en refresh
       window.history.replaceState({}, document.title)
     }
-  }, [])
+  }, [navSuccess, navSuccessMsg])
 
   async function loadAllData() {
     setLoading(true)

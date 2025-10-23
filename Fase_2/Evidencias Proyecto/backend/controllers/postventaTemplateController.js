@@ -2,6 +2,15 @@
  * Controlador de Templates de Postventa (solo Admin)
  */
 import { supabase } from '../supabaseClient.js'
+import multer from 'multer'
+import { listTemplatePlans, uploadTemplatePlan } from '../services/MediaService.js'
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
+function runMulter(req, res) {
+  return new Promise((resolve, reject) => {
+    upload.single('file')(req, res, (err) => (err ? reject(err) : resolve()))
+  })
+}
 
 // Nota: mantenemos compatibilidad de campos extra, pero el front hoy solo usa 'item' y 'room_id'.
 
@@ -238,6 +247,34 @@ export async function deleteRoom(req, res) {
   } catch (error) {
     console.error('Error eliminando habitación:', error)
     res.status(500).json({ success: false, message: 'Error eliminando habitación' })
+  }
+}
+
+// ==================== Archivos (Planos) por Template ====================
+export async function listTemplateFiles(req, res) {
+  try {
+    const templateId = Number(req.params.id)
+    if (!templateId) return res.status(400).json({ success:false, message:'ID inválido' })
+    const files = await listTemplatePlans(templateId)
+    return res.json({ success:true, data: files })
+  } catch (error) {
+    console.error('Error listando planos del template:', error)
+    return res.status(500).json({ success:false, message:'Error listando archivos' })
+  }
+}
+
+export async function uploadTemplateFile(req, res) {
+  try {
+    await runMulter(req, res)
+    const templateId = Number(req.params.id)
+    if (!templateId) return res.status(400).json({ success:false, message:'ID inválido' })
+    if (!req.file) return res.status(400).json({ success:false, message:'Archivo requerido' })
+    const uploader = req.user?.uid || req.user?.sub || null
+    const saved = await uploadTemplatePlan(templateId, req.file, uploader)
+    return res.status(201).json({ success:true, data: saved })
+  } catch (error) {
+    console.error('Error subiendo plano del template:', error)
+    return res.status(500).json({ success:false, message:'Error subiendo archivo' })
   }
 }
 
