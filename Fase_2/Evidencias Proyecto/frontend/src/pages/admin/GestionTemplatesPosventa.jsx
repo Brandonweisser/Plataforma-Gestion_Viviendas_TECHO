@@ -294,6 +294,21 @@ export default function GestionTemplatesPosventa() {
                     <div className="flex items-center gap-2">
                       <button className="text-sm px-2 py-1 border rounded" onClick={()=>setPreviewPlan(f)}>Previsualizar</button>
                       <a className="text-blue-600 text-sm" href={f.url} target="_blank" rel="noreferrer">Abrir</a>
+                      {/* Botón para convertir DWG a PDF (si aplica) */}
+                      {(/\.dwg$/i.test(f.url) || (f.mime||'').toLowerCase().includes('dwg')) && (
+                        <button className="text-sm px-2 py-1 border border-amber-300 text-amber-800 rounded" onClick={async ()=>{
+                          if (!activeTemplateId) return;
+                          setLoading(true); setError(''); setSuccess('')
+                          try {
+                            await adminApi.convertirArchivoTemplateAPdf(activeTemplateId, f.id)
+                            const rf = await adminApi.listarArchivosTemplate(activeTemplateId)
+                            setFiles(rf.data || [])
+                            setSuccess('PDF generado desde DWG')
+                          } catch (er) {
+                            setError(er.message || 'Error convirtiendo a PDF (verifica CLOUDCONVERT_API_KEY)')
+                          } finally { setLoading(false) }
+                        }}>Convertir a PDF</button>
+                      )}
                       <button className="text-sm px-2 py-1 border border-red-300 text-red-700 rounded" onClick={async ()=>{
                         if (!(window && window.confirm && window.confirm('¿Eliminar este archivo?'))) return;
                         try {

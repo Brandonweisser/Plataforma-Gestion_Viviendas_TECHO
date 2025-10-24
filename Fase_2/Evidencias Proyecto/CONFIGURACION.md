@@ -38,6 +38,15 @@ BCRYPT_SALT_ROUNDS=10
 # Nombre del bucket de Supabase Storage para guardar planos de templates de postventa.
 # Si no se define, el sistema usará 'planos' por defecto.
 PLANOS_BUCKET=planos
+
+# Conversión DWG -> PDF (opcional)
+# Habilita conversión automática de archivos DWG a PDF vía CloudConvert en el panel de Admin.
+# Si no se define, el botón de "Convertir a PDF" no estará disponible.
+CLOUDCONVERT_API_KEY=
+## (Opcional) Forzar engine de conversión CAD
+# CLOUDCONVERT_CAD_ENGINE=cad
+# Alternativas posibles: "cad" o "autocad" (esta última requiere planes específicos).
+# Si no se define, el backend intentará sin engine y hará fallback automático si CloudConvert rechaza el engine.
 ```
 
 ### Frontend
@@ -74,6 +83,15 @@ Sugerencia de configuración para el bucket de planos:
 Notas:
 - El sistema guarda los planos asociados a Templates de Postventa bajo `entity_type = 'postventa_template'` en la tabla `media`.
 - Al subir un plano desde el panel de Admin → Templates de Posventa, el archivo se guarda en el bucket de `PLANOS_BUCKET` y se registra su metadata en la tabla `media`.
+
+### Conversión DWG → PDF (opcional)
+Si configuras `CLOUDCONVERT_API_KEY`, verás un botón "Convertir a PDF" junto a los archivos .DWG en Admin → Templates de Posventa:
+- El backend genera un enlace temporal del DWG y solicita la conversión a CloudConvert.
+- Al finalizar, descarga el PDF generado y lo guarda en el mismo bucket de `PLANOS_BUCKET`, registrándolo en `media`.
+
+Notas importantes:
+- CloudConvert es un servicio externo con límites/planes. Evalúa costos y límites antes de producción.
+- Si deseas una solución 100% on-prem, la conversión DWG→PDF requiere licencias o SDKs específicos (p. ej. Autodesk Forge/Design Automation, ODA Drawings SDK). No se incluye por defecto.
 
 ## Configuración de Desarrollo
 

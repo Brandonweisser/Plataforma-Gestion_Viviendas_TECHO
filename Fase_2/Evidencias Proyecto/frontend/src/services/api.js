@@ -330,6 +330,9 @@ export const adminApi = {
   eliminarArchivoTemplate(templateId, fileId) {
     return request(`/api/admin/postventa/templates/${templateId}/files/${fileId}`, { method: 'DELETE' })
   },
+  convertirArchivoTemplateAPdf(templateId, fileId) {
+    return request(`/api/admin/postventa/templates/${templateId}/files/${fileId}/convert-pdf`, { method: 'POST', body: JSON.stringify({}) })
+  },
   async subirArchivoTemplate(templateId, file) {
     const form = new FormData()
     form.append('file', file)

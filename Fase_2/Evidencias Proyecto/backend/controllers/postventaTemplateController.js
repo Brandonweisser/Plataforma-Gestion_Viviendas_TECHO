@@ -2,8 +2,10 @@
  * Controlador de Templates de Postventa (solo Admin)
  */
 import { supabase } from '../supabaseClient.js'
+import fetch from 'node-fetch'
 import multer from 'multer'
-import { listTemplatePlans, uploadTemplatePlan, deleteTemplatePlan } from '../services/MediaService.js'
+import { listTemplatePlans, uploadTemplatePlan, deleteTemplatePlan, getSignedOrPublicUrlForPlan, getPlanosBucketName } from '../services/MediaService.js'
+import { convertDWGUrlToPDF } from '../services/ConversionService.js'
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 function runMulter(req, res) {
@@ -305,5 +307,72 @@ export async function deleteTemplateItem(req, res) {
   } catch (error) {
     console.error('Error eliminando item del template:', error)
     res.status(500).json({ success: false, message: 'Error eliminando item del template' })
+  }
+}
+
+// ==================== Conversión DWG -> PDF (opcional, via CloudConvert) ====================
+export async function convertTemplateFileToPdf(req, res) {
+  try {
+    const templateId = Number(req.params.id)
+    const fileId = Number(req.params.fileId)
+    if (!templateId || !fileId) return res.status(400).json({ success:false, message:'Parámetros inválidos' })
+
+    if (!process.env.CLOUDCONVERT_API_KEY) {
+      return res.status(501).json({ success:false, message:'Conversión no configurada. Falta CLOUDCONVERT_API_KEY.' })
+    }
+
+    // Buscar media row para validar DWG y obtener path
+    const { data: mediaRow, error: selErr } = await supabase
+      .from('media')
+      .select('id, path, mime')
+      .eq('entity_type', 'postventa_template')
+      .eq('entity_id', templateId)
+      .eq('id', fileId)
+      .single()
+    if (selErr) throw selErr
+    if (!mediaRow) return res.status(404).json({ success:false, message:'Archivo no encontrado' })
+
+    const isDWG = (mediaRow.mime || '').toLowerCase().includes('dwg') || /\.dwg$/i.test(mediaRow.path)
+    if (!isDWG) {
+      return res.status(400).json({ success:false, message:'El archivo no es DWG' })
+    }
+
+    // Obtener URL firmada o pública para que CloudConvert pueda descargar el DWG
+    const inputUrl = await getSignedOrPublicUrlForPlan(mediaRow.path)
+    if (!inputUrl) return res.status(500).json({ success:false, message:'No se pudo obtener URL del archivo DWG' })
+
+    // Lanzar conversión y esperar resultado (sin colas por ahora)
+    const result = await convertDWGUrlToPDF(inputUrl)
+    const outUrl = result?.url
+    const outName = (result?.filename || 'plano.pdf').replace(/[^a-zA-Z0-9_.-]/g, '_')
+    if (!outUrl) throw new Error('Conversión sin URL de salida')
+
+    // Descargar PDF resultante en buffer
+    const resp = await fetch(outUrl)
+    if (!resp.ok) throw new Error(`Error descargando PDF convertido: HTTP ${resp.status}`)
+    const buf = Buffer.from(await resp.arrayBuffer())
+
+    // Subir al bucket de planos bajo el mismo template
+    const storagePath = `templates/${templateId}/${Date.now()}_${outName}`
+    const bucket = getPlanosBucketName()
+    const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, buf, { contentType: 'application/pdf', upsert: false })
+    if (upErr) throw upErr
+
+    // Registrar en media
+    const { data: row, error: dbErr } = await supabase
+      .from('media')
+      .insert([{ entity_type: 'postventa_template', entity_id: templateId, path: storagePath, mime: 'application/pdf', bytes: buf.length, uploaded_by: req.user?.uid || req.user?.sub || null }])
+      .select('id, path, mime, bytes, created_at')
+      .single()
+    if (dbErr) throw dbErr
+
+    // Devolver nueva entrada
+    const files = await listTemplatePlans(templateId)
+    const added = files.find(f => f.id === row.id) || null
+    return res.status(201).json({ success:true, data: added, message:'PDF generado desde DWG' })
+  } catch (error) {
+    console.error('Error convirtiendo DWG a PDF:', error)
+    const msg = error?.code === 'NO_API_KEY' ? 'Conversión no configurada (falta CLOUDCONVERT_API_KEY)' : 'Error en conversión DWG->PDF'
+    return res.status(500).json({ success:false, message: msg })
   }
 }

@@ -160,3 +160,13 @@ export async function deleteTemplatePlan(templateId, fileId) {
   if (delErr) throw delErr
   return { success: true }
 }
+
+// ======== Utilidades adicionales para Planos ========
+export function getPlanosBucketName() {
+  return PLANOS_BUCKET
+}
+
+export async function getSignedOrPublicUrlForPlan(path) {
+  return (await urlFor(path, PLANOS_BUCKET))
+}
+
