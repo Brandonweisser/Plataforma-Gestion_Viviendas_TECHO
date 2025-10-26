@@ -32,6 +32,15 @@ import {
   unassignBeneficiary
 } from '../controllers/adminController.js'
 import {
+  listConstructoras,
+  getConstructora,
+  createNewConstructora,
+  updateConstructoraById,
+  deleteConstructoraById,
+  assignConstructora,
+  removeConstructora
+} from '../controllers/constructoraController.js'
+import {
   listTemplates,
   createTemplate,
   updateTemplate,
@@ -41,6 +50,7 @@ import {
   updateTemplateItem,
   deleteTemplateItem
 } from '../controllers/postventaTemplateController.js'
+import { listUsuariosByConstructora } from '../controllers/constructoraController.js'
 import {
   listRooms,
   createRoom,
@@ -91,6 +101,19 @@ router.delete('/viviendas/:id', deleteHousingById)
 // Asignación de beneficiarios
 router.post('/viviendas/:id/asignar', assignBeneficiary)
 router.post('/viviendas/:id/desasignar', unassignBeneficiary)
+
+// ==================== GESTIÓN DE CONSTRUCTORAS ====================
+router.get('/constructoras', listConstructoras)
+router.post('/constructoras', createNewConstructora)
+router.get('/constructoras/:id', getConstructora)
+router.put('/constructoras/:id', updateConstructoraById)
+router.delete('/constructoras/:id', deleteConstructoraById)
+// Listar usuarios asignados a una constructora
+router.get('/constructoras/:id/usuarios', listUsuariosByConstructora)
+
+// Asignar / remover constructora a un usuario (admin)
+router.post('/usuarios/:uid/constructora', assignConstructora)
+router.delete('/usuarios/:uid/constructora', removeConstructora)
 
 // ==================== GESTIÓN DE TEMPLATES DE POSTVENTA ====================
 router.get('/postventa/templates', listTemplates)

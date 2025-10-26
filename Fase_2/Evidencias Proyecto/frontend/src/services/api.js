@@ -363,6 +363,17 @@ export const adminApi = {
   eliminarRoom(templateId, roomId) {
     return request(`/api/admin/postventa/templates/${templateId}/rooms/${roomId}`, { method: 'DELETE' })
   }
+
+  ,
+  // Gestión de constructoras
+  listarConstructoras() { return request('/api/admin/constructoras') },
+  crearConstructora(data) { return request('/api/admin/constructoras', { method: 'POST', body: JSON.stringify(data) }) },
+  obtenerConstructora(id) { return request(`/api/admin/constructoras/${id}`) },
+  actualizarConstructora(id, data) { return request(`/api/admin/constructoras/${id}`, { method: 'PUT', body: JSON.stringify(data) }) },
+  eliminarConstructora(id) { return request(`/api/admin/constructoras/${id}`, { method: 'DELETE' }) },
+  listarUsuariosPorConstructora(id) { return request(`/api/admin/constructoras/${id}/usuarios`) },
+  asignarConstructoraUsuario(uid, constructora_id) { return request(`/api/admin/usuarios/${uid}/constructora`, { method: 'POST', body: JSON.stringify({ constructora_id }) }) },
+  removerConstructoraUsuario(uid) { return request(`/api/admin/usuarios/${uid}/constructora`, { method: 'DELETE' }) },
 }
 
 // Invitaciones públicas

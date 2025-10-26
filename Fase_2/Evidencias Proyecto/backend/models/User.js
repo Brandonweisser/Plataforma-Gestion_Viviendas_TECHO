@@ -103,7 +103,7 @@ export async function getUserById(uid) {
   
   const { data, error } = await supabase
     .from('usuarios')
-    .select('uid, nombre, email, rol, rut, direccion')
+    .select('uid, nombre, email, rol, rut, direccion, constructora_id')
     .eq('uid', uid)
     .single()
     
@@ -118,7 +118,7 @@ export async function getUserById(uid) {
 export async function getAllUsers() {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('uid, nombre, email, rol, rut, direccion, created_at')
+    .select('uid, nombre, email, rol, rut, direccion, constructora_id, created_at')
     .order('uid', { ascending: true })
     
   if (error) throw error
@@ -136,7 +136,7 @@ export async function updateUser(uid, updates) {
     .from('usuarios')
     .update(updates)
     .eq('uid', uid)
-    .select('uid, nombre, email, rol, rut, direccion')
+    .select('uid, nombre, email, rol, rut, direccion, constructora_id')
     .single()
     
   if (error) throw error

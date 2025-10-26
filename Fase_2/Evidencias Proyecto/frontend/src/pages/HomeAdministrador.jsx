@@ -187,6 +187,16 @@ export default function HomeAdministrador() {
       icon: <ClipboardDocumentListIcon className={iconSize} />,
       accent: "teal",
     },
+    {
+      title: "Gestión de Constructoras",
+      description: "Aquí podrás acceder a la gestión de las constructoras vinculadas al sistema",
+      badge: "Beta",
+      to: "/admin/constructoras",
+      action: () =>
+        handleNavigation("/admin/constructoras", "Constructoras"),
+      icon: <ClipboardDocumentListIcon className={iconSize} />,
+      accent: "teal",
+    },
   ];
   // Herramientas de técnico accesibles para admin
   const technicianTools = [

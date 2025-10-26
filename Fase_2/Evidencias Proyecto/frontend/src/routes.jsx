@@ -21,6 +21,7 @@ import GestionUsuarios from './pages/admin/GestionUsuarios';
 import KpisMetricas from './pages/admin/KpisMetricas';
 import MapaViviendas from './pages/admin/MapaViviendas';
 import GestionTemplatesPosventa from './pages/admin/GestionTemplatesPosventa';
+import Constructoras from './pages/admin/Constructoras';
 import PosventaFormPage from './pages/PosventaForm.jsx';
 import Registro from './pages/registrar.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
@@ -81,6 +82,7 @@ export default function AppRoutes() {
             <Route path="/admin" element={<Navigate to="/home" replace />} />
             <Route path="/admin/proyectos" element={<GestionProyectos />} />
             <Route path="/admin/viviendas" element={<GestionViviendas />} />
+            <Route path="/admin/constructoras" element={<Constructoras />} />
             <Route path="/admin/asignaciones" element={<AsignacionViviendas />} />
             <Route path="/admin/usuarios" element={<GestionUsuarios />} />
             <Route path="/admin/kpis" element={<KpisMetricas />} />
