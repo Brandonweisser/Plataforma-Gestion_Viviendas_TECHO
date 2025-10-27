@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { tecnicoApi } from '../../services/api'
+import { ClockIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 export default function IncidenciaDetalleTecnico() {
   const { id } = useParams()
@@ -125,6 +126,41 @@ export default function IncidenciaDetalleTecnico() {
                 </div>
               )}
             </div>
+
+            {/* Indicador de Plazos Legales */}
+            {data.plazos_legales && !['cerrada', 'cancelada'].includes((data.estado || '').toLowerCase()) && (() => {
+              const { estado_plazo, dias_restantes, fecha_limite_resolucion, texto_estado } = data.plazos_legales
+              let Icon = ClockIcon
+              let colorClasses = 'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
+              
+              if (estado_plazo === 'vencido') {
+                Icon = ExclamationTriangleIcon
+                colorClasses = 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+              } else if (estado_plazo === 'dentro_plazo') {
+                Icon = CheckCircleIcon
+                colorClasses = 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+              }
+              
+              const textoDetalle = dias_restantes !== null
+                ? (dias_restantes > 0 
+                    ? `${dias_restantes} día${dias_restantes !== 1 ? 's' : ''} hábil${dias_restantes !== 1 ? 'es' : ''} restantes (hasta ${fecha_limite_resolucion})`
+                    : `Plazo vencido hace ${Math.abs(dias_restantes)} día${Math.abs(dias_restantes) !== 1 ? 's' : ''} hábil${Math.abs(dias_restantes) !== 1 ? 'es' : ''}`)
+                : `Plazo límite: ${fecha_limite_resolucion}`
+              
+              return (
+                <div className={`mt-4 p-4 rounded-lg border ${colorClasses} flex items-start gap-3`}>
+                  <Icon className="w-6 h-6 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{texto_estado || 'Plazo Legal'}</p>
+                    <p className="text-xs mt-1">{textoDetalle}</p>
+                    <p className="text-xs mt-2 opacity-75">
+                      Según LGUC y normativa SERVIU. Los plazos se calculan en días hábiles (lunes a viernes).
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
+
               <div className='mt-4 flex flex-wrap gap-2'>
               {/* Solo el admin asigna incidencias; no mostrar auto-asignación al técnico */}
               {!editMode && <button className='btn btn-secondary' onClick={()=>setEditMode(true)}>Editar</button>}

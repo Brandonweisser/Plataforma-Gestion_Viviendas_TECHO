@@ -9,6 +9,7 @@ import { supabase } from '../supabaseClient.js'
 import { listTemplatePlans } from '../services/MediaService.js'
 import { getIncidencesByBeneficiary, createIncidence, computePriority, logIncidenciaEvent } from '../models/Incidence.js'
 import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
+import { calcularEstadoPlazos } from '../utils/plazosLegales.js'
 
 /**
  * Health check para rutas de beneficiario
@@ -187,6 +188,16 @@ export async function getMyIncidences(req, res) {
         incidencias.forEach(i => { i.media = byInc[i.id_incidencia] || [] })
       }
     }
+
+    // Agregar plazos legales a cada incidencia
+    incidencias.forEach(incidencia => {
+      try {
+        incidencia.plazos_legales = calcularEstadoPlazos(incidencia)
+      } catch (err) {
+        console.error(`Error calculando plazos para incidencia ${incidencia.id_incidencia}:`, err)
+        incidencia.plazos_legales = null
+      }
+    })
 
     return res.json({ success:true, data: incidencias, meta:{ total: count ?? incidencias.length, limit: l, offset: o, hasMore: typeof count === 'number' ? (o + incidencias.length) < count : false } })
   } catch (error) {

@@ -11,7 +11,7 @@ export default function IncidenciasListaTecnico() {
   const [meta, setMeta] = useState({ total: 0 })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState({ search: '', estado: '', prioridad: '', asignacion: 'all' })
+  const [filters, setFilters] = useState({ search: '', estado: '', prioridad: '', asignacion: 'all', plazo: '' })
 
   // Derivar filtros iniciales desde la URL (?estado=abierta&asignacion=asignadas)
   const initialFromQuery = useMemo(() => {
@@ -19,10 +19,12 @@ export default function IncidenciasListaTecnico() {
     const estado = p.get('estado') || ''
     const asignacion = p.get('asignacion') || ''
     const prioridad = p.get('prioridad') || ''
+    const plazo = p.get('plazo') || ''
     const normalized = {
       ...(estado ? { estado } : {}),
       ...(asignacion ? { asignacion } : {}),
-      ...(prioridad ? { prioridad } : {})
+      ...(prioridad ? { prioridad } : {}),
+      ...(plazo ? { plazo } : {})
     }
     return normalized
   }, [location.search])
@@ -31,7 +33,14 @@ export default function IncidenciasListaTecnico() {
     setLoading(true); setError('')
     try {
       const r = await tecnicoApi.listarIncidencias({ offset, search: filters.search, estado: filters.estado, prioridad: filters.prioridad, asignacion: filters.asignacion })
-      setIncidencias(r.data || [])
+      let data = r.data || []
+      
+      // Filtrado client-side por estado_plazo
+      if (filters.plazo) {
+        data = data.filter(inc => inc.plazos_legales?.estado_plazo === filters.plazo)
+      }
+      
+      setIncidencias(data)
       setMeta(r.meta || {})
     } catch (e) {
       setError(e.message || 'Error cargando incidencias')
@@ -47,7 +56,7 @@ export default function IncidenciasListaTecnico() {
   }, [initialFromQuery])
 
   useEffect(() => { load(0) // eslint-disable-next-line
-  }, [filters.search, filters.estado, filters.prioridad, filters.asignacion])
+  }, [filters.search, filters.estado, filters.prioridad, filters.asignacion, filters.plazo])
 
   return (
     <DashboardLayout title='Incidencias' subtitle='Visión global' accent='orange'>
@@ -85,6 +94,15 @@ export default function IncidenciasListaTecnico() {
                 <option value='all'>Todas</option>
                 <option value='asignadas'>Mis asignadas</option>
                 <option value='unassigned'>Sin asignar</option>
+              </select>
+            </div>
+            <div className='flex flex-col'>
+              <label className='text-xs font-medium text-techo-gray-600'>Estado de Plazo</label>
+              <select className='input' value={filters.plazo} onChange={e => setFilters(f => ({ ...f, plazo: e.target.value }))}>
+                <option value=''>Todos</option>
+                <option value='vencido'>🔴 Vencido</option>
+                <option value='proximo_vencer'>🟡 Próximo a vencer</option>
+                <option value='dentro_plazo'>🟢 Dentro del plazo</option>
               </select>
             </div>
             <button className='btn btn-secondary mt-4' onClick={() => load(0)} disabled={loading}>Refrescar</button>

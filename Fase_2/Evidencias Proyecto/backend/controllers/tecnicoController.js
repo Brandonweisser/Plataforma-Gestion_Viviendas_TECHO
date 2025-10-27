@@ -9,6 +9,7 @@ import { supabase } from '../supabaseClient.js'
 import { listTemplatePlans } from '../services/MediaService.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent, createIncidence, computePriority } from '../models/Incidence.js'
 import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
+import { calcularEstadoPlazos } from '../utils/plazosLegales.js'
 import multer from 'multer'
 import { listMediaForIncidencias, uploadIncidenciaMedia } from '../services/MediaService.js'
 
@@ -127,6 +128,16 @@ export async function getIncidences(req, res) {
       incidencias = incidencias.map(i => ({ ...i, media: byId[i.id_incidencia] || [] }))
     }
 
+    // Agregar plazos legales a cada incidencia
+    incidencias.forEach(incidencia => {
+      try {
+        incidencia.plazos_legales = calcularEstadoPlazos(incidencia)
+      } catch (err) {
+        console.error(`Error calculando plazos para incidencia ${incidencia.id_incidencia}:`, err)
+        incidencia.plazos_legales = null
+      }
+    })
+
     return res.json({
       success: true,
       data: incidencias,
@@ -200,12 +211,21 @@ export async function getIncidenceDetail(req, res) {
     // Media asociada
     const mediaBy = await listMediaForIncidencias([incidenciaId])
 
+    // Agregar plazos legales
+    let plazos_legales = null
+    try {
+      plazos_legales = calcularEstadoPlazos(incidencia)
+    } catch (err) {
+      console.error(`Error calculando plazos para incidencia ${incidenciaId}:`, err)
+    }
+
     return res.json({
       success: true,
       data: {
         ...incidencia,
         media: mediaBy[incidenciaId] || [],
-        historial: historial || []
+        historial: historial || [],
+        plazos_legales
       }
     })
     
