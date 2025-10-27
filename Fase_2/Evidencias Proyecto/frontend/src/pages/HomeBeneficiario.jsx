@@ -31,8 +31,80 @@ import {
   BoltIcon, 
   BuildingOffice2Icon, 
   ScaleIcon, 
-  UsersIcon 
+  UsersIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline'
+
+// Componente de acordeón FAQ
+function FAQAccordion() {
+  const [openIndex, setOpenIndex] = useState(null);
+  
+  const faqs = [
+    {
+      question: "¿Cómo reporto un problema en mi vivienda?",
+      answer: "Puedes reportar incidencias desde el botón 'Reportar Incidencia' en esta página o desde la sección 'Mis Incidencias'. Solo completa el formulario con la categoría del problema, una descripción detallada y, si es posible, adjunta fotos. Nuestro equipo técnico revisará tu reporte y te contactará en máximo 5 días hábiles."
+    },
+    {
+      question: "¿Cuánto tiempo demora la atención de una incidencia?",
+      answer: "El tiempo de atención depende de la prioridad del problema. Incidencias de prioridad alta (problemas estructurales o de seguridad) se atienden en 5 días hábiles, prioridad media en 10 días hábiles, y prioridad baja en 20 días hábiles. Recibirás notificaciones sobre el estado de tu reporte."
+    },
+    {
+      question: "¿Qué garantías cubre mi vivienda?",
+      answer: "Tu vivienda cuenta con tres tipos de garantías según el DS49: Estructura (10 años) cubre fundaciones, muros y techumbre; Instalaciones (5 años) incluye electricidad, agua, gas y alcantarillado; Terminaciones (3 años) protege pisos, puertas, ventanas y pintura. Todas se cuentan desde la fecha de entrega de la vivienda."
+    },
+    {
+      question: "¿Cómo funciona el formulario de posventa?",
+      answer: "El formulario de posventa es un checklist detallado que completarás después de recibir tu vivienda. Te permite revisar cada elemento (electricidad, pisos, puertas, etc.) y marcar si está OK o tiene problemas. Al enviarlo, el equipo técnico lo revisará y generará automáticamente incidencias para resolver los problemas detectados."
+    },
+    {
+      question: "¿Puedo ver los planos de mi vivienda?",
+      answer: "Sí, cuando completes el formulario de posventa encontrarás un botón 'Ver plano' que te permite consultar los planos oficiales de tu tipo de vivienda en formato PDF. Esto te ayudará a ubicar instalaciones y entender mejor la distribución de tu hogar."
+    },
+    {
+      question: "¿Cómo valido que un problema fue resuelto?",
+      answer: "Cuando una incidencia pasa a estado 'Resuelta', recibirás una notificación. En la ficha de la incidencia verás un botón 'Validar solución' donde podrás marcar si estás conforme o no. Si no estás conforme, la incidencia volverá a proceso para que el técnico la revise nuevamente."
+    },
+    {
+      question: "¿Qué hago si no aparece mi vivienda asignada?",
+      answer: "Si ves el mensaje 'No tienes una vivienda asignada', contacta al administrador del proyecto o envía un correo a soporte. Es posible que tu cuenta aún no esté vinculada a una vivienda en el sistema. El proceso de asignación lo realiza el equipo administrativo de TECHO."
+    },
+    {
+      question: "¿Puedo adjuntar fotos a mis reportes?",
+      answer: "Sí, al crear una incidencia puedes adjuntar hasta 5 fotos que ayuden al técnico a entender mejor el problema. Las imágenes deben ser en formato JPG, PNG o WEBP y no superar los 5 MB cada una. Esto agiliza el diagnóstico y la solución del problema."
+    }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {faqs.map((faq, index) => (
+        <div key={index} className="bg-yellow-400 rounded-lg overflow-hidden border border-yellow-500/20 shadow-sm hover:shadow-md transition-shadow">
+          <button
+            onClick={() => setOpenIndex(openIndex === index ? null : index)}
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-yellow-500/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-600"
+          >
+            <span className="font-semibold text-black text-sm sm:text-base pr-4">
+              {faq.question}
+            </span>
+            <ChevronDownIcon 
+              className={`w-5 h-5 text-black flex-shrink-0 transition-transform duration-200 ${
+                openIndex === index ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              openIndex === index ? 'max-h-96' : 'max-h-0'
+            }`}
+          >
+            <div className="px-6 pb-5 pt-1 text-black/80 text-sm leading-relaxed">
+              {faq.answer}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function HomeBeneficiario() {
   const { user, logout } = useContext(AuthContext);
@@ -977,6 +1049,19 @@ export default function HomeBeneficiario() {
             >
               LEER MÁS
             </a>
+          </div>
+        </section>
+
+        {/* Preguntas Frecuentes */}
+        <section aria-label="Preguntas frecuentes" className="mt-16">
+          <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+            <h3 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3 text-center">
+              Preguntas Frecuentes
+            </h3>
+            <p className="text-center text-slate-600 dark:text-slate-300 mb-12 text-sm sm:text-base max-w-2xl mx-auto">
+              Encuentra respuestas rápidas a las dudas más comunes sobre tu vivienda y la plataforma
+            </p>
+            <FAQAccordion />
           </div>
         </section>
       </div>
