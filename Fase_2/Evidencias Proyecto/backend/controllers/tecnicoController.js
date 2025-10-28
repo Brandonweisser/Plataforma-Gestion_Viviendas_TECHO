@@ -311,7 +311,7 @@ export async function getTechnicianDashboardStats(req, res) {
     // Considerar también incidencias que tienen asignación pero no registraron fecha_asignada,
     // tomando como referencia fecha_reporte del mes
     let qAsignadasA = supabase
-          // Determinar proyectos válidos (si no es admin)
+      .from('incidencias')
       .select('id_incidencia, id_vivienda, fecha_asignada, viviendas!inner(id_proyecto)')
       .eq('id_usuario_tecnico', tecnicoUid)
       .gte('fecha_asignada', start.toISOString())
