@@ -23,7 +23,9 @@ import {
   ClipboardDocumentListIcon,
   PhoneIcon,
   BookOpenIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  ClockIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { 
   ShieldCheckIcon, 
@@ -47,6 +49,18 @@ function FAQAccordion() {
     {
       question: "¿Cuánto tiempo demora la atención de una incidencia?",
       answer: "El tiempo de atención depende de la prioridad del problema. Incidencias de prioridad alta (problemas estructurales o de seguridad) se atienden en 5 días hábiles, prioridad media en 10 días hábiles, y prioridad baja en 20 días hábiles. Recibirás notificaciones sobre el estado de tu reporte."
+    },
+    {
+      question: "¿Qué son los plazos legales y cómo se calculan?",
+      answer: "Los plazos legales son tiempos máximos establecidos por la Ley General de Urbanismo y Construcciones (LGUC) para responder y resolver incidencias. Se calculan en días hábiles (lunes a viernes). Prioridad ALTA: 2 días para responder, 5 para resolver. Prioridad MEDIA: 5 días respuesta, 10 resolución. Prioridad BAJA: 10 días respuesta, 20 resolución. En tu reporte verás un indicador de color que muestra el estado del plazo."
+    },
+    {
+      question: "¿Qué significa el indicador de colores en mis incidencias?",
+      answer: "El indicador de plazos usa tres colores: Verde (✓) significa que hay tiempo suficiente para resolver (dentro del plazo). Amarillo (⏱) indica que quedan 2 días o menos, es urgente. Rojo (⚠) significa que el plazo legal ya venció. Este sistema te da transparencia sobre los tiempos de respuesta según la normativa chilena."
+    },
+    {
+      question: "¿Qué pasa si se vence el plazo de mi incidencia?",
+      answer: "Si el plazo legal se vence, la incidencia se marca en rojo y puedes presentar una queja formal ante SERVIU (Servicio de Vivienda y Urbanización) según el DS49. TECHO está obligado por ley a resolver los problemas en los plazos establecidos. Puedes contactar al equipo técnico para escalar el caso o solicitar asesoría sobre cómo presentar el reclamo."
     },
     {
       question: "¿Qué garantías cubre mi vivienda?",
@@ -611,6 +625,41 @@ export default function HomeBeneficiario() {
                           <p><span className="font-medium text-slate-900 dark:text-white">Prioridad:</span> {(detailInc.prioridad || '—').toUpperCase()}</p>
                           <p><span className="font-medium text-slate-900 dark:text-white">Fecha:</span> {(detailInc.fecha_reporte || '').split('T')[0]}</p>
                           <p className="whitespace-pre-line"><span className="font-medium text-slate-900 dark:text-white">Descripción:</span>\n{detailInc.descripcion}</p>
+                          
+                          {/* Indicador de Plazos Legales */}
+                          {detailInc.plazos_legales && !['cerrada', 'cancelada'].includes((detailInc.estado || '').toLowerCase()) && (() => {
+                            const { estado_plazo, dias_restantes, fecha_limite_resolucion, texto_estado } = detailInc.plazos_legales
+                            let Icon = ClockIcon
+                            let colorClasses = 'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
+                            
+                            if (estado_plazo === 'vencido') {
+                              Icon = ExclamationTriangleIcon
+                              colorClasses = 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+                            } else if (estado_plazo === 'dentro_plazo') {
+                              Icon = CheckCircleIcon
+                              colorClasses = 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+                            }
+                            
+                            const textoDetalle = dias_restantes !== null
+                              ? (dias_restantes > 0 
+                                  ? `${dias_restantes} día${dias_restantes !== 1 ? 's' : ''} hábil${dias_restantes !== 1 ? 'es' : ''} restantes (hasta ${fecha_limite_resolucion})`
+                                  : `Plazo vencido hace ${Math.abs(dias_restantes)} día${Math.abs(dias_restantes) !== 1 ? 's' : ''} hábil${Math.abs(dias_restantes) !== 1 ? 'es' : ''}`)
+                              : `Plazo límite: ${fecha_limite_resolucion}`
+                            
+                            return (
+                              <div className={`mt-3 p-3 rounded-lg border ${colorClasses} flex items-start gap-3`}>
+                                <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold">{texto_estado || 'Plazo Legal'}</p>
+                                  <p className="text-xs mt-1">{textoDetalle}</p>
+                                  <p className="text-xs mt-2 opacity-75">
+                                    Según LGUC y normativa SERVIU. Los plazos se calculan en días hábiles (lunes a viernes).
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })()}
+                          
                           {detailInc.estado === 'resuelta' && (
                             <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700">
                               <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">¿La solución implementada resolvió tu incidencia?</p>

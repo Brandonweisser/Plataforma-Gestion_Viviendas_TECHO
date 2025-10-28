@@ -1,4 +1,5 @@
 import React from 'react'
+import { ClockIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allowUpload = false, className = '' }) {
 	// Hooks deben declararse siempre; evitamos returns antes.
@@ -24,6 +25,44 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 	const media = Array.isArray(incidencia.media) ? incidencia.media : []
 	const firstThumb = media[0]
 	const hasPreview = !!firstThumb
+
+	// Procesamiento de plazos legales
+	const plazos = incidencia.plazos_legales
+	const mostrarPlazos = plazos && !['cerrada', 'cancelada'].includes((incidencia.estado || '').toLowerCase())
+
+	const plazoIndicador = mostrarPlazos ? (() => {
+		const { estado_plazo, dias_restantes, fecha_limite_resolucion } = plazos
+
+		if (estado_plazo === 'vencido') {
+			return {
+				icon: ExclamationTriangleIcon,
+				color: 'text-red-600 dark:text-red-400',
+				bgColor: 'bg-red-50 dark:bg-red-900/20',
+				borderColor: 'border-red-200 dark:border-red-700',
+				texto: '⚠️ Plazo vencido',
+				detalle: `Debió resolverse el ${fecha_limite_resolucion?.split('T')[0] || 'N/A'}`
+			}
+		} else if (estado_plazo === 'proximo_vencer') {
+			return {
+				icon: ClockIcon,
+				color: 'text-yellow-600 dark:text-yellow-400',
+				bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+				borderColor: 'border-yellow-200 dark:border-yellow-700',
+				texto: `⏰ ${dias_restantes} día${dias_restantes !== 1 ? 's' : ''} restante${dias_restantes !== 1 ? 's' : ''}`,
+				detalle: `Límite: ${fecha_limite_resolucion?.split('T')[0] || 'N/A'}`
+			}
+		} else if (estado_plazo === 'dentro_plazo') {
+			return {
+				icon: CheckCircleIcon,
+				color: 'text-green-600 dark:text-green-400',
+				bgColor: 'bg-green-50 dark:bg-green-900/20',
+				borderColor: 'border-green-200 dark:border-green-700',
+				texto: `✓ ${dias_restantes} día${dias_restantes !== 1 ? 's' : ''} restante${dias_restantes !== 1 ? 's' : ''}`,
+				detalle: `Límite: ${fecha_limite_resolucion?.split('T')[0] || 'N/A'}`
+			}
+		}
+		return null
+	})() : null
 
 	const garantiaChip = (() => {
 		const tipo = incidencia.garantia_tipo
@@ -77,6 +116,20 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 							{(incidencia.fecha_reporte || '').split('T')[0]}
 						</span>
 					</div>
+
+					{mostrarPlazos && plazoIndicador && (
+						<div className={`mt-2 p-2 rounded-lg ${plazoIndicador.bgColor} border ${plazoIndicador.borderColor} flex items-start gap-2`}>
+							<plazoIndicador.icon className={`w-4 h-4 ${plazoIndicador.color} flex-shrink-0 mt-0.5`} />
+							<div className='flex-1 min-w-0'>
+								<div className={`text-xs font-semibold ${plazoIndicador.color}`}>
+									{plazoIndicador.texto}
+								</div>
+								<div className='text-xs text-slate-600 dark:text-slate-300 mt-0.5'>
+									{plazoIndicador.detalle}
+								</div>
+							</div>
+						</div>
+					)}
 
 					{media.length > 1 && (
 						<div className='mt-3 flex gap-2 overflow-x-auto'>
