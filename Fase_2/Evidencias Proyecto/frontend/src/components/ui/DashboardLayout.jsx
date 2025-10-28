@@ -40,7 +40,11 @@ export function DashboardLayout({ title, subtitle, user, onLogout, children, acc
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className="btn btn-secondary px-3 py-2" aria-label="Cambiar tema">
+            <button 
+              onClick={toggleTheme} 
+              className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors" 
+              aria-label="Cambiar tema"
+            >
               {theme === 'dark' ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
             </button>
             {user && (
