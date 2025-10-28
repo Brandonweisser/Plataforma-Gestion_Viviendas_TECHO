@@ -132,41 +132,52 @@ export default function IncidenciasListaTecnico() {
         </SectionPanel>
 
         {/* Filtros para Incidencias Cerradas */}
-        <SectionPanel title='Filtros - Incidencias Cerradas/Terminadas' description='Filtra incidencias finalizadas'>
-          <div className='flex flex-wrap items-end gap-4'>
-            <div className='flex flex-col'>
-              <label className='text-xs font-medium text-techo-gray-600'>Buscar</label>
-              <input className='input' value={filtersCerradas.search} onChange={e => setFiltersCerradas(f => ({ ...f, search: e.target.value }))} placeholder='Texto en descripción' />
+        <div className='mt-12 pt-8 border-t-4 border-slate-300 dark:border-slate-600'>
+          <SectionPanel title='Filtros - Incidencias Cerradas/Terminadas' description='Filtra incidencias finalizadas'>
+            <div className='flex flex-wrap items-end gap-4'>
+              <div className='flex flex-col'>
+                <label className='text-xs font-medium text-techo-gray-600'>Buscar</label>
+                <input className='input' value={filtersCerradas.search} onChange={e => setFiltersCerradas(f => ({ ...f, search: e.target.value }))} placeholder='Texto en descripción' />
+              </div>
+              <div className='flex flex-col'>
+                <label className='text-xs font-medium text-techo-gray-600'>Prioridad</label>
+                <select className='input' value={filtersCerradas.prioridad} onChange={e => setFiltersCerradas(f => ({ ...f, prioridad: e.target.value }))}>
+                  <option value=''>Todas</option>
+                  <option value='alta'>Alta</option>
+                  <option value='media'>Media</option>
+                  <option value='baja'>Baja</option>
+                </select>
+              </div>
+              <div className='flex flex-col'>
+                <label className='text-xs font-medium text-techo-gray-600'>Asignación</label>
+                <select className='input' value={filtersCerradas.asignacion} onChange={e => setFiltersCerradas(f => ({ ...f, asignacion: e.target.value }))}>
+                  <option value='all'>Todas</option>
+                  <option value='asignadas'>Mis asignadas</option>
+                  <option value='unassigned'>Sin asignar</option>
+                </select>
+              </div>
             </div>
-            <div className='flex flex-col'>
-              <label className='text-xs font-medium text-techo-gray-600'>Prioridad</label>
-              <select className='input' value={filtersCerradas.prioridad} onChange={e => setFiltersCerradas(f => ({ ...f, prioridad: e.target.value }))}>
-                <option value=''>Todas</option>
-                <option value='alta'>Alta</option>
-                <option value='media'>Media</option>
-                <option value='baja'>Baja</option>
-              </select>
-            </div>
-            <div className='flex flex-col'>
-              <label className='text-xs font-medium text-techo-gray-600'>Asignación</label>
-              <select className='input' value={filtersCerradas.asignacion} onChange={e => setFiltersCerradas(f => ({ ...f, asignacion: e.target.value }))}>
-                <option value='all'>Todas</option>
-                <option value='asignadas'>Mis asignadas</option>
-                <option value='unassigned'>Sin asignar</option>
-              </select>
-            </div>
-          </div>
-        </SectionPanel>
+          </SectionPanel>
 
-        {/* Listado Incidencias Cerradas */}
-        <SectionPanel title='Incidencias Cerradas/Terminadas' description={`Total cerradas: ${incidenciasCerradas.length}`}>        
-          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
-            {incidenciasCerradas.map(i => (
-              <CardIncidencia key={i.id_incidencia} incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
-            ))}
+          {/* Listado Incidencias Cerradas */}
+          <div className='bg-slate-100 dark:bg-slate-800/50 rounded-xl p-6 border-2 border-slate-300 dark:border-slate-600'>
+            <div className='flex items-center justify-between mb-4'>
+              <div>
+                <h3 className='text-lg font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2'>
+                  <span className='text-2xl'>📦</span>
+                  Incidencias Cerradas/Terminadas
+                </h3>
+                <p className='text-xs text-slate-500 dark:text-slate-400 mt-1'>Historial de incidencias finalizadas - Total: {incidenciasCerradas.length}</p>
+              </div>
+            </div>
+            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-75'>
+              {incidenciasCerradas.map(i => (
+                <CardIncidencia key={i.id_incidencia} incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
+              ))}
+            </div>
+            {incidenciasCerradas.length === 0 && <div className='text-sm text-slate-500 dark:text-slate-400 text-center py-8'>📭 Sin incidencias cerradas en este momento.</div>}
           </div>
-          {incidenciasCerradas.length === 0 && <div className='text-sm text-techo-gray-500'>Sin incidencias cerradas.</div>}
-        </SectionPanel>
+        </div>
       </div>
     </DashboardLayout>
   )
