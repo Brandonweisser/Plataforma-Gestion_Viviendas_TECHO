@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { tecnicoApi } from '../../services/api'
+import ImageModal from '../../components/ui/ImageModal'
 import { ClockIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 export default function IncidenciaDetalleTecnico() {
@@ -20,6 +21,7 @@ export default function IncidenciaDetalleTecnico() {
   const [editPrioridad, setEditPrioridad] = useState('')
   const [comentarioNuevo, setComentarioNuevo] = useState('')
   const [subiendo, setSubiendo] = useState(false)
+  const [preview, setPreview] = useState({ open: false, src: '', alt: '' })
 
   console.log('🔍 IncidenciaDetalleTecnico - ID:', id)
   console.log('🔍 IncidenciaDetalleTecnico - Componente cargado')
@@ -190,7 +192,15 @@ export default function IncidenciaDetalleTecnico() {
               <h4 className='font-semibold mb-2'>Media</h4>
               {Array.isArray(data.media) && data.media.length>0 ? (
                 <div className='flex gap-2 overflow-x-auto'>
-                  {data.media.map(m => <img key={m.id} src={m.url} alt='foto' className='h-28 w-28 object-cover rounded border' />)}
+                  {data.media.map(m => (
+                    <img
+                      key={m.id}
+                      src={m.url}
+                      alt='foto'
+                      className='h-28 w-28 object-cover rounded border cursor-zoom-in hover:opacity-90'
+                      onClick={() => setPreview({ open: true, src: m.url, alt: `Incidencia #${id}` })}
+                    />
+                  ))}
                 </div>
               ) : <div className='text-xs text-techo-gray-500'>Sin fotos</div>}
               <div className='mt-2'>
@@ -227,6 +237,12 @@ export default function IncidenciaDetalleTecnico() {
           </div>
         </SectionPanel>
       </div>
+      <ImageModal
+        open={preview.open}
+        src={preview.src}
+        alt={preview.alt}
+        onClose={() => setPreview({ open: false, src: '', alt: '' })}
+      />
     </DashboardLayout>
   )
 }

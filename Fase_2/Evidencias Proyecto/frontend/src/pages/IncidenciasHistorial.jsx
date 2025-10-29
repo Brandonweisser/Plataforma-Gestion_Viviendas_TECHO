@@ -4,6 +4,7 @@ import { DashboardLayout } from '../components/ui/DashboardLayout';
 import { beneficiarioApi } from '../services/api';
 import CardIncidencia from '../components/CardIncidencia';
 import ValidationModal from '../components/ValidationModal';
+import ImageModal from '../components/ui/ImageModal';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +26,7 @@ export default function IncidenciasHistorial() {
   const [actionLoading, setActionLoading] = useState(false)
   const [showValidationModal, setShowValidationModal] = useState(false)
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [preview, setPreview] = useState({ open: false, src: '', alt: '' })
   const stateChips = [
     { label: 'Todas', value: '' },
     { label: 'Abiertas', value: 'abierta' },
@@ -164,8 +166,8 @@ export default function IncidenciasHistorial() {
       </div>
 
       {detailInc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-2xl p-6 md:p-7">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:p-6" role="dialog" aria-modal="true">
+          <div className="mt-8 mb-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-2xl p-6 md:p-7">
             <div className="flex items-start justify-between mb-5">
               <h3 className="text-lg md:text-xl font-semibold text-slate-800 dark:text-white">Detalle reporte #{detailInc.id_incidencia}</h3>
               <button className="btn-outline" onClick={() => setDetailInc(null)}>Cerrar</button>
@@ -224,7 +226,13 @@ export default function IncidenciasHistorial() {
                 <div className="flex flex-wrap gap-2">
                   {Array.isArray(detailInc.media) && detailInc.media.length > 0 ? (
                     detailInc.media.map(m => (
-                      <img key={m.id || m.url} src={m.url} alt="foto" className="h-24 w-24 object-cover rounded border border-slate-300 dark:border-slate-600" />
+                      <img
+                        key={m.id || m.url}
+                        src={m.url}
+                        alt="foto"
+                        className="h-24 w-24 object-cover rounded border border-slate-300 dark:border-slate-600 cursor-zoom-in hover:opacity-90"
+                        onClick={() => setPreview({ open: true, src: m.url, alt: `Incidencia #${detailInc.id_incidencia}` })}
+                      />
                     ))
                   ) : (
                     <p className="text-sm text-slate-500 dark:text-slate-400">Sin fotos</p>
@@ -235,6 +243,13 @@ export default function IncidenciasHistorial() {
           </div>
         </div>
       )}
+      {/* Modal de imagen en grande */}
+      <ImageModal
+        open={preview.open}
+        src={preview.src}
+        alt={preview.alt}
+        onClose={() => setPreview({ open: false, src: '', alt: '' })}
+      />
       {showValidationModal && detailInc && (
         <ValidationModal
           open={showValidationModal}
