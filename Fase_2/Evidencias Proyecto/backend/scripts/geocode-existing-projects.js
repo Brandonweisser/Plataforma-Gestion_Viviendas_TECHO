@@ -7,7 +7,7 @@ import { supabase } from '../supabaseClient.js'
 import { geocodeSearch } from '../services/GeocodingService.js'
 
 async function geocodeExistingProjects() {
-  console.log('🔍 Iniciando geocodificación de proyectos existentes...\n')
+  console.log('Iniciando geocodificación de proyectos existentes...\n')
 
   try {
     // Obtener proyectos sin coordenadas
@@ -19,21 +19,21 @@ async function geocodeExistingProjects() {
     if (error) throw error
 
     if (!projects || projects.length === 0) {
-      console.log('✅ Todos los proyectos ya tienen coordenadas')
+      console.log('Todos los proyectos ya tienen coordenadas')
       return
     }
 
-    console.log(`📊 Encontrados ${projects.length} proyectos sin coordenadas\n`)
+    console.log(`Encontrados ${projects.length} proyectos sin coordenadas\n`)
 
     let successCount = 0
     let failCount = 0
 
     for (const project of projects) {
-      console.log(`\n🏘️  Proyecto: ${project.nombre}`)
-      console.log(`   Ubicación: ${project.ubicacion}`)
+      console.log(`\nProyecto: ${project.nombre}`)
+      console.log(`  Ubicación: ${project.ubicacion}`)
 
       if (!project.ubicacion) {
-        console.log('   ⚠️  Sin dirección - omitido')
+        console.log('  Sin dirección - omitido')
         failCount++
         continue
       }
@@ -63,23 +63,23 @@ async function geocodeExistingProjects() {
               
               if (updateError) throw updateError
               
-              console.log(`   ✅ Geocodificado: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
-              console.log(`   📍 ${first.place_name}`)
+              console.log(`  Geocodificado: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+              console.log(`  ${first.place_name}`)
               successCount++
             } else {
-              console.log('   ⚠️  Coordenadas fuera de rango')
+              console.log('  Coordenadas fuera de rango')
               failCount++
             }
           } else {
-            console.log('   ⚠️  Formato de respuesta inválido')
+            console.log('  Formato de respuesta inválido')
             failCount++
           }
         } else {
-          console.log('   ❌ No se encontraron resultados')
+          console.log('  No se encontraron resultados')
           failCount++
         }
       } catch (geoError) {
-        console.log(`   ❌ Error: ${geoError.message}`)
+        console.log(`  Error: ${geoError.message}`)
         failCount++
       }
 
@@ -88,13 +88,13 @@ async function geocodeExistingProjects() {
     }
 
     console.log('\n' + '='.repeat(60))
-    console.log(`\n📊 Resumen:`)
-    console.log(`   ✅ Exitosos: ${successCount}`)
-    console.log(`   ❌ Fallidos: ${failCount}`)
-    console.log(`   📦 Total procesados: ${projects.length}\n`)
+    console.log(`\nResumen:`)
+    console.log(`  Exitosos: ${successCount}`)
+    console.log(`  Fallidos: ${failCount}`)
+    console.log(`  Total procesados: ${projects.length}\n`)
 
   } catch (error) {
-    console.error('❌ Error general:', error)
+    console.error('Error general:', error)
     process.exit(1)
   }
 }
@@ -102,10 +102,10 @@ async function geocodeExistingProjects() {
 // Ejecutar
 geocodeExistingProjects()
   .then(() => {
-    console.log('✅ Script finalizado')
+    console.log('Script finalizado')
     process.exit(0)
   })
   .catch((err) => {
-    console.error('❌ Error fatal:', err)
+    console.error('Error fatal:', err)
     process.exit(1)
   })
