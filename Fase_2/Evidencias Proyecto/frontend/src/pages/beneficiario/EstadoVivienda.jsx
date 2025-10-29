@@ -5,8 +5,8 @@ import { SectionPanel } from '../../components/ui/SectionPanel'
 import { Toast } from '../../components/ui/Toast'
 import { StatusPill } from '../../components/ui/StatusPill'
 import { beneficiarioApi } from '../../services/api'
-import { MapIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
-import Modal from '../../components/ui/Modal'
+import { DocumentTextIcon } from '@heroicons/react/24/outline'
+import { Modal } from '../../components/ui/Modal'
 
 export default function EstadoVivienda() {
   const navigate = useNavigate()
@@ -26,6 +26,7 @@ export default function EstadoVivienda() {
   const [showPlanoModal, setShowPlanoModal] = useState(false)
   const [planos, setPlanos] = useState([])
   const [loadingPlanos, setLoadingPlanos] = useState(false)
+  const [projectCoords, setProjectCoords] = useState(null) // Coordenadas del proyecto (geocodificadas o directas)
 
   // Valor de éxito proveniente de la navegación (estable y seguro para dependencias)
   const navSuccess = Boolean(location.state?.success)
@@ -58,8 +59,28 @@ export default function EstadoVivienda() {
 
       // Procesar resultados
       if (viviendaRes.status === 'fulfilled') {
-        setVivienda(viviendaRes.value.data)
-        console.log('✅ Vivienda cargada:', viviendaRes.value.data)
+        const viviendaData = viviendaRes.value.data.vivienda
+        setVivienda(viviendaData)
+        console.log('✅ Vivienda cargada:', viviendaData)
+        
+        // Obtener coordenadas del proyecto (ya geocodificadas por el backend)
+        if (viviendaData?.proyecto?.latitud && viviendaData?.proyecto?.longitud) {
+          const lat = Number(viviendaData.proyecto.latitud)
+          const lng = Number(viviendaData.proyecto.longitud)
+          
+          if (isFinite(lat) && isFinite(lng)) {
+            setProjectCoords({
+              lat,
+              lng,
+              source: 'database'
+            })
+            console.log('✅ Coordenadas del proyecto:', lat, lng)
+          } else {
+            console.warn('⚠️ Coordenadas del proyecto inválidas:', viviendaData.proyecto.latitud, viviendaData.proyecto.longitud)
+          }
+        } else {
+          console.log('ℹ️ El proyecto no tiene coordenadas guardadas')
+        }
       } else {
         console.error('❌ Error cargando vivienda:', viviendaRes.reason)
       }
@@ -109,14 +130,9 @@ export default function EstadoVivienda() {
   }
 
   async function loadPlanos() {
-    if (!vivienda?.tipo_vivienda) {
-      setError('No se puede cargar el plano sin tipo de vivienda')
-      return
-    }
-    
     setLoadingPlanos(true)
     try {
-      const response = await beneficiarioApi.posventaGetPlanos(vivienda.tipo_vivienda)
+      const response = await beneficiarioApi.posventaListarPlanos()
       setPlanos(response.data || [])
       setShowPlanoModal(true)
     } catch (err) {
@@ -199,15 +215,15 @@ export default function EstadoVivienda() {
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Dirección</label>
-                    <p className="text-lg font-semibold text-gray-900">{vivienda.direccion}</p>
+                    <p className="text-lg font-semibold text-gray-900">{vivienda.direccion || 'No especificado'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Proyecto</label>
-                    <p className="text-gray-900">{vivienda.proyecto_nombre || 'No especificado'}</p>
+                    <p className="text-gray-900">{vivienda.proyecto?.nombre || 'No especificado'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Fecha de Entrega</label>
-                    <p className="text-gray-900">{formatFecha(vivienda.fecha_entrega)}</p>
+                    <label className="text-sm font-medium text-gray-600">Ubicación del Proyecto</label>
+                    <p className="text-gray-900">{vivienda.proyecto?.ubicacion || 'No especificado'}</p>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -217,7 +233,11 @@ export default function EstadoVivienda() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Metros Cuadrados</label>
-                    <p className="text-gray-900">{vivienda.metros_cuadrados || 'No especificado'} m²</p>
+                    <p className="text-gray-900">{vivienda.metros_cuadrados ? `${vivienda.metros_cuadrados} m²` : 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Fecha de Entrega</label>
+                    <p className="text-gray-900">{vivienda.fecha_entrega ? formatFecha(vivienda.fecha_entrega) : 'No definida'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Estado</label>
@@ -226,64 +246,74 @@ export default function EstadoVivienda() {
                 </div>
               </div>
 
-              {/* Mapa y Plano */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                {/* Mapa */}
-                <div className="bg-white rounded-lg p-4 border shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <MapIcon className="h-5 w-5 text-blue-600" />
-                      Ubicación
-                    </h3>
+              {/* Mapa de Ubicación del Proyecto */}
+              {projectCoords ? (
+                <div className="pt-4 border-t">
+                  <h3 className="font-semibold text-gray-900 mb-3">📍 Ubicación del Proyecto</h3>
+                  <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+                    <iframe
+                      title="Ubicación del proyecto"
+                      width="100%"
+                      height="300"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${projectCoords.lat},${projectCoords.lng}&zoom=16`}
+                    />
+                    <div className="p-3 bg-gray-50 border-t">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 mb-2">
+                        <span>
+                          📌 {vivienda.proyecto.nombre}
+                        </span>
+                        <span className="text-gray-500">
+                          ({projectCoords.lat.toFixed(6)}, {projectCoords.lng.toFixed(6)})
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-xs">
+                        <a
+                          href={`https://www.google.com/maps?q=${projectCoords.lat},${projectCoords.lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Abrir en Google Maps
+                        </a>
+                        <a
+                          href={`https://www.openstreetmap.org/?mlat=${projectCoords.lat}&mlon=${projectCoords.lng}#map=17/${projectCoords.lat}/${projectCoords.lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Ver en OpenStreetMap
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                  {vivienda.latitud && vivienda.longitud ? (
-                    <div className="space-y-2">
-                      <iframe
-                        title="Mapa de ubicación"
-                        width="100%"
-                        height="200"
-                        style={{ border: 0, borderRadius: '0.5rem' }}
-                        loading="lazy"
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${vivienda.longitud - 0.002},${vivienda.latitud - 0.002},${vivienda.longitud + 0.002},${vivienda.latitud + 0.002}&layer=mapnik&marker=${vivienda.latitud},${vivienda.longitud}`}
-                      />
-                      <a
-                        href={`https://www.openstreetmap.org/?mlat=${vivienda.latitud}&mlon=${vivienda.longitud}#map=17/${vivienda.latitud}/${vivienda.longitud}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        Ver mapa completo →
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-400">
-                      <MapIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Ubicación no disponible</p>
-                    </div>
-                  )}
                 </div>
+              ) : null}
 
-                {/* Plano */}
-                <div className="bg-white rounded-lg p-4 border shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <DocumentTextIcon className="h-5 w-5 text-green-600" />
-                      Plano de Vivienda
-                    </h3>
+              {/* Plano de Vivienda */}
+              <div className="pt-4 border-t">
+                <div className="bg-white rounded-lg p-6 border shadow-sm text-center">
+                  <div className="flex items-center justify-center mb-4">
+                    <DocumentTextIcon className="h-8 w-8 text-green-600" />
                   </div>
-                  <div className="text-center py-8">
-                    <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 text-green-600" />
-                    <p className="text-sm text-gray-600 mb-4">
-                      Consulta el plano técnico de tu vivienda tipo <strong>{vivienda.tipo_vivienda}</strong>
-                    </p>
-                    <button
-                      onClick={loadPlanos}
-                      disabled={loadingPlanos}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 text-sm font-medium"
-                    >
-                      {loadingPlanos ? 'Cargando...' : 'Ver Plano 📐'}
-                    </button>
-                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Plano de Vivienda</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Consulta el plano técnico de tu vivienda tipo <strong>{vivienda.tipo_vivienda}</strong>
+                  </p>
+                  <button
+                    onClick={loadPlanos}
+                    disabled={loadingPlanos}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 text-sm font-medium inline-flex items-center gap-2"
+                  >
+                    {loadingPlanos ? 'Cargando...' : (
+                      <>
+                        <DocumentTextIcon className="h-5 w-5" />
+                        Ver Plano 📐
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -520,72 +550,60 @@ export default function EstadoVivienda() {
         </div>
 
         {/* Modal de Planos */}
-        <Modal isOpen={showPlanoModal} onClose={() => setShowPlanoModal(false)} maxWidth="max-w-4xl">
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <DocumentTextIcon className="h-6 w-6 text-green-600" />
-              Plano de Vivienda - {vivienda?.tipo_vivienda}
-            </h3>
-            
-            {planos.length > 0 ? (
-              <div className="space-y-4">
-                {planos.map((plano, index) => (
-                  <div key={plano.id || index} className="border rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-medium text-gray-900">{plano.nombre_archivo}</span>
-                      <a
-                        href={plano.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                      >
-                        Abrir en nueva pestaña →
-                      </a>
-                    </div>
-                    
-                    {/* Preview del plano */}
-                    {plano.mime_type?.includes('pdf') ? (
-                      <iframe
-                        src={plano.url}
-                        title={`Plano ${index + 1}`}
-                        className="w-full h-96 border rounded"
-                      />
-                    ) : plano.mime_type?.includes('image') ? (
-                      <img
-                        src={plano.url}
-                        alt={`Plano ${index + 1}`}
-                        className="w-full h-auto border rounded"
-                      />
-                    ) : (
-                      <div className="text-center py-8 bg-gray-100 rounded">
-                        <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-400 mb-2" />
-                        <p className="text-gray-600">
-                          Formato no previsualizable. Usa el botón "Abrir en nueva pestaña"
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">No hay planos disponibles para este tipo de vivienda</p>
-                <p className="text-sm text-gray-500">Contacta al equipo técnico si necesitas consultar los planos</p>
-              </div>
-            )}
-            
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowPlanoModal(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </Modal>
+        <PlanPreviewModal 
+          open={showPlanoModal} 
+          onClose={() => setShowPlanoModal(false)} 
+          plan={planos[0]} 
+        />
       </div>
     </DashboardLayout>
+  )
+}
+
+// Componente reutilizado del formulario de posventa
+function PlanPreviewModal({ open, onClose, plan }) {
+  if (!open) return null
+  const url = plan?.url || ''
+  const mime = (plan?.mime_type || plan?.mime || '').toLowerCase()
+  const isPdf = mime.includes('pdf') || url.toLowerCase().endsWith('.pdf')
+  const isImage = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(url)
+  const cadViewerUrl = url ? `https://sharecad.org/cadframe/load?url=${encodeURIComponent(url)}` : ''
+
+  return (
+    <Modal isOpen={open} onClose={onClose} maxWidth="max-w-5xl">
+      <div className="p-4 border-b flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Plano de tu Vivienda</h3>
+        <div className="flex items-center gap-2">
+          {url ? (
+            <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-100 text-sm hover:bg-slate-200 dark:hover:bg-slate-600">Abrir en pestaña</a>
+          ) : null}
+          <button onClick={onClose} className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm hover:bg-slate-700">Cerrar</button>
+        </div>
+      </div>
+      <div className="p-4">
+        {!plan ? (
+          <div className="text-center py-12">
+            <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-600">No hay planos disponibles para tu vivienda</p>
+            <p className="text-sm text-gray-500 mt-2">Contacta al equipo técnico si necesitas consultar los planos</p>
+          </div>
+        ) : isPdf ? (
+          <iframe title="Plano PDF" src={url} className="w-full h-[80vh] border rounded" />
+        ) : isImage ? (
+          <div className="w-full flex items-center justify-center">
+            <img src={url} alt="Plano" className="max-h-[80vh] w-auto object-contain" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-6 text-sm text-gray-700 dark:text-gray-300">
+              No se puede previsualizar este tipo de archivo de forma nativa. Intentaremos usar un visor CAD online.
+            </div>
+            {cadViewerUrl ? (
+              <iframe title="Plano CAD" src={cadViewerUrl} className="w-full h-[80vh] border rounded" />
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }

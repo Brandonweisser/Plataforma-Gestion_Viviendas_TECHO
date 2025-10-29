@@ -7,6 +7,7 @@
 
 import bcrypt from 'bcrypt'
 import { supabase } from '../supabaseClient.js'
+import { geocodeSearch } from '../services/GeocodingService.js'
 import { getAllUsers, updateUser, deleteUser, insertUser, getLastUser } from '../models/User.js'
 import { 
   getAllProjects, 
@@ -672,8 +673,34 @@ export async function createNewProject(req, res) {
       return Number.isFinite(n) ? n : null
     }
     const inRange = (la, lo) => la != null && lo != null && la >= -90 && la <= 90 && lo >= -180 && lo <= 180
-    const latNum = toNum(latitud ?? latitude ?? lat)
-    const lonNum = toNum(longitud ?? longitude ?? lng)
+    let latNum = toNum(latitud ?? latitude ?? lat)
+    let lonNum = toNum(longitud ?? longitude ?? lng)
+
+    // Si no hay coordenadas, intentar geocodificar automáticamente
+    let autoGeocodedProvider = null
+    let autoGeocodedScore = null
+    if (!inRange(latNum, lonNum) && ubicacion) {
+      try {
+        console.log('🔍 Geocodificando ubicación del proyecto:', ubicacion)
+        const results = await geocodeSearch(ubicacion)
+        if (results && results.length > 0) {
+          const first = results[0]
+          // geocodeSearch devuelve objetos con center: [lng, lat]
+          if (first.center && Array.isArray(first.center) && first.center.length === 2) {
+            lonNum = toNum(first.center[0])
+            latNum = toNum(first.center[1])
+            if (inRange(latNum, lonNum)) {
+              autoGeocodedProvider = 'mapbox'
+              autoGeocodedScore = first.relevance || 1
+              console.log('✅ Proyecto geocodificado automáticamente:', first.place_name, '→', latNum, lonNum)
+            }
+          }
+        }
+      } catch (geoError) {
+        console.warn('⚠️ Error geocodificando proyecto:', geoError.message)
+        // No bloquear la creación si falla la geocodificación
+      }
+    }
 
     const projectData = {
       nombre,
@@ -684,8 +711,8 @@ export async function createNewProject(req, res) {
   ubicacion_referencia: ubicacion_referencia || null,
       latitud: inRange(latNum, lonNum) ? latNum : null,
       longitud: inRange(latNum, lonNum) ? lonNum : null,
-      geocode_provider: geocode_provider || null,
-      geocode_score: typeof geocode_score === 'number' ? geocode_score : null,
+      geocode_provider: geocode_provider || autoGeocodedProvider || null,
+      geocode_score: typeof geocode_score === 'number' ? geocode_score : autoGeocodedScore,
       geocode_at: geocode_at ? new Date(geocode_at) : (inRange(latNum, lonNum) ? new Date() : null)
     }
     
@@ -722,8 +749,32 @@ export async function updateProjectById(req, res) {
       return Number.isFinite(n) ? n : null
     }
     const inRange = (la, lo) => la != null && lo != null && la >= -90 && la <= 90 && lo >= -180 && lo <= 180
-    const latNum = toNum(updates.latitud ?? updates.latitude ?? updates.lat)
-    const lonNum = toNum(updates.longitud ?? updates.longitude ?? updates.lng)
+    let latNum = toNum(updates.latitud ?? updates.latitude ?? updates.lat)
+    let lonNum = toNum(updates.longitud ?? updates.longitude ?? updates.lng)
+    
+    // Si se está actualizando la ubicación pero no hay coordenadas, intentar geocodificar
+    if (updates.ubicacion && !inRange(latNum, lonNum)) {
+      try {
+        console.log('🔍 Geocodificando nueva ubicación del proyecto:', updates.ubicacion)
+        const results = await geocodeSearch(updates.ubicacion)
+        if (results && results.length > 0) {
+          const first = results[0]
+          if (first.center && Array.isArray(first.center) && first.center.length === 2) {
+            lonNum = toNum(first.center[0])
+            latNum = toNum(first.center[1])
+            if (inRange(latNum, lonNum)) {
+              updates.geocode_provider = 'mapbox'
+              updates.geocode_score = first.relevance || 1
+              updates.geocode_at = new Date()
+              console.log('✅ Ubicación geocodificada automáticamente:', first.place_name, '→', latNum, lonNum)
+            }
+          }
+        }
+      } catch (geoError) {
+        console.warn('⚠️ Error geocodificando proyecto en actualización:', geoError.message)
+      }
+    }
+    
     if (latNum != null || lonNum != null) {
       // Si alguno viene, ambos deben ser válidos y en rango; si no, los ponemos a null para no guardar basura
       if (inRange(latNum, lonNum)) {

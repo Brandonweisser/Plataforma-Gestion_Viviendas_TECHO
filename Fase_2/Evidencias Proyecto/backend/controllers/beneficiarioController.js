@@ -43,7 +43,7 @@ export async function getMyHousing(req, res) {
         numero_habitaciones,
         numero_banos,
         fecha_entrega,
-        proyecto(id_proyecto,nombre,ubicacion)
+        proyecto(id_proyecto,nombre,ubicacion,latitud,longitud)
       `)
       .eq('beneficiario_uid', beneficiarioUid)
       .maybeSingle()
