@@ -5,6 +5,8 @@ import { SectionPanel } from '../../components/ui/SectionPanel'
 import { Toast } from '../../components/ui/Toast'
 import { StatusPill } from '../../components/ui/StatusPill'
 import { beneficiarioApi } from '../../services/api'
+import { MapIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import Modal from '../../components/ui/Modal'
 
 export default function EstadoVivienda() {
   const navigate = useNavigate()
@@ -21,6 +23,9 @@ export default function EstadoVivienda() {
     incidenciasResueltas: 0,
     incidenciasTotal: 0
   })
+  const [showPlanoModal, setShowPlanoModal] = useState(false)
+  const [planos, setPlanos] = useState([])
+  const [loadingPlanos, setLoadingPlanos] = useState(false)
 
   // Valor de éxito proveniente de la navegación (estable y seguro para dependencias)
   const navSuccess = Boolean(location.state?.success)
@@ -103,6 +108,25 @@ export default function EstadoVivienda() {
     }
   }
 
+  async function loadPlanos() {
+    if (!vivienda?.tipo_vivienda) {
+      setError('No se puede cargar el plano sin tipo de vivienda')
+      return
+    }
+    
+    setLoadingPlanos(true)
+    try {
+      const response = await beneficiarioApi.posventaGetPlanos(vivienda.tipo_vivienda)
+      setPlanos(response.data || [])
+      setShowPlanoModal(true)
+    } catch (err) {
+      console.error('Error cargando planos:', err)
+      setError('No se pudo cargar el plano de tu vivienda')
+    } finally {
+      setLoadingPlanos(false)
+    }
+  }
+
   const getEstadoColor = (estado) => {
     const colors = {
       'borrador': 'bg-gray-100 text-gray-800',
@@ -167,35 +191,99 @@ export default function EstadoVivienda() {
         )}
 
         {/* Información de la Vivienda */}
-        <SectionPanel title="📍 Mi Vivienda" className="bg-blue-50">
+        <SectionPanel title="🏠 Información y Estado de Mi Vivienda" className="bg-blue-50">
           {vivienda ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Dirección</label>
-                  <p className="text-lg font-semibold text-gray-900">{vivienda.direccion}</p>
+            <div className="space-y-6">
+              {/* Grid de Información */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Dirección</label>
+                    <p className="text-lg font-semibold text-gray-900">{vivienda.direccion}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Proyecto</label>
+                    <p className="text-gray-900">{vivienda.proyecto_nombre || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Fecha de Entrega</label>
+                    <p className="text-gray-900">{formatFecha(vivienda.fecha_entrega)}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Proyecto</label>
-                  <p className="text-gray-900">{vivienda.proyecto_nombre || 'No especificado'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Fecha de Entrega</label>
-                  <p className="text-gray-900">{formatFecha(vivienda.fecha_entrega)}</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Tipo de Vivienda</label>
+                    <p className="text-gray-900">{vivienda.tipo_vivienda || 'Estándar'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Metros Cuadrados</label>
+                    <p className="text-gray-900">{vivienda.metros_cuadrados || 'No especificado'} m²</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Estado</label>
+                    <StatusPill value={vivienda.estado || 'entregada'} />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Tipo de Vivienda</label>
-                  <p className="text-gray-900">{vivienda.tipo_vivienda || 'Estándar'}</p>
+
+              {/* Mapa y Plano */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                {/* Mapa */}
+                <div className="bg-white rounded-lg p-4 border shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <MapIcon className="h-5 w-5 text-blue-600" />
+                      Ubicación
+                    </h3>
+                  </div>
+                  {vivienda.latitud && vivienda.longitud ? (
+                    <div className="space-y-2">
+                      <iframe
+                        title="Mapa de ubicación"
+                        width="100%"
+                        height="200"
+                        style={{ border: 0, borderRadius: '0.5rem' }}
+                        loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${vivienda.longitud - 0.002},${vivienda.latitud - 0.002},${vivienda.longitud + 0.002},${vivienda.latitud + 0.002}&layer=mapnik&marker=${vivienda.latitud},${vivienda.longitud}`}
+                      />
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${vivienda.latitud}&mlon=${vivienda.longitud}#map=17/${vivienda.latitud}/${vivienda.longitud}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        Ver mapa completo →
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <MapIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Ubicación no disponible</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Metros Cuadrados</label>
-                  <p className="text-gray-900">{vivienda.metros_cuadrados || 'No especificado'} m²</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Estado</label>
-                  <StatusPill value={vivienda.estado || 'entregada'} />
+
+                {/* Plano */}
+                <div className="bg-white rounded-lg p-4 border shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <DocumentTextIcon className="h-5 w-5 text-green-600" />
+                      Plano de Vivienda
+                    </h3>
+                  </div>
+                  <div className="text-center py-8">
+                    <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 text-green-600" />
+                    <p className="text-sm text-gray-600 mb-4">
+                      Consulta el plano técnico de tu vivienda tipo <strong>{vivienda.tipo_vivienda}</strong>
+                    </p>
+                    <button
+                      onClick={loadPlanos}
+                      disabled={loadingPlanos}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 text-sm font-medium"
+                    >
+                      {loadingPlanos ? 'Cargando...' : 'Ver Plano 📐'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -430,6 +518,73 @@ export default function EstadoVivienda() {
             <span>{loading ? 'Actualizando...' : 'Actualizar Información'}</span>
           </button>
         </div>
+
+        {/* Modal de Planos */}
+        <Modal isOpen={showPlanoModal} onClose={() => setShowPlanoModal(false)} maxWidth="max-w-4xl">
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <DocumentTextIcon className="h-6 w-6 text-green-600" />
+              Plano de Vivienda - {vivienda?.tipo_vivienda}
+            </h3>
+            
+            {planos.length > 0 ? (
+              <div className="space-y-4">
+                {planos.map((plano, index) => (
+                  <div key={plano.id || index} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium text-gray-900">{plano.nombre_archivo}</span>
+                      <a
+                        href={plano.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                      >
+                        Abrir en nueva pestaña →
+                      </a>
+                    </div>
+                    
+                    {/* Preview del plano */}
+                    {plano.mime_type?.includes('pdf') ? (
+                      <iframe
+                        src={plano.url}
+                        title={`Plano ${index + 1}`}
+                        className="w-full h-96 border rounded"
+                      />
+                    ) : plano.mime_type?.includes('image') ? (
+                      <img
+                        src={plano.url}
+                        alt={`Plano ${index + 1}`}
+                        className="w-full h-auto border rounded"
+                      />
+                    ) : (
+                      <div className="text-center py-8 bg-gray-100 rounded">
+                        <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-400 mb-2" />
+                        <p className="text-gray-600">
+                          Formato no previsualizable. Usa el botón "Abrir en nueva pestaña"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 mb-2">No hay planos disponibles para este tipo de vivienda</p>
+                <p className="text-sm text-gray-500">Contacta al equipo técnico si necesitas consultar los planos</p>
+              </div>
+            )}
+            
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowPlanoModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </DashboardLayout>
   )

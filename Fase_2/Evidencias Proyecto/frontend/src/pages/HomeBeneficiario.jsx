@@ -333,8 +333,8 @@ export default function HomeBeneficiario() {
   const iconSize = 'h-6 w-6';
   const beneficiarioSections = [
     {
-      title: "Estado de Mi Vivienda",
-      description: "Ver información detallada, historial y condición actual de mi hogar",
+      title: "Información y Estado de Mi Vivienda",
+      description: "Ver ubicación, plano, historial y condición actual de mi hogar",
       icon: <HomeIcon className={iconSize} />,
       color: "bg-green-500 hover:bg-green-600",
       badge: vivData?.flags?.tiene_recepcion_activa ? "Activa" : "Sin recepción",
