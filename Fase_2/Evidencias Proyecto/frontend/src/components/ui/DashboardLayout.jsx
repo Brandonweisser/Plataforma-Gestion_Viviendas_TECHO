@@ -12,7 +12,7 @@ import FooterTecho from './FooterTecho';
  * - children (contenido principal)
  * - accent (color principal del rol: 'blue'|'orange'|'green'...)
  */
-export function DashboardLayout({ title, subtitle, user, onLogout, children, accent = 'blue', footer }) {
+export function DashboardLayout({ title, subtitle, user, onLogout, children, accent = 'blue', footer, paddingTop }) {
   const { theme, toggleTheme } = useTheme();
   const accentTextMap = {
     blue: 'text-techo-blue-700 dark:text-techo-blue-300',
@@ -61,7 +61,7 @@ export function DashboardLayout({ title, subtitle, user, onLogout, children, acc
           </div>
         </div>
       </header>
-      <main className="app-container flex-1 py-8 space-y-10" role="main">
+      <main className={`app-container flex-1 ${paddingTop || 'py-8'} space-y-10`} role="main">
         {children}
       </main>
       {/* Footer global estilo TECHO */}

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 /**
  * SectionPanel: contenedor seccionado con título y contenido.
  */
-export function SectionPanel({ title, description, children, actions, as = 'section', className = '', variant, showBack = true, backTo, backLabel = 'Volver' }) {
+export function SectionPanel({ title, description, children, actions, as = 'section', className = '', variant, showBack = false, backTo, backLabel = 'Volver' }) {
   const Component = as;
   const isHighlight = variant === 'highlight';
   const navigate = useNavigate();

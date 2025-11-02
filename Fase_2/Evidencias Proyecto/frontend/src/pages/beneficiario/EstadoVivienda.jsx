@@ -5,7 +5,19 @@ import { SectionPanel } from '../../components/ui/SectionPanel'
 import { Toast } from '../../components/ui/Toast'
 import { StatusPill } from '../../components/ui/StatusPill'
 import { beneficiarioApi } from '../../services/api'
-import { DocumentTextIcon } from '@heroicons/react/24/outline'
+import { 
+  DocumentTextIcon, 
+  HomeIcon, 
+  FolderIcon, 
+  BuildingOfficeIcon,
+  Square3Stack3DIcon,
+  CalendarIcon,
+  MapPinIcon,
+  SparklesIcon,
+  WrenchScrewdriverIcon,
+  ChartBarIcon,
+  ClipboardDocumentCheckIcon
+} from '@heroicons/react/24/outline'
 import { Modal } from '../../components/ui/Modal'
 
 export default function EstadoVivienda() {
@@ -48,7 +60,7 @@ export default function EstadoVivienda() {
     setError('')
     
     try {
-      console.log('📊 Cargando datos del estado de vivienda...')
+      console.log('Cargando datos del estado de vivienda...')
       
       // Cargar datos en paralelo
       const [viviendaRes, recepcionRes, incidenciasRes] = await Promise.allSettled([
@@ -74,22 +86,22 @@ export default function EstadoVivienda() {
               lng,
               source: 'database'
             })
-            console.log('✅ Coordenadas del proyecto:', lat, lng)
+            console.log('Coordenadas del proyecto:', lat, lng)
           } else {
-            console.warn('⚠️ Coordenadas del proyecto inválidas:', viviendaData.proyecto.latitud, viviendaData.proyecto.longitud)
+            console.warn('Coordenadas del proyecto inválidas:', viviendaData.proyecto.latitud, viviendaData.proyecto.longitud)
           }
         } else {
-          console.log('ℹ️ El proyecto no tiene coordenadas guardadas')
+          console.log('El proyecto no tiene coordenadas guardadas')
         }
       } else {
-        console.error('❌ Error cargando vivienda:', viviendaRes.reason)
+        console.error('Error cargando vivienda:', viviendaRes.reason)
       }
 
       if (recepcionRes.status === 'fulfilled') {
         setRecepcion(recepcionRes.value.data)
-        console.log('✅ Recepción cargada:', recepcionRes.value.data)
+        console.log('Recepción cargada:', recepcionRes.value.data)
       } else {
-        console.error('❌ Error cargando recepción:', recepcionRes.reason)
+        console.error('Error cargando recepción:', recepcionRes.reason)
       }
 
       if (incidenciasRes.status === 'fulfilled') {
@@ -106,23 +118,23 @@ export default function EstadoVivienda() {
           incidenciasTotal: incidenciasData.length
         })
         
-        console.log('✅ Incidencias cargadas:', incidenciasData.length)
+        console.log('Incidencias cargadas:', incidenciasData.length)
       } else {
-        console.error('❌ Error cargando incidencias:', incidenciasRes.reason)
+        console.error('Error cargando incidencias:', incidenciasRes.reason)
       }
 
       // Intentar cargar formulario de posventa
       try {
         const posventaRes = await beneficiarioApi.posventaGetForm()
         setPosventaForm(posventaRes.data)
-        console.log('✅ Formulario posventa cargado:', posventaRes.data)
+        console.log('Formulario posventa cargado:', posventaRes.data)
       } catch (posventaError) {
-        console.log('ℹ️ No hay formulario de posventa disponible')
+        console.log('No hay formulario de posventa disponible')
         setPosventaForm(null)
       }
 
     } catch (generalError) {
-      console.error('❌ Error general:', generalError)
+      console.error('Error general:', generalError)
       setError('Error cargando los datos de la vivienda')
     } finally {
       setLoading(false)
@@ -191,6 +203,14 @@ export default function EstadoVivienda() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <button 
+          onClick={() => navigate('/beneficiario')} 
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium transition-colors shadow-sm"
+        >
+          <span>←</span>
+          <span>Volver al inicio</span>
+        </button>
+
         {error && (
           <Toast
             type="error"
@@ -207,50 +227,92 @@ export default function EstadoVivienda() {
         )}
 
         {/* Información de la Vivienda */}
-        <SectionPanel title="🏠 Información y Estado de Mi Vivienda" className="bg-blue-50">
+        <SectionPanel title={
+          <div className="flex items-center gap-2">
+            <HomeIcon className="w-5 h-5" />
+            <span>Información y Estado de Mi Vivienda</span>
+          </div>
+        } className="bg-blue-50">
           {vivienda ? (
-            <div className="space-y-6">
-              {/* Grid de Información */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Dirección</label>
-                    <p className="text-lg font-semibold text-gray-900">{vivienda.direccion || 'No especificado'}</p>
+            <div className="space-y-4">
+              {/* Dirección destacada */}
+              <div className="bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 rounded-2xl p-4 border-2 border-sky-200 dark:border-sky-700 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-sky-500 flex items-center justify-center shadow-md">
+                    <HomeIcon className="w-7 h-7 text-white" />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Proyecto</label>
-                    <p className="text-gray-900">{vivienda.proyecto?.nombre || 'No especificado'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Ubicación del Proyecto</label>
-                    <p className="text-gray-900">{vivienda.proyecto?.ubicacion || 'No especificado'}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-sky-700 dark:text-sky-300 uppercase tracking-wide mb-1">Dirección</p>
+                    <p className="text-xl sm:text-2xl font-bold text-sky-900 dark:text-sky-100">{vivienda.direccion || 'No especificado'}</p>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Tipo de Vivienda</label>
-                    <p className="text-gray-900">{vivienda.tipo_vivienda || 'Estándar'}</p>
+              </div>
+
+              {/* Grid de información en cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Proyecto */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border-2 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Proyecto</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Metros Cuadrados</label>
-                    <p className="text-gray-900">{vivienda.metros_cuadrados ? `${vivienda.metros_cuadrados} m²` : 'No especificado'}</p>
+                  <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{vivienda.proyecto?.nombre || 'No especificado'}</p>
+                </div>
+
+                {/* Tipo de Vivienda */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border-2 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BuildingOfficeIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Tipo</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Fecha de Entrega</label>
-                    <p className="text-gray-900">{vivienda.fecha_entrega ? formatFecha(vivienda.fecha_entrega) : 'No definida'}</p>
+                  <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{vivienda.tipo_vivienda || 'Estándar'}</p>
+                </div>
+
+                {/* Metros Cuadrados */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border-2 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Square3Stack3DIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Metros Cuadrados</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Estado</label>
-                    <StatusPill value={vivienda.estado || 'entregada'} />
+                  <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{vivienda.metros_cuadrados ? `${vivienda.metros_cuadrados} m²` : 'No especificado'}</p>
+                </div>
+
+                {/* Fecha de Entrega */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border-2 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CalendarIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Fecha de Entrega</p>
                   </div>
+                  <p className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{vivienda.fecha_entrega ? formatFecha(vivienda.fecha_entrega) : 'No definida'}</p>
+                </div>
+              </div>
+
+              {/* Ubicación y Estado */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border-2 border-slate-200 dark:border-slate-700 space-y-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPinIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Ubicación del Proyecto</p>
+                  </div>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{vivienda.proyecto?.ubicacion || 'No especificado'}</p>
+                </div>
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <SparklesIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Estado</p>
+                  </div>
+                  <StatusPill value={vivienda.estado || 'entregada'} />
                 </div>
               </div>
 
               {/* Mapa de Ubicación del Proyecto */}
               {projectCoords ? (
-                <div className="pt-4 border-t">
-                  <h3 className="font-semibold text-gray-900 mb-3">📍 Ubicación del Proyecto</h3>
-                  <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+                <div className="pt-2">
+                  <h3 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white mb-3 text-lg">
+                    <MapPinIcon className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+                    <span>Ubicación del Proyecto</span>
+                  </h3>
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 shadow-md overflow-hidden">
                     <iframe
                       title="Ubicación del proyecto"
                       width="100%"
@@ -260,12 +322,13 @@ export default function EstadoVivienda() {
                       referrerPolicy="no-referrer-when-downgrade"
                       src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${projectCoords.lat},${projectCoords.lng}&zoom=16`}
                     />
-                    <div className="p-3 bg-gray-50 border-t">
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 mb-2">
-                        <span>
-                          📌 {vivienda.proyecto.nombre}
+                    <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-700">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400 mb-2">
+                        <span className="font-semibold flex items-center gap-1">
+                          <MapPinIcon className="w-4 h-4" />
+                          {vivienda.proyecto.nombre}
                         </span>
-                        <span className="text-gray-500">
+                        <span className="text-slate-500 dark:text-slate-500">
                           ({projectCoords.lat.toFixed(6)}, {projectCoords.lng.toFixed(6)})
                         </span>
                       </div>
@@ -319,7 +382,9 @@ export default function EstadoVivienda() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <div className="text-gray-400 text-4xl mb-4">🏠</div>
+              <div className="text-gray-400 mb-4">
+                <HomeIcon className="w-16 h-16 mx-auto" />
+              </div>
               <p className="text-gray-600">No tienes una vivienda asignada</p>
               <p className="text-sm text-gray-500 mt-1">Contacta a tu coordinador para más información</p>
             </div>
@@ -340,81 +405,23 @@ export default function EstadoVivienda() {
             <div className="text-2xl font-bold text-green-600">{stats.incidenciasResueltas}</div>
             <div className="text-sm text-gray-600">Resueltas</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border">
-            <div className="text-2xl font-bold text-purple-600">
-              {recepcion?.estado === 'revisada' ? '✓' : recepcion?.estado === 'enviada' ? '📋' : '⏳'}
-            </div>
-            <div className="text-sm text-gray-600">Estado Recepción</div>
-          </div>
+      
         </div>
 
-        {/* Recepción de Vivienda */}
-        <SectionPanel title="📋 Recepción de Vivienda" className="bg-green-50">
-          {recepcion ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <StatusPill value={recepcion.estado} className="text-sm" />
-                  <span className="text-sm text-gray-600">
-                    Creada el {formatFecha(recepcion.fecha_creada)}
-                  </span>
-                </div>
-                {recepcion.estado === 'borrador' && (
-                  <button 
-                    onClick={() => navigate('/beneficiario/recepcion')}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Completar Recepción
-                  </button>
-                )}
-              </div>
-              
-              {recepcion.fecha_enviada && (
-                <div className="text-sm text-gray-600">
-                  <strong>Enviada:</strong> {formatFecha(recepcion.fecha_enviada)}
-                </div>
-              )}
-              
-              {recepcion.fecha_revisada && (
-                <div className="text-sm text-gray-600">
-                  <strong>Revisada:</strong> {formatFecha(recepcion.fecha_revisada)}
-                </div>
-              )}
-
-              {recepcion.estado === 'revisada' && (
-                <div className="bg-green-100 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-green-600">✓</span>
-                    <span className="font-medium text-green-800">Recepción Completada</span>
-                  </div>
-                  <p className="text-sm text-green-700 mt-1">
-                    Tu recepción ha sido revisada y aprobada. Ya puedes reportar incidencias si es necesario.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <div className="text-gray-400 text-3xl mb-3">📋</div>
-              <p className="text-gray-600 mb-3">No has iniciado tu recepción de vivienda</p>
-              <button 
-                onClick={() => navigate('/beneficiario/recepcion')}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Iniciar Recepción
-              </button>
-            </div>
-          )}
-        </SectionPanel>
 
         {/* Incidencias Recientes */}
-        <SectionPanel title="🔧 Incidencias" className="bg-orange-50">
+        <SectionPanel title={
+          <div className="flex items-center gap-2">
+            <WrenchScrewdriverIcon className="w-5 h-5" />
+            <span>Incidencias</span>
+          </div>
+        } className="bg-orange-50">
           <div className="space-y-4">
             {incidencias.length > 0 ? (
               <>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <h3 className="font-medium text-gray-900">Incidencias Recientes</h3>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     {recepcion?.estado === 'enviada' || recepcion?.estado === 'revisada' ? (
                       <button 
                         onClick={() => navigate('/beneficiario/nueva-incidencia')}
@@ -427,14 +434,12 @@ export default function EstadoVivienda() {
                         Completa tu recepción para reportar problemas
                       </div>
                     )}
-                    {incidencias.length > 5 && (
-                      <button 
-                        onClick={() => navigate('/beneficiario/incidencias')}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Ver Todas
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => navigate('/beneficiario/incidencias')}
+                      className="px-4 py-2 border-2 border-orange-500 text-orange-600 text-sm rounded-lg hover:bg-orange-50 transition-colors font-medium"
+                    >
+                      Ver Historial Completo
+                    </button>
                   </div>
                 </div>
 
@@ -464,7 +469,9 @@ export default function EstadoVivienda() {
               </>
             ) : (
               <div className="text-center py-8">
-                <div className="text-gray-400 text-4xl mb-4">🔧</div>
+                <div className="text-gray-400 mb-4">
+                  <WrenchScrewdriverIcon className="w-16 h-16 mx-auto" />
+                </div>
                 <p className="text-gray-600 mb-4">No tienes incidencias reportadas</p>
                 {recepcion?.estado === 'enviada' || recepcion?.estado === 'revisada' ? (
                   <button 
@@ -481,62 +488,7 @@ export default function EstadoVivienda() {
           </div>
         </SectionPanel>
 
-        {/* Formulario de Posventa */}
-        <SectionPanel title="📊 Evaluación de Posventa" className="bg-purple-50">
-          {posventaForm ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <StatusPill value={posventaForm.estado} className="text-sm" />
-                  <span className="text-sm text-gray-600">
-                    Creado el {formatFecha(posventaForm.fecha_creada)}
-                  </span>
-                </div>
-                {posventaForm.estado === 'borrador' && (
-                  <button 
-                    onClick={() => navigate('/beneficiario/posventa')}
-                    className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    Completar Evaluación
-                  </button>
-                )}
-              </div>
-
-              {posventaForm.fecha_enviada && (
-                <div className="text-sm text-gray-600">
-                  <strong>Enviado:</strong> {formatFecha(posventaForm.fecha_enviada)}
-                </div>
-              )}
-
-              {posventaForm.estado === 'enviada' && (
-                <div className="bg-blue-100 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-blue-600">📊</span>
-                    <span className="font-medium text-blue-800">Evaluación Enviada</span>
-                  </div>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Tu evaluación de posventa ha sido enviada y está siendo procesada por nuestro equipo.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <div className="text-gray-400 text-3xl mb-3">📊</div>
-              <p className="text-gray-600 mb-3">No has completado tu evaluación de posventa</p>
-              <p className="text-sm text-gray-500 mb-4">
-                La evaluación de posventa nos ayuda a mejorar nuestros servicios
-              </p>
-              <button 
-                onClick={() => navigate('/beneficiario/posventa')}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Iniciar Evaluación
-              </button>
-            </div>
-          )}
-        </SectionPanel>
-
+        
         {/* Botón de Actualizar */}
         <div className="flex justify-center pt-4">
           <button 
@@ -544,7 +496,6 @@ export default function EstadoVivienda() {
             disabled={loading}
             className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
-            <span>🔄</span>
             <span>{loading ? 'Actualizando...' : 'Actualizar Información'}</span>
           </button>
         </div>

@@ -17,12 +17,9 @@ import { beneficiarioApi } from "../services/api";
 import { 
   HomeModernIcon,
   WrenchScrewdriverIcon,
-  UserCircleIcon,
   HomeIcon,
   ExclamationTriangleIcon,
   ClipboardDocumentListIcon,
-  PhoneIcon,
-  BookOpenIcon,
   CalendarDaysIcon,
   ClockIcon,
   CheckCircleIcon
@@ -190,7 +187,6 @@ export default function HomeBeneficiario() {
 
   // const viviendaId = vivData?.vivienda?.id_vivienda ? `#${vivData.vivienda.id_vivienda}` : "—"; // (ya se muestra dentro del hero)
   const viviendaEstado = vivData?.vivienda?.estado || "—";
-  const tecnicoNombre = "Sin asignar"; // No tenemos aún endpoint para técnico asignado
   const mostrarPosventa = ['entregada','entregada_inicial'].includes((viviendaEstado || '').toLowerCase());
 
   // Helpers para garantías DS49
@@ -349,7 +345,7 @@ export default function HomeBeneficiario() {
       badge: "24/7",
       urgent: true,
       cta: 'Reportar ahora',
-  action: () => openIncidenciaModal()
+      action: () => openIncidenciaModal()
     },
     {
       title: "Historial de Mis Reportes",
@@ -358,25 +354,7 @@ export default function HomeBeneficiario() {
       color: "bg-blue-500 hover:bg-blue-600",
       badge: `${activeReportsCount} activos`,
       urgent: false,
-  action: () => navigate('/beneficiario/incidencias')
-    },
-    {
-      title: "Contacto con Mi Técnico",
-      description: "Comunicarme directamente con el técnico asignado a mi zona",
-      icon: <PhoneIcon className={iconSize} />,
-      color: "bg-purple-500 hover:bg-purple-600",
-      badge: "Ana Gómez",
-      urgent: false,
-      action: () => console.log("Contactar técnico")
-    },
-    {
-      title: "Guías de Mantenimiento",
-      description: "Consejos y tutoriales para el cuidado básico de mi vivienda",
-      icon: <BookOpenIcon className={iconSize} />,
-      color: "bg-teal-500 hover:bg-teal-600",
-      badge: "Nuevas",
-      urgent: false,
-      action: () => console.log("Ver guías")
+      action: () => navigate('/beneficiario/incidencias')
     },
     mostrarPosventa ? {
       title: "Formulario Posventa",
@@ -387,7 +365,7 @@ export default function HomeBeneficiario() {
       urgent: false,
       action: () => navigate('/beneficiario/posventa')
     } : null
-  ];
+  ].filter(Boolean);
 
   const recentReports = useMemo(() => {
     return (incidencias || []).slice(0, 3).map((it) => ({
@@ -409,6 +387,7 @@ export default function HomeBeneficiario() {
       user={user || {}}
       onLogout={handleLogout}
       accent="blue"
+      paddingTop="pt-3 pb-8 md:py-8"
       footer={`© ${new Date().getFullYear()} TECHO Chile · Plataforma Beneficiarios`}
     >
       {/* Fondo colorido inspirado en TECHO (solo en esta página) */}
@@ -438,56 +417,84 @@ export default function HomeBeneficiario() {
       {success && <div className="mb-4"><Toast type="success" message={success} onClose={() => setSuccess('')} /></div>}
       {loading && <Toast type="info" message="Cargando…" />}
   <div aria-label="Panel principal beneficiario" className="w-full">
-        {/* Hero bienvenida / info vivienda */}
-  <div className="relative mb-10 overflow-hidden rounded-3xl bg-white border border-gray-100 shadow-soft dark:bg-slate-800 dark:border-slate-700">
-          {/* Capa de gradiente suave (celeste→blanco→amarillo) - en dark usamos un degradado más luminoso para contraste */}
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-white/0 dark:bg-transparent" />
-          {/* Halos sutiles */}
-          <div className="pointer-events-none absolute -top-8 -left-8 h-40 w-40 rounded-full bg-sky-100/70 blur-2xl mix-blend-multiply dark:bg-sky-400/20" />
-          <div className="pointer-events-none absolute -bottom-10 -right-10 h-48 w-48 rounded-full bg-amber-100/70 blur-2xl mix-blend-multiply dark:bg-amber-300/10" />
-          <div className="relative px-8 py-10 md:px-14 md:py-14">
-            <div className="flex flex-col md:flex-row md:items-center gap-10">
-              {/* Icono principal */}
+        {/* Hero bienvenida / info vivienda - OPTIMIZADO PARA MÓVIL */}
+  <div className="relative mb-6 md:mb-10 overflow-hidden rounded-2xl md:rounded-3xl bg-gradient-to-br from-sky-50 via-white to-blue-50 border-2 border-sky-200 shadow-lg dark:from-slate-800 dark:via-slate-800 dark:to-slate-700 dark:border-slate-600">
+          {/* Halos decorativos más vibrantes */}
+          <div className="pointer-events-none absolute -top-8 -left-8 md:-top-12 md:-left-12 h-40 w-40 md:h-56 md:w-56 rounded-full bg-sky-200/60 blur-3xl dark:bg-sky-400/20" />
+          <div className="pointer-events-none absolute -bottom-8 -right-8 md:-bottom-12 md:-right-12 h-48 w-48 md:h-64 md:w-64 rounded-full bg-blue-200/50 blur-3xl dark:bg-blue-400/15" />
+          <div className="pointer-events-none absolute top-1/2 left-1/2 h-32 w-32 md:h-48 md:w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-100/40 blur-3xl dark:bg-cyan-400/10" />
+          
+          <div className="relative px-4 py-4 md:px-12 md:py-12">
+            <div className="flex flex-col items-center text-center md:flex-row md:items-center md:text-left gap-4 md:gap-8">
+              {/* Icono principal - más pequeño en móvil */}
               <div className="flex-shrink-0">
-                <div className="grid place-items-center h-28 w-28 rounded-2xl bg-white border border-gray-200 shadow-inner dark:bg-slate-700 dark:border-slate-600">
-                  <HomeModernIcon className="h-16 w-16 text-sky-700 dark:text-sky-200" />
+                <div className="grid place-items-center h-24 w-24 md:h-36 md:w-36 rounded-2xl md:rounded-3xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg md:shadow-xl ring-2 md:ring-4 ring-white/50 dark:ring-slate-700/50 transform hover:scale-105 transition-transform duration-300">
+                  <HomeModernIcon className="h-14 w-14 md:h-24 md:w-24 text-white drop-shadow-lg" />
                 </div>
               </div>
-              {/* Texto bienvenida */}
+              
+              {/* Texto bienvenida - centrado en móvil */}
               <div className="flex-1 min-w-0">
                 {(() => { const nombre = user?.nombre || user?.username || (user?.email ? user.email.split('@')[0] : 'Usuario'); return (
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-sky-700 via-sky-800 to-sky-600 dark:from-sky-200 dark:via-sky-100 dark:to-sky-300">Bienvenido a tu hogar, {nombre}</h2>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 md:mb-5 text-sky-700 dark:text-sky-100 drop-shadow-sm">
+                    Bienvenido a tu hogar,<br />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 dark:from-blue-300 dark:via-sky-300 dark:to-cyan-300">
+                      {nombre}
+                    </span>
+                  </h2>
                 ) })()}
-                <ul className="space-y-1 text-sky-800 dark:text-slate-200 text-sm sm:text-base mb-6 leading-relaxed">
-                  <li><span className="font-semibold text-sky-900 dark:text-white">Dirección:</span> {vivData?.vivienda?.direccion || vivData?.vivienda?.direccion_principal || 'No registrada'}</li>
-                  <li><span className="font-semibold text-sky-900 dark:text-white">Estado:</span> <StatusPill value={viviendaEstado} /></li>
-                  {vivData?.vivienda?.id_vivienda && (
-                    <li><span className="font-semibold text-sky-900 dark:text-white">ID Vivienda:</span> #{vivData.vivienda.id_vivienda}</li>
-                  )}
-                </ul>
-                <div className="flex flex-wrap gap-4">
-                  <button className="btn-primary text-sm px-5 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sky-500 dark:focus:ring-offset-slate-800" onClick={() => openIncidenciaModal()}>Reportar problema</button>
-                  <button className="text-sm px-5 rounded-md bg-amber-400 hover:bg-amber-500 text-sky-900 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-400 dark:focus:ring-offset-slate-800">Ver guías</button>
+                
+                {/* Info de vivienda con diseño mejorado */}
+                <div className="space-y-2 md:space-y-3 mb-5 md:mb-6">
+                  <div className="flex items-start gap-2 md:gap-3 p-2.5 md:p-3 rounded-xl bg-white/70 dark:bg-slate-700/50 backdrop-blur border border-sky-100 dark:border-slate-600">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-sky-100 dark:bg-sky-500/20 grid place-items-center">
+                        <HomeIcon className="h-4 w-4 md:h-5 md:w-5 text-sky-600 dark:text-sky-300" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] md:text-xs font-semibold text-sky-700 dark:text-sky-300 uppercase tracking-wide mb-0.5 md:mb-1">Dirección</p>
+                      <p className="text-sm md:text-base font-medium text-slate-800 dark:text-white truncate">
+                        {vivData?.vivienda?.direccion || vivData?.vivienda?.direccion_principal || 'No registrada'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-3">
+                    <div className="flex items-center gap-2 px-2.5 md:px-3 py-1.5 md:py-2 rounded-lg bg-white/70 dark:bg-slate-700/50 backdrop-blur border border-sky-100 dark:border-slate-600">
+                      <span className="text-[10px] md:text-xs font-semibold text-sky-700 dark:text-sky-300 uppercase">Estado:</span>
+                      <StatusPill value={viviendaEstado} />
+                    </div>
+                    {vivData?.vivienda?.id_vivienda && (
+                      <div className="px-2.5 md:px-3 py-1.5 md:py-2 rounded-lg bg-white/70 dark:bg-slate-700/50 backdrop-blur border border-sky-100 dark:border-slate-600">
+                        <span className="text-[10px] md:text-xs font-semibold text-sky-700 dark:text-sky-300 uppercase">ID: </span>
+                        <span className="text-sm font-bold text-slate-800 dark:text-white">#{vivData.vivienda.id_vivienda}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Botón mejorado - centrado en móvil */}
+                <div className="flex justify-center md:justify-start">
+                  <button 
+                    className="inline-flex items-center gap-2 px-5 md:px-6 py-3 md:py-3.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-bold text-sm md:text-base shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-sky-300 dark:focus:ring-sky-500"
+                    onClick={() => navigate('/beneficiario/estado-vivienda')}
+                  >
+                    <HomeIcon className="h-5 w-5" />
+                    Ver mi vivienda
+                  </button>
                 </div>
               </div>
-              {/* Mini KPIs */}
-              <div className="flex flex-col gap-4 w-full md:w-64">
-                <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/95 border border-gray-100 shadow-soft dark:bg-slate-700/80 dark:border-slate-600/80 backdrop-blur">
-                  <div className="h-10 w-10 rounded-lg grid place-items-center bg-sky-100 text-sky-700 dark:bg-sky-500/30 dark:text-sky-200">
-                    <WrenchScrewdriverIcon className="h-5 w-5" />
+              
+              {/* Mini KPI - Solo reportes activos - centrado en móvil */}
+              <div className="w-full md:w-auto">
+                <div className="flex items-center justify-center gap-3 md:gap-4 p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/90 border-2 border-sky-200 shadow-lg dark:bg-slate-700/90 dark:border-slate-600 backdrop-blur hover:shadow-xl transition-shadow duration-200">
+                  <div className="h-12 w-12 md:h-14 md:w-14 rounded-xl grid place-items-center bg-gradient-to-br from-sky-400 to-blue-500 shadow-md">
+                    <WrenchScrewdriverIcon className="h-6 w-6 md:h-7 md:w-7 text-white" />
                   </div>
                   <div className="leading-tight">
-                    <p className="text-[11px] font-semibold tracking-wide text-sky-700 dark:text-sky-200 uppercase">Reportes activos</p>
-                    <p className="text-xl font-bold text-sky-800 dark:text-white">{activeReportsCount}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/95 border border-gray-100 shadow-soft dark:bg-slate-700/80 dark:border-slate-600/80 backdrop-blur">
-                  <div className="h-10 w-10 rounded-lg grid place-items-center bg-amber-100 text-amber-600 dark:bg-amber-400/25 dark:text-amber-300">
-                    <UserCircleIcon className="h-5 w-5" />
-                  </div>
-                  <div className="leading-tight">
-                    <p className="text-[11px] font-semibold tracking-wide text-amber-600 dark:text-amber-300 uppercase">Técnico</p>
-                    <p className="text-sm font-medium text-sky-800 dark:text-white">{tecnicoNombre}</p>
+                    <p className="text-[10px] md:text-xs font-bold tracking-wider text-sky-700 dark:text-sky-300 uppercase mb-0.5 md:mb-1">Reportes activos</p>
+                    <p className="text-2xl md:text-3xl font-extrabold text-sky-800 dark:text-white">{activeReportsCount}</p>
                   </div>
                 </div>
               </div>
@@ -513,11 +520,11 @@ export default function HomeBeneficiario() {
               }}
             />
             {/* Capa superior con mensaje */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/60 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/70 via-white/30 to-transparent" />
             <div className="absolute inset-0 flex items-end justify-start px-3 py-3 sm:px-6 sm:py-6 md:p-10 pointer-events-none">
-              <div className="pointer-events-auto max-w-[92%] sm:max-w-[70%] md:max-w-[60%] rounded-lg sm:rounded-xl px-3 py-2 sm:px-5 sm:py-3 bg-white/75 dark:bg-slate-800/60 backdrop-blur ring-1 ring-sky-100/70 dark:ring-slate-600/60 shadow-soft">
-                <p className="text-[13px] sm:text-sm md:text-base font-medium leading-snug text-sky-900 dark:text-sky-100 break-words hyphens-auto">
-                  Construimos viviendas de emergencia junto a comunidades para superar la situación de pobreza en Latinoamérica.
+              <div className="pointer-events-auto max-w-[95%] sm:max-w-[75%] md:max-w-[65%] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-6 sm:py-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md ring-2 ring-sky-400/50 dark:ring-sky-500/50 shadow-xl border-l-4 border-sky-500">
+                <p className="text-sm sm:text-base md:text-lg font-semibold leading-snug text-sky-900 dark:text-sky-50 break-words hyphens-auto">
+                  🏠 Construimos viviendas de emergencia junto a comunidades para superar la situación de pobreza en Latinoamérica.
                 </p>
               </div>
             </div>
@@ -529,7 +536,7 @@ export default function HomeBeneficiario() {
           <section aria-label="Acciones principales" className="xl:col-span-2">
             <h3 className="sr-only">Acciones principales</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {beneficiarioSections.filter(Boolean).map((section, index) => (
+              {beneficiarioSections.map((section, index) => (
                 <ActionCard
                   key={index}
                   title={section.title}
@@ -752,9 +759,9 @@ export default function HomeBeneficiario() {
                 {isModalOpen && typeof document !== 'undefined' && createPortal(
                   <div className="fixed inset-0 z-[200] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="reportar-titulo">
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
-                    <div className="relative z-[201] grid min-h-[100svh] place-items-center p-4">
+                    <div className="relative z-[201] grid min-h-[100svh] place-items-center p-2 sm:p-4">
                       <div
-                        className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-none sm:rounded-xl shadow-2xl w-[96vw] sm:w-full sm:max-w-3xl md:max-w-4xl p-4 sm:p-6 md:p-8 max-h-[96svh] sm:max-h-[90vh] overflow-y-auto"
+                        className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl w-full max-w-[96vw] sm:max-w-3xl md:max-w-4xl p-4 sm:p-6 md:p-8 max-h-[96svh] sm:max-h-[90vh] overflow-y-auto mx-auto"
                         onClick={(e) => e.stopPropagation()}
                         role="document"
                       >
@@ -763,12 +770,14 @@ export default function HomeBeneficiario() {
                         type="button"
                         onClick={() => setModalOpen(false)}
                         aria-label="Volver"
-                        className="absolute top-3 right-3 btn-primary btn-sm"
+                        className="absolute top-3 right-3 btn-primary btn-sm z-10"
                       >
                         Volver
                       </button>
-                      <h3 id="reportar-titulo" className="text-lg md:text-2xl font-semibold text-slate-800 dark:text-white">Reportar problema</h3>
-                      <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">Cuéntanos qué ocurre; mientras más detalles nos des, mejor podremos ayudarte.</p>
+                      <div className="pr-20">
+                        <h3 id="reportar-titulo" className="text-lg md:text-2xl font-semibold text-slate-800 dark:text-white">Reportar problema</h3>
+                        <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">Cuéntanos qué ocurre; mientras más detalles nos des, mejor podremos ayudarte.</p>
+                      </div>
                       <form onSubmit={submitIncidencia} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Descripción: ocupa toda la fila */}
                         <div className="md:col-span-2">

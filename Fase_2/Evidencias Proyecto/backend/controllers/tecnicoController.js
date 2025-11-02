@@ -955,13 +955,27 @@ export async function reviewPosventaForm(req, res) {
       .order('orden', { ascending: true })
     if (itemsErr) throw itemsErr
 
+    console.log('📋 Total items en formulario:', items?.length)
+    console.log('📋 Items completos:', JSON.stringify(items, null, 2))
+    
     const problemItems = (items || []).filter(i => !i.ok && (i.crear_incidencia !== false))
+    console.log('⚠️  Problem items detectados:', problemItems.length)
+    console.log('⚠️  Problem items:', JSON.stringify(problemItems.map(i => ({
+      item: i.item,
+      categoria: i.categoria,
+      ok: i.ok,
+      crear_incidencia: i.crear_incidencia,
+      comentario: i.comentario
+    })), null, 2))
+    
     const incidenciasCreadas = []
 
     if (generarInc && problemItems.length) {
+      console.log(`🔧 Generando incidencias - Modo: ${modoInc}`)
       if (modoInc === 'agrupada') {
         // Crear una sola incidencia que agrupe los problemas
         const descripcion = problemItems.map(i => `• ${i.categoria || 'General'}: ${i.item}${i.comentario ? ` — ${i.comentario}` : ''}`).join('\n')
+        console.log('📝 Descripción agrupada:', descripcion)
   const prioridad = computePriorityFromCategory('posventa')
         const fechas = calcularFechasLimite(prioridad, new Date())
         // Intentar inferir una garantía dominante por frecuencia de categorías
@@ -997,9 +1011,11 @@ export async function reviewPosventaForm(req, res) {
         }
         const created = await createIncidence(payload)
         incidenciasCreadas.push(created)
+        console.log('✅ Incidencia agrupada creada:', created.id_incidencia)
         await logIncidenciaEvent({ incidenciaId: created.id_incidencia, actorUid: tecnicoUid, actorRol: req.user?.rol || req.user?.role, tipo: 'creada_desde_posventa', comentario: 'Incidencia agrupada desde revisión de posventa' })
       } else {
         // Separadas: una por item
+        console.log(`🔧 Creando ${problemItems.length} incidencias separadas`)
         for (const it of problemItems) {
           const desc = `${it.categoria || 'General'} — ${it.item}${it.comentario ? `: ${it.comentario}` : ''}`
           const prioridad = computePriorityFromCategory(it.categoria || 'posventa')
@@ -1027,6 +1043,7 @@ export async function reviewPosventaForm(req, res) {
           }
           const created = await createIncidence(payload)
           incidenciasCreadas.push(created)
+          console.log(`✅ Incidencia separada creada: ${created.id_incidencia} - ${it.item}`)
           await logIncidenciaEvent({ incidenciaId: created.id_incidencia, actorUid: tecnicoUid, actorRol: req.user?.rol || req.user?.role, tipo: 'creada_desde_posventa', comentario: `Creada desde revisión de posventa (item ${it.id})` })
         }
       }

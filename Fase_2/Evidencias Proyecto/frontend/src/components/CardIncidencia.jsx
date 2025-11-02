@@ -79,52 +79,65 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 	})()
 
 	return (
-		<div className={`card-surface card-interactive p-4 md:p-5 ${className}`}>
-			<div className={`grid items-start gap-4 ${hasPreview ? 'grid-cols-[72px,1fr,auto] md:grid-cols-[88px,1fr,auto]' : 'grid-cols-[1fr,auto]'}`}>
+		<div className={`bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 p-4 md:p-5 mb-4 ${className}`}>
+			<div className={`grid items-start gap-4 ${hasPreview ? 'grid-cols-[80px,1fr] md:grid-cols-[100px,1fr,auto]' : 'grid-cols-[1fr]'}`}>
 				{hasPreview && (
 					<div className='shrink-0'>
 						<img
 							src={firstThumb.url}
 							alt='foto incidencia'
-							className='h-16 w-16 md:h-20 md:w-20 object-cover rounded-lg border border-slate-200 dark:border-slate-600'
+							className='h-20 w-20 md:h-24 md:w-24 object-cover rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-sm'
 						/>
 					</div>
 				)}
 
-				<div className='min-w-0'>
-					<div className='flex flex-wrap items-center gap-2 mb-1'>
-						<span className='text-[11px] font-mono text-slate-500 dark:text-slate-400'>#{incidencia.id_incidencia}</span>
-						<span className={`px-2 py-0.5 rounded-full text-[11px] ${statusColor(incidencia.estado)}`}>{incidencia.estado}</span>
+				<div className='min-w-0 space-y-3'>
+					{/* Encabezado con número y estado */}
+					<div className='flex flex-wrap items-center gap-2'>
+						<span className='inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-700'>
+							#{incidencia.id_incidencia}
+						</span>
+						<span className={`px-3 py-1 rounded-lg text-xs font-semibold ${statusColor(incidencia.estado)}`}>
+							{incidencia.estado}
+						</span>
 						{garantiaChip}
-						{media.length > 0 && (
-							<span className='px-2 py-0.5 rounded-full text-[11px] bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'>
-								{media.length} foto{media.length > 1 ? 's' : ''}
-							</span>
-						)}
 					</div>
 
-					<div className='font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2'>
+					{/* Descripción principal */}
+					<div className='font-bold text-base md:text-lg text-slate-900 dark:text-white leading-tight line-clamp-2'>
 						{incidencia.descripcion || 'Sin descripción'}
 					</div>
 
-					<div className='text-xs text-slate-600 dark:text-slate-300 mt-1 flex flex-wrap gap-x-4 gap-y-1'>
-						<span>Categoria: <span className='font-medium'>{incidencia.categoria || '—'}</span></span>
-						<span className={prioridadColor(incidencia.prioridad)}>
-							Prioridad: {(incidencia.prioridad || '—').toUpperCase()}
+					{/* Metadatos en badges */}
+					<div className='flex flex-wrap gap-2'>
+						<span className='inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600'>
+							📂 {incidencia.categoria || '—'}
 						</span>
-						<span className='text-slate-400 dark:text-slate-400'>
-							{(incidencia.fecha_reporte || '').split('T')[0]}
+						<span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${prioridadColor(incidencia.prioridad)} ${
+							(incidencia.prioridad || '').toLowerCase() === 'alta' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
+							(incidencia.prioridad || '').toLowerCase() === 'media' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' :
+							'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+						}`}>
+							⚠️ {(incidencia.prioridad || '—').toUpperCase()}
+						</span>
+						{media.length > 0 && (
+							<span className='inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-sky-50 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 border border-sky-200 dark:border-sky-700'>
+								📸 {media.length} foto{media.length > 1 ? 's' : ''}
+							</span>
+						)}
+						<span className='inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-slate-50 text-slate-500 dark:bg-slate-700 dark:text-slate-400 border border-slate-200 dark:border-slate-600'>
+							📅 {(incidencia.fecha_reporte || '').split('T')[0]}
 						</span>
 					</div>
 
 					{mostrarPlazos && plazoIndicador && (
-						<div className={`mt-2 p-2 rounded-lg ${plazoIndicador.bgColor} border ${plazoIndicador.borderColor} flex items-start gap-2`}>
-							<plazoIndicador.icon className={`w-4 h-4 ${plazoIndicador.color} flex-shrink-0 mt-0.5`} />
+						<div className={`p-3 rounded-xl ${plazoIndicador.bgColor} border-2 ${plazoIndicador.borderColor} flex items-start gap-2.5 shadow-sm`}>
+							<plazoIndicador.icon className={`w-5 h-5 ${plazoIndicador.color} flex-shrink-0 mt-0.5`} />
 							<div className='flex-1 min-w-0'>
-								<div className={`text-xs font-semibold ${plazoIndicador.color}`}>
+								<div className={`text-sm font-bold ${plazoIndicador.color}`}>
 									{plazoIndicador.texto}
 								</div>
-								<div className='text-xs text-slate-600 dark:text-slate-300 mt-0.5'>
+								<div className='text-xs text-slate-700 dark:text-slate-300 mt-1'>
 									{plazoIndicador.detalle}
 								</div>
 							</div>
@@ -132,27 +145,54 @@ export default function CardIncidencia({ incidencia, onUploadClick, onOpen, allo
 					)}
 
 					{media.length > 1 && (
-						<div className='mt-3 flex gap-2 overflow-x-auto'>
+						<div className='flex gap-2 overflow-x-auto pb-1'>
 							{media.slice(1, 6).map(m => (
-								<img key={m.id || m.url} src={m.url} alt='foto' className='h-12 w-12 object-cover rounded-md border border-slate-200 dark:border-slate-600' />
+								<img key={m.id || m.url} src={m.url} alt='foto' className='h-14 w-14 md:h-16 md:w-16 object-cover rounded-lg border-2 border-slate-300 dark:border-slate-600 flex-shrink-0 shadow-sm' />
 							))}
+							{media.length > 6 && (
+								<div className='h-14 w-14 md:h-16 md:w-16 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-semibold flex-shrink-0'>
+									+{media.length - 6}
+								</div>
+							)}
 						</div>
 					)}
 				</div>
 
-				<div className='flex flex-col items-end gap-2'>
+				{/* Botón de acción en desktop */}
+				<div className='hidden md:flex flex-col items-end gap-2'>
 					{typeof onOpen === 'function' && (
-						<button className='btn-outline btn-sm' onClick={() => onOpen(incidencia)}>
+						<button className='btn-outline btn-sm whitespace-nowrap' onClick={() => onOpen(incidencia)}>
 							Ver detalle
 						</button>
 					)}
 					{allowUpload && typeof onUploadClick === 'function' && (
-						<button className='btn-primary btn-sm' onClick={() => onUploadClick(incidencia)}>
+						<button className='btn-primary btn-sm whitespace-nowrap' onClick={() => onUploadClick(incidencia)}>
 							Agregar fotos
 						</button>
 					)}
 					{incidencia.estado === 'resuelta' && (
 						<span className='inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>Pendiente validación</span>
+					)}
+				</div>
+			</div>
+
+			{/* Botones de acción en móvil (abajo de todo) */}
+			<div className='md:hidden mt-4 pt-4 border-t-2 border-slate-200 dark:border-slate-700 flex flex-col gap-2'>
+				{incidencia.estado === 'resuelta' && (
+					<div className='px-3 py-2 rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 text-sm font-semibold text-center border-2 border-amber-200 dark:border-amber-700'>
+						⏳ Pendiente de tu validación
+					</div>
+				)}
+				<div className='flex gap-2'>
+					{typeof onOpen === 'function' && (
+						<button className='btn-outline flex-1 text-sm py-2.5 font-semibold' onClick={() => onOpen(incidencia)}>
+							📋 Ver detalle
+						</button>
+					)}
+					{allowUpload && typeof onUploadClick === 'function' && (
+						<button className='btn-primary flex-1 text-sm py-2.5 font-semibold' onClick={() => onUploadClick(incidencia)}>
+							📸 Agregar fotos
+						</button>
 					)}
 				</div>
 			</div>

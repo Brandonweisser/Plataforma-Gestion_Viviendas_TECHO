@@ -22,10 +22,9 @@ export default function IncidenciasHistorial() {
   const [historial, setHistorial] = useState([]);
   const [loadingHist, setLoadingHist] = useState(false);
   const [histMeta, setHistMeta] = useState({ total:0, limit:50, offset:0, has_more:false })
-  const [filters, setFilters] = useState({ estado: '', categoria: '', prioridad: '', search: '' });
+  const [filters, setFilters] = useState({ estado: '' });
   const [actionLoading, setActionLoading] = useState(false)
   const [showValidationModal, setShowValidationModal] = useState(false)
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [preview, setPreview] = useState({ open: false, src: '', alt: '' })
   const stateChips = [
     { label: 'Todas', value: '' },
@@ -40,9 +39,6 @@ export default function IncidenciasHistorial() {
       const offset = (page - 1) * pageSize;
   const query = new URLSearchParams();
   if (filters.estado) query.set('estado', filters.estado);
-  if (filters.categoria) query.set('categoria', filters.categoria);
-  if (filters.prioridad) query.set('prioridad', filters.prioridad);
-  if (debouncedSearch) query.set('search', debouncedSearch);
   const res = await beneficiarioApi.listarIncidencias(pageSize, offset, query.toString());
       const list = Array.isArray(res.data) ? res.data : [];
       setIncidencias(list);
@@ -53,17 +49,11 @@ export default function IncidenciasHistorial() {
     } finally { setLoading(false); }
   }
 
-  // Debounce search input
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(filters.search.trim()), 400);
-    return () => clearTimeout(id);
-  }, [filters.search]);
-
   useEffect(() => { load(); // eslint-disable-next-line
-  }, [page, debouncedSearch, filters.estado, filters.categoria, filters.prioridad]);
+  }, [page, filters.estado]);
 
-  // When filters (except search debounce) change, reset to page 1
-  useEffect(() => { setPage(1); }, [debouncedSearch, filters.estado, filters.categoria, filters.prioridad]);
+  // When filters change, reset to page 1
+  useEffect(() => { setPage(1); }, [filters.estado]);
 
   return (
     <DashboardLayout
@@ -74,43 +64,26 @@ export default function IncidenciasHistorial() {
       onLogout={logout}
       footer={`© ${new Date().getFullYear()} TECHO Chile`}
     >
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <button onClick={() => navigate('/beneficiario')} className="btn-outline btn-sm">← Volver al inicio</button>
-            <div className="flex flex-wrap gap-3">
-              <select value={filters.categoria} onChange={e => setFilters(f => ({ ...f, categoria: e.target.value }))} className="border rounded px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-600">
-                <option value="">Categoría (todas)</option>
-                <option value="Eléctrico">Eléctrico</option>
-                <option value="Plomería">Plomería</option>
-                <option value="Estructura">Estructura</option>
-                <option value="Otro">Otro</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Buscar descripción…"
-                value={filters.search}
-                onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-                className="border rounded px-3 py-1 text-sm w-48 dark:bg-slate-800 dark:border-slate-600"
-              />
-              {(filters.estado || filters.categoria || filters.prioridad || debouncedSearch) && (
-                <button
-                  onClick={() => setFilters({ estado: '', categoria: '', prioridad: '', search: '' })}
-                  className="btn-outline btn-sm"
-                >Limpiar</button>
-              )}
-            </div>
-          </div>
-          {/* Chips de estado (scroll horizontal en móvil) */}
-          <div className="-mx-1 overflow-x-auto scrollbar-thin">
-            <div className="flex items-center gap-2 px-1">
+      <div className="w-full">
+        <div className="mb-6">
+          <button 
+            onClick={() => navigate('/beneficiario')} 
+            className="inline-flex items-center gap-2 px-4 py-2 mb-6 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium transition-colors shadow-sm"
+          >
+            <span>←</span>
+            <span>Volver al inicio</span>
+          </button>
+          
+          {/* Chips de estado */}
+          <div className="w-full overflow-x-auto scrollbar-hide -mx-2 px-2">
+            <div className="flex items-center gap-2 min-w-min">
               {stateChips.map(chip => {
                 const active = (filters.estado || '') === chip.value;
                 return (
                   <button
                     key={chip.value || 'all'}
                     onClick={() => setFilters(f => ({ ...f, estado: chip.value }))}
-                    className={`select-none whitespace-nowrap inline-flex items-center px-3 py-1.5 rounded-full border text-sm transition-all duration-200 ${active ? 'bg-techo-blue-600 text-white border-techo-blue-600 shadow-sm scale-100' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 scale-95'} focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-techo-blue-400`}
+                    className={`select-none whitespace-nowrap inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border text-xs sm:text-sm font-medium transition-all duration-200 ${active ? 'bg-techo-blue-600 text-white border-techo-blue-600 shadow-md' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700'} focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-techo-blue-400`}
                     aria-pressed={active}
                   >
                     {chip.label}
@@ -128,7 +101,7 @@ export default function IncidenciasHistorial() {
             {loading && <span className="text-slate-500">Cargando…</span>}
           </div>
         </div>
-        <div className="grid gap-4">
+        <div className="space-y-3 md:space-y-4">
           {incidencias.map(inc => (
             <CardIncidencia key={inc.id_incidencia} incidencia={inc} onOpen={async (incData)=>{
               setDetailInc(incData);
@@ -140,13 +113,13 @@ export default function IncidenciasHistorial() {
             }} allowUpload={false} />
           ))}
           {!loading && incidencias.length === 0 && (
-            <div className="text-center py-10 bg-white/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl">
-              <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-sky-50 text-sky-600 grid place-items-center border border-sky-100">
-                <span className="text-2xl" aria-hidden>🔧</span>
+            <div className="text-center py-10 md:py-12 bg-white/70 dark:bg-slate-800/40 border-2 border-slate-200 dark:border-slate-700 rounded-2xl">
+              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-sky-50 text-sky-600 grid place-items-center border-2 border-sky-100">
+                <span className="text-3xl" aria-hidden>🔧</span>
               </div>
-              <h3 className="text-slate-800 dark:text-slate-100 font-semibold mb-1">Sin reportes por ahora</h3>
-              <p className="text-sm text-slate-500 max-w-sm mx-auto mb-4">Cuando tengas un problema en tu vivienda, crea un reporte para que podamos ayudarte.</p>
-              <button className="btn-primary" onClick={() => navigate('/beneficiario/nueva-incidencia')}>Crear mi primer reporte</button>
+              <h3 className="text-lg text-slate-800 dark:text-slate-100 font-bold mb-2">Sin reportes por ahora</h3>
+              <p className="text-sm text-slate-500 max-w-sm mx-auto mb-5 px-4">Cuando tengas un problema en tu vivienda, crea un reporte para que podamos ayudarte.</p>
+              <button className="btn-primary text-base px-6 py-3" onClick={() => navigate('/beneficiario/nueva-incidencia')}>📝 Crear mi primer reporte</button>
             </div>
           )}
         </div>
@@ -196,14 +169,14 @@ export default function IncidenciasHistorial() {
                       <div className='text-[11px] font-semibold text-slate-500 mb-1'>{group.day}</div>
                       <ul className='space-y-1'>
                         {group.events.map(ev => (
-                          <li key={ev.id} className='text-[11px] flex justify-between gap-2 border-b border-slate-100 dark:border-slate-700 py-1'>
-                            <div>
+                          <li key={ev.id} className='text-[11px] flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-700 py-1'>
+                            <div className='flex-1 min-w-0'>
                               <span className='mr-1'>{eventIcon(ev.tipo_evento)}</span>
                               <span className='font-semibold'>{ev.tipo_evento}</span>
                               {ev.estado_anterior && ev.estado_nuevo && <span className='ml-1'>({ev.estado_anterior}→{ev.estado_nuevo})</span>}
-                              {ev.comentario && <span className='italic ml-1 text-slate-500'>“{ev.comentario}”</span>}
+                              {ev.comentario && <span className='italic ml-1 text-slate-500 block truncate'>"{ev.comentario}"</span>}
                             </div>
-                            <time className='text-slate-400'>{(ev.created_at||'').replace('T',' ').substring(11,16)}</time>
+                            <time className='text-slate-400 text-[10px] whitespace-nowrap flex-shrink-0'>{(ev.created_at||'').replace('T',' ').substring(11,16)}</time>
                           </li>
                         ))}
                       </ul>

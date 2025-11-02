@@ -516,7 +516,16 @@ export async function createPosventaForm(req, res) {
       .order('id',{ ascending:true })
     if (errTplItems) throw errTplItems
     if (tplItems?.length) {
-      const insertItems = tplItems.map((it, idx) => ({ form_id: newForm.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: idx + 1 }))
+      const insertItems = tplItems.map((it, idx) => ({ 
+        form_id: newForm.id, 
+        categoria: it.categoria, 
+        item: it.item, 
+        ok: true, 
+        severidad: null, 
+        comentario: null, 
+        crear_incidencia: true,  // Cambiado a true por defecto para que al marcar problema se cree incidencia
+        orden: idx + 1 
+      }))
       const { error: errInsItems } = await supabase.from('vivienda_postventa_item').insert(insertItems)
       if (errInsItems) throw errInsItems
     }
@@ -544,7 +553,13 @@ export async function savePosventaItems(req, res) {
     if (form.estado !== 'borrador') return res.status(400).json({ success:false, message:'Formulario no editable' })
     for (const it of items) {
       if (!it.id) continue
-      const update = { ok: !!it.ok, severidad: it.ok ? null : (it.severidad || null), comentario: it.comentario || null, crear_incidencia: !it.ok ? (it.crear_incidencia !== false) : false }
+      const update = { 
+        ok: !!it.ok, 
+        severidad: it.ok ? null : (it.severidad || null), 
+        comentario: it.comentario || null, 
+        crear_incidencia: !it.ok ? (it.crear_incidencia !== false) : false 
+      }
+      console.log(`📝 Actualizando item ${it.id}: ok=${update.ok}, crear_incidencia=${update.crear_incidencia}`)
       const { error: errUp } = await supabase
         .from('vivienda_postventa_item')
         .update(update)
@@ -753,7 +768,16 @@ export async function resetPosventaForm(req, res) {
       .order('id',{ ascending:true })
     if (errTplItems) throw errTplItems
     if (tplItems?.length && newForm?.id) {
-      const insertItems = tplItems.map((it, idx) => ({ form_id: newForm.id, categoria: it.categoria, item: it.item, ok: true, severidad: null, comentario: null, crear_incidencia: false, orden: idx + 1 }))
+      const insertItems = tplItems.map((it, idx) => ({ 
+        form_id: newForm.id, 
+        categoria: it.categoria, 
+        item: it.item, 
+        ok: true, 
+        severidad: null, 
+        comentario: null, 
+        crear_incidencia: true,  // Cambiado a true por defecto
+        orden: idx + 1 
+      }))
       const { error: errInsItems } = await supabase.from('vivienda_postventa_item').insert(insertItems)
       if (errInsItems) throw errInsItems
     }

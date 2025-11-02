@@ -100,15 +100,42 @@ export default function NuevaIncidencia() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center space-x-3">
-            <div className="text-2xl">🔧</div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Reportar Problema</h1>
-              <p className="text-gray-600">Describe el problema que necesita atención en tu vivienda</p>
+      <div className="w-full max-w-3xl mx-auto space-y-6">
+        {/* Título con botón integrado */}
+        <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-2xl shadow-md border-2 border-sky-200 p-4 sm:p-6">
+          {/* Botón volver - arriba en móvil, al lado en desktop */}
+          <div className="flex justify-end mb-3 sm:hidden">
+            <button
+              onClick={handleCancel}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium transition-colors shadow-sm"
+              disabled={loading}
+            >
+              <span>←</span>
+              <span>Volver</span>
+            </button>
+          </div>
+          
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+              <div className="flex-shrink-0 grid place-items-center h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg">
+                <span className="text-2xl sm:text-3xl">🔧</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-sky-800 mb-1 sm:mb-2">Reportar problema</h1>
+                <p className="text-xs sm:text-sm md:text-base text-sky-700">
+                  Cuéntanos qué ocurre; mientras más detalles nos des, mejor podremos ayudarte.
+                </p>
+              </div>
             </div>
+            {/* Botón solo visible en desktop */}
+            <button
+              onClick={handleCancel}
+              className="hidden sm:flex flex-shrink-0 items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium transition-colors shadow-sm"
+              disabled={loading}
+            >
+              <span>←</span>
+              <span>Volver</span>
+            </button>
           </div>
         </div>
 
@@ -122,8 +149,8 @@ export default function NuevaIncidencia() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Descripción */}
             <div>
-              <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-2">
-                Descripción del Problema *
+              <label htmlFor="descripcion" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                Descripción
               </label>
               <textarea
                 id="descripcion"
@@ -131,18 +158,18 @@ export default function NuevaIncidencia() {
                 rows={4}
                 value={form.descripcion}
                 onChange={handleInputChange}
-                placeholder="Describe detalladamente el problema que estás experimentando..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical min-h-[100px]"
+                placeholder="Describe el problema..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical min-h-[100px]"
                 disabled={loading}
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Mínimo 10 caracteres. Incluye detalles como ubicación, cuando ocurre, etc.
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Recomendado: 20-200 caracteres. Incluye ubicación en la vivienda y hace cuánto ocurre.
               </p>
             </div>
 
             {/* Categoría (agrupada por tipo de garantía) */}
             <div>
-              <label htmlFor="categoria" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="categoria" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
                 Categoría
               </label>
               <select
@@ -150,10 +177,10 @@ export default function NuevaIncidencia() {
                 name="categoria"
                 value={form.categoria}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
               >
-                <option value="">Seleccionar categoría...</option>
+                <option value="">(Selecciona)</option>
                 <optgroup label="Instalaciones (5 años)">
                   <option value="electricidad">Electricidad</option>
                   <option value="tablero electrico">Tablero eléctrico y automáticos</option>
@@ -205,16 +232,16 @@ export default function NuevaIncidencia() {
                   <option value="otro_estructura">Otro (Estructura)</option>
                 </optgroup>
               </select>
-              <p className="text-sm text-gray-500 mt-1">
-                Ayúdanos a categorizar tu problema para asignarlo al técnico adecuado
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Usa "Otro" si no encaja; el equipo ajustará la categoría luego.
               </p>
             </div>
 
 
             {/* Archivos */}
             <div>
-              <label htmlFor="files" className="block text-sm font-medium text-gray-700 mb-2">
-                Fotos del Problema (Opcional)
+              <label htmlFor="files" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                Fotos (opcional)
               </label>
               <input
                 id="files"
@@ -222,11 +249,11 @@ export default function NuevaIncidencia() {
                 multiple
                 accept="image/*"
                 onChange={handleFileChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
                 disabled={loading}
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Máximo 5 imágenes. Las fotos ayudan al técnico a entender mejor el problema.
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Hasta 5 imágenes (JPG/PNG). Consejo: toma las fotos con buena luz.
               </p>
               
               {files.length > 0 && (
@@ -246,19 +273,19 @@ export default function NuevaIncidencia() {
             </div>
 
             {/* Botones */}
-            <div className="flex space-x-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <button
                 type="submit"
                 disabled={loading || !form.descripcion.trim()}
-                className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-6 py-3 bg-sky-600 text-white font-semibold rounded-lg hover:bg-sky-700 focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
               >
                 {loading ? (
-                  <span className="flex items-center justify-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                     <span>Enviando...</span>
                   </span>
                 ) : (
-                  'Reportar Problema'
+                  '✓ Enviar reporte'
                 )}
               </button>
               
@@ -266,7 +293,7 @@ export default function NuevaIncidencia() {
                 type="button"
                 onClick={handleCancel}
                 disabled={loading}
-                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="sm:w-auto px-6 py-3 border-2 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cancelar
               </button>
