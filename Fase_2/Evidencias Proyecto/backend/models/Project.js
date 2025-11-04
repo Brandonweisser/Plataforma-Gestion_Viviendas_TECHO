@@ -3,7 +3,7 @@
  * Plataforma de Gestión de Viviendas TECHO
  */
 
-import { supabase } from '../supabaseClient.js'
+import { supabase } from "../supabaseClient.js";
 
 /**
  * Obtiene todos los proyectos
@@ -11,12 +11,14 @@ import { supabase } from '../supabaseClient.js'
  */
 export async function getAllProjects() {
   const { data, error } = await supabase
-    .from('proyecto')
-    .select('id_proyecto, nombre, ubicacion, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, fecha_inicio, fecha_entrega')
-    .order('id_proyecto', { ascending: true })
-    
-  if (error) throw error
-  return data || []
+    .from("proyecto")
+    .select(
+      "id_proyecto, nombre, ubicacion, ubicacion_normalizada, ubicacion_referencia, latitud, longitud, fecha_inicio, fecha_entrega, constructora_id"
+    )
+    .order("id_proyecto", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
 }
 
 /**
@@ -26,13 +28,13 @@ export async function getAllProjects() {
  */
 export async function getProjectById(id) {
   const { data, error } = await supabase
-    .from('proyecto')
-    .select('*')
-    .eq('id_proyecto', id)
-    .single()
-    
-  if (error) throw error
-  return data
+    .from("proyecto")
+    .select("*")
+    .eq("id_proyecto", id)
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /**
@@ -42,25 +44,25 @@ export async function getProjectById(id) {
  */
 export async function createProject(projectData) {
   // La tabla proyecto no tiene identidad automática; generamos id_proyecto
-  let id_proyecto = projectData.id_proyecto
-  if (typeof id_proyecto !== 'number') {
+  let id_proyecto = projectData.id_proyecto;
+  if (typeof id_proyecto !== "number") {
     const { data: last, error: errLast } = await supabase
-      .from('proyecto')
-      .select('id_proyecto')
-      .order('id_proyecto', { ascending: false })
+      .from("proyecto")
+      .select("id_proyecto")
+      .order("id_proyecto", { ascending: false })
       .limit(1)
-      .maybeSingle()
-    if (errLast) throw errLast
-    id_proyecto = last && last.id_proyecto ? Number(last.id_proyecto) + 1 : 1
+      .maybeSingle();
+    if (errLast) throw errLast;
+    id_proyecto = last && last.id_proyecto ? Number(last.id_proyecto) + 1 : 1;
   }
-  const toInsert = { ...projectData, id_proyecto }
+  const toInsert = { ...projectData, id_proyecto };
   const { data, error } = await supabase
-    .from('proyecto')
+    .from("proyecto")
     .insert([toInsert])
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 /**
@@ -71,14 +73,14 @@ export async function createProject(projectData) {
  */
 export async function updateProject(id, updates) {
   const { data, error } = await supabase
-    .from('proyecto')
+    .from("proyecto")
     .update(updates)
-    .eq('id_proyecto', id)
-    .select('*')
-    .single()
-    
-  if (error) throw error
-  return data
+    .eq("id_proyecto", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /**
@@ -87,11 +89,11 @@ export async function updateProject(id, updates) {
  */
 export async function deleteProject(id) {
   const { error } = await supabase
-    .from('proyecto')
+    .from("proyecto")
     .delete()
-    .eq('id_proyecto', id)
-    
-  if (error) throw error
+    .eq("id_proyecto", id);
+
+  if (error) throw error;
 }
 
 /**
@@ -101,15 +103,17 @@ export async function deleteProject(id) {
  */
 export async function getProjectTechnicians(projectId) {
   const { data, error } = await supabase
-    .from('proyecto_tecnico')
-    .select(`
+    .from("proyecto_tecnico")
+    .select(
+      `
       tecnico_uid,
       usuarios!inner(uid, nombre, email)
-    `)
-    .eq('id_proyecto', projectId)
-    
-  if (error) throw error
-  return data || []
+    `
+    )
+    .eq("id_proyecto", projectId);
+
+  if (error) throw error;
+  return data || [];
 }
 
 /**
@@ -118,14 +122,14 @@ export async function getProjectTechnicians(projectId) {
  * @param {number} technicianId - ID del técnico
  */
 export async function assignTechnicianToProject(projectId, technicianId) {
-  const { error } = await supabase
-    .from('proyecto_tecnico')
-    .insert([{
+  const { error } = await supabase.from("proyecto_tecnico").insert([
+    {
       id_proyecto: projectId,
-      tecnico_uid: technicianId
-    }])
-    
-  if (error) throw error
+      tecnico_uid: technicianId,
+    },
+  ]);
+
+  if (error) throw error;
 }
 
 /**
@@ -135,10 +139,10 @@ export async function assignTechnicianToProject(projectId, technicianId) {
  */
 export async function removeTechnicianFromProject(projectId, technicianId) {
   const { error } = await supabase
-    .from('proyecto_tecnico')
+    .from("proyecto_tecnico")
     .delete()
-    .eq('id_proyecto', projectId)
-    .eq('tecnico_uid', technicianId)
-    
-  if (error) throw error
+    .eq("id_proyecto", projectId)
+    .eq("tecnico_uid", technicianId);
+
+  if (error) throw error;
 }

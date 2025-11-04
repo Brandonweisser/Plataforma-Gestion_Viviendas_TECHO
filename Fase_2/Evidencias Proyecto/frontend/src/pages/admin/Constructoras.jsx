@@ -15,7 +15,7 @@ export default function Constructoras() {
   const [showForm, setShowForm] = useState(false)
   const [formMode, setFormMode] = useState('crear') // crear | editar
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState({ nombre: '', rut: '', email_contacto: '', telefono: '', direccion: '' })
+  const [form, setForm] = useState({ nombre: '', rut: '', contacto_email: '', telefono: '', direccion: '' })
   const [usuarios, setUsuarios] = useState([])
   const [showUsersFor, setShowUsersFor] = useState(null)
 
@@ -32,11 +32,11 @@ export default function Constructoras() {
   }
 
   function openCreate() {
-    setFormMode('crear'); setSelected(null); setForm({ nombre: '', rut: '', email_contacto: '', telefono: '', direccion: '' }); setShowForm(true)
+    setFormMode('crear'); setSelected(null); setForm({ nombre: '', rut: '', contacto_email: '', telefono: '', direccion: '' }); setShowForm(true)
   }
 
   function openEdit(c) {
-    setFormMode('editar'); setSelected(c); setForm({ nombre: c.nombre || '', rut: c.rut || '', email_contacto: c.email_contacto || '', telefono: c.telefono || '', direccion: c.direccion || '' }); setShowForm(true)
+    setFormMode('editar'); setSelected(c); setForm({ nombre: c.nombre || '', rut: c.rut || '', contacto_email: c.contacto_email || '', telefono: c.telefono || '', direccion: c.direccion || '' }); setShowForm(true)
   }
 
   function closeForm() { setShowForm(false); setSelected(null) }
@@ -123,7 +123,7 @@ export default function Constructoras() {
                     <tr key={c.id} className="bg-white/60 dark:bg-techo-gray-800/60 hover:bg-white dark:hover:bg-techo-gray-700">
                       <td className="px-3 py-2 font-mono text-xs">{c.id}</td>
                       <td className="px-3 py-2 text-xs">{c.nombre}</td>
-                      <td className="px-3 py-2 text-xs">{c.email_contacto || '-'}</td>
+                      <td className="px-3 py-2 text-xs">{c.contacto_email || '-'}</td>
                       <td className="px-3 py-2 text-xs">{c.telefono || '-'}</td>
                       <td className="px-3 py-2 text-xs">{c.direccion || '-'}</td>
                       <td className="px-3 py-2 flex gap-2">
@@ -152,7 +152,7 @@ export default function Constructoras() {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-techo-gray-600">Email contacto</label>
-                <input name="email_contacto" value={form.email_contacto} onChange={handleChange} className="form-input" />
+                <input name="contacto_email" value={form.contacto_email} onChange={handleChange} className="form-input" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-techo-gray-600">Teléfono</label>
