@@ -87,7 +87,8 @@ export function requireAdmin(req, res, next) {
 /**
  * Middleware para verificar que el usuario sea técnico o administrador
  * Para rutas que requieren permisos técnicos
+ * 🆕 Incluye técnico_campo (trabajador de campo)
  */
 export function requireTechnicianOrAdmin(req, res, next) {
-  return authorizeRole(['tecnico', 'administrador'])(req, res, next)
+  return authorizeRole(['tecnico', 'tecnico_campo', 'administrador'])(req, res, next)
 }

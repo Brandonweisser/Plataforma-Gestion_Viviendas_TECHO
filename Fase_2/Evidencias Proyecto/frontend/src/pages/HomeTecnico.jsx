@@ -92,8 +92,6 @@ export default function HomeTecnico() {
     { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: 'urgente', action: () => navigate('/tecnico/incidencias?prioridad=alta'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
     { title: 'Plazos Vencidos', description: 'Incidencias con plazo legal vencido', badge: '⚠️ legal', action: () => navigate('/tecnico/incidencias?plazo=vencido'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red' },
     { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: 'hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
-    { title: 'Gestión de Inventario', description: 'Control de materiales y herramientas', badge: 'stock', action: () => console.log('Inventario'), icon: <CubeIcon className={iconSize} />, accent: 'purple' },
-    { title: 'Centro de Comunicación', description: 'Chat con actores relevantes', badge: 'mensajes', action: () => console.log('Comunicación'), icon: <ChatBubbleBottomCenterTextIcon className={iconSize} />, accent: 'teal' }
   ];
 
   const priorityColor = (p) => ({
@@ -148,8 +146,8 @@ export default function HomeTecnico() {
           {errorStats && <div className="text-xs text-red-600">{errorStats}</div>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <button className="text-left" onClick={() => navigate('/tecnico/incidencias?asignacion=asignadas')}>
-            <StatCard icon={<ClipboardDocumentListIcon className={iconSize} />} label="Asignadas" value={String(stats.asignadas)} subtitle="Viviendas" accent='orange' />
+          <button className="text-left" onClick={() => navigate('/tecnico/incidencias')}>
+            <StatCard icon={<ClipboardDocumentListIcon className={iconSize} />} label="Activas" value={String(stats.asignadas)} subtitle="Incidencias" accent='orange' />
           </button>
           <button className="text-left" onClick={() => navigate('/tecnico/incidencias?estado=abierta,en_proceso')}>
             <StatCard icon={<WrenchScrewdriverIcon className={iconSize} />} label="Pendientes" value={String(stats.pendientes)} subtitle="Incidencias" accent='red' />

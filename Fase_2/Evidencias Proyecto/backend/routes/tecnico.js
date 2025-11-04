@@ -7,12 +7,15 @@
 
 import express from 'express'
 import { verifyToken, requireTechnicianOrAdmin } from '../middleware/auth.js'
+import { isSupervisor } from '../middleware/permissions.js'
 import {
   technicianHealth,
   getIncidences,
   getIncidenceDetail,
   updateIncidenceStatus,
   assignIncidenceToMe,
+  assignIncidenceToTechnician,
+  listAvailableTechnicians,
   getTechnicianStats,
   uploadIncidenceMedia,
   listIncidenceMedia,
@@ -38,9 +41,13 @@ router.get('/health', technicianHealth)
 router.get('/incidencias', getIncidences)
 router.get('/incidencias/:id', getIncidenceDetail)
 router.put('/incidencias/:id/estado', updateIncidenceStatus)
-router.post('/incidencias/:id/asignar', assignIncidenceToMe)
+router.post('/incidencias/:id/asignar-a-mi', assignIncidenceToMe)  // Auto-asignarse
+router.post('/incidencias/:id/asignar', isSupervisor, assignIncidenceToTechnician)  // 🆕 Asignar a otro (solo supervisores)
 router.get('/incidencias/:id/media', listIncidenceMedia)
 router.post('/incidencias/:id/media', uploadIncidenceMedia)
+
+// 🆕 Listar técnicos disponibles (solo supervisores)
+router.get('/tecnicos-disponibles', isSupervisor, listAvailableTechnicians)
 
 // Estadísticas del técnico
 router.get('/stats', getTechnicianStats)

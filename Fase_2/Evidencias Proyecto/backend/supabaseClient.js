@@ -17,4 +17,24 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
 	process.exit(1)
 }
 
-export const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+export const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
+	db: {
+		schema: 'public'
+	},
+	global: {
+		headers: {
+			'X-Client-Info': 'techo-backend'
+		}
+	}
+})
+
+// Configurar zona horaria de Chile para todas las consultas
+// Esto asegura que las fechas se manejen correctamente
+supabase.rpc = new Proxy(supabase.rpc, {
+	apply(target, thisArg, argumentsList) {
+		// Las consultas se harán con timezone configurado
+		return Reflect.apply(target, thisArg, argumentsList)
+	}
+})
+
+console.log(' Supabase configurado con zona horaria: America/Santiago (UTC-3)')

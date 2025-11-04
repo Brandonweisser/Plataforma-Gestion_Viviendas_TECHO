@@ -28,6 +28,7 @@ import {
   normalizeRut,
 } from "../utils/validation.js";
 import nodemailer from "nodemailer";
+import auditMiddleware from "../middleware/auditMiddleware.js";
 
 dotenv.config();
 
@@ -209,6 +210,17 @@ export async function loginUser(req, res) {
           `[LOGIN][DEBUG] Email no encontrado: ${email.toLowerCase()}`
         );
       }
+      // Registrar intento fallido
+      await auditMiddleware.logAudit({
+        req,
+        actor_uid: null,
+        actor_email: email.toLowerCase(),
+        actor_rol: null,
+        action: 'auth.login.failed',
+        entity_type: 'user',
+        entity_id: null,
+        details: { reason: 'email_not_found' }
+      });
       return res.status(401).json({
         success: false,
         message: "Correo o contraseña incorrectos",
@@ -234,6 +246,17 @@ export async function loginUser(req, res) {
       if (process.env.DEBUG_AUTH === "1") {
         console.log("[LOGIN][DEBUG] Password mismatch (o hash ausente)");
       }
+      // Registrar intento fallido
+      await auditMiddleware.logAudit({
+        req,
+        actor_uid: usuario.uid,
+        actor_email: usuario.email,
+        actor_rol: usuario.rol,
+        action: 'auth.login.failed',
+        entity_type: 'user',
+        entity_id: usuario.uid,
+        details: { reason: 'invalid_password' }
+      });
       return res.status(401).json({
         success: false,
         message: "Correo o contraseña incorrectos",
@@ -260,6 +283,18 @@ export async function loginUser(req, res) {
       JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    // Registrar login exitoso
+    await auditMiddleware.logAudit({
+      req,
+      actor_uid: usuario.uid,
+      actor_email: usuario.email,
+      actor_rol: usuario.rol,
+      action: 'auth.login.success',
+      entity_type: 'user',
+      entity_id: usuario.uid,
+      details: { rol: usuario.rol }
+    });
 
     return res.json({ success: true, token });
   } catch (error) {

@@ -185,7 +185,19 @@ export const tecnicoApi = {
     return request(`/api/tecnico/incidencias/${id}`)
   },
   asignarIncidencia(id) {
-    return request(`/api/tecnico/incidencias/${id}/asignar`, { method: 'POST', body: JSON.stringify({}) })
+    // Auto-asignarse la incidencia
+    return request(`/api/tecnico/incidencias/${id}/asignar-a-mi`, { method: 'POST', body: JSON.stringify({}) })
+  },
+  // 🆕 Asignar incidencia a otro técnico (solo supervisores)
+  asignarIncidenciaATecnico(incidenciaId, tecnicoUid) {
+    return request(`/api/tecnico/incidencias/${incidenciaId}/asignar`, { 
+      method: 'POST', 
+      body: JSON.stringify({ tecnico_uid: tecnicoUid }) 
+    })
+  },
+  // 🆕 Listar técnicos disponibles para asignar (solo supervisores)
+  listarTecnicosDisponibles() {
+    return request(`/api/tecnico/tecnicos-disponibles`)
   },
   cambiarEstadoIncidencia(id, nuevo_estado, comentario) {
     // Backend espera PUT y el campo 'estado' en el payload

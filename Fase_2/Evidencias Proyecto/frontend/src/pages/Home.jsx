@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import HomeAdministrador from "./HomeAdministrador";
 import HomeBeneficiario from "./HomeBeneficiario";
 import HomeTecnico from "./HomeTecnico";
+import HomeTecnicoCampo from "./tecnico/HomeTecnicoCampo";
 
 export default function Home() {
   const { user } = useContext(AuthContext);
@@ -43,6 +44,9 @@ export default function Home() {
     case "tecnico":
     case "técnico":
       return <HomeTecnico />;
+    
+    case "tecnico_campo":
+      return <HomeTecnicoCampo />;
     
     case "beneficiario":
     default:

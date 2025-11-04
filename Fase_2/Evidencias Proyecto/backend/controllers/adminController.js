@@ -36,6 +36,7 @@ import {
   getHousingStats,
 } from "../models/Housing.js";
 import { createInvitationAndSend } from "../models/Invitation.js";
+import auditMiddleware from '../middleware/auditMiddleware.js';
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10);
 
@@ -641,6 +642,22 @@ export async function createUser(req, res) {
 
     const inserted = await insertUser(userData);
 
+    // Registrar en audit log
+    await auditMiddleware.logAudit({
+      req,
+      actor_uid: req.user.uid,
+      actor_email: req.user.email,
+      actor_rol: req.user.rol,
+      action: 'user.created',
+      entity_type: 'user',
+      entity_id: inserted.uid,
+      details: { 
+        created_user_email: userData.email,
+        created_user_rol: userData.rol,
+        created_user_nombre: userData.nombre
+      }
+    });
+
     res.status(201).json({
       success: true,
       data: {
@@ -686,6 +703,25 @@ export async function updateUserById(req, res) {
 
     const updatedUser = await updateUser(uid, updates);
 
+    // Registrar en audit log
+    const changedFields = Object.keys(updates).filter(k => k !== 'password_hash');
+    if (password) changedFields.push('password');
+    
+    await auditMiddleware.logAudit({
+      req,
+      actor_uid: req.user.uid,
+      actor_email: req.user.email,
+      actor_rol: req.user.rol,
+      action: rol && rol !== updatedUser.rol ? 'user.role_changed' : 'user.updated',
+      entity_type: 'user',
+      entity_id: uid,
+      details: { 
+        updated_fields: changedFields,
+        target_user_email: updatedUser.email,
+        new_rol: rol || updatedUser.rol
+      }
+    });
+
     res.json({
       success: true,
       data: {
@@ -712,7 +748,32 @@ export async function updateUserById(req, res) {
 export async function deleteUserById(req, res) {
   try {
     const uid = Number(req.params.uid);
+    
+    // Obtener info del usuario antes de eliminarlo
+    const { data: targetUser } = await supabase
+      .from('usuarios')
+      .select('email, rol, nombre')
+      .eq('uid', uid)
+      .single();
+    
     await deleteUser(uid);
+
+    // Registrar en audit log
+    await auditMiddleware.logAudit({
+      req,
+      actor_uid: req.user.uid,
+      actor_email: req.user.email,
+      actor_rol: req.user.rol,
+      action: 'user.deleted',
+      entity_type: 'user',
+      entity_id: uid,
+      details: { 
+        deleted_user_email: targetUser?.email,
+        deleted_user_rol: targetUser?.rol,
+        deleted_user_nombre: targetUser?.nombre
+      }
+    });
+    
     res.json({ success: true });
   } catch (error) {
     console.error("Error eliminando usuario:", error);
@@ -1431,6 +1492,159 @@ export async function updateHousingById(req, res) {
       success: false,
       message: "Error actualizando vivienda",
     });
+  }
+}
+
+/**
+ * Obtener dashboard de seguridad con métricas
+ */
+export async function getSecurityDashboard(req, res) {
+  try {
+    const now = new Date()
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+    // Contar logins exitosos últimas 24h
+    const { count: loginSuccessCount, error: e1 } = await supabase
+      .from('audit_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('action', 'auth.login.success')
+      .gte('created_at', last24h.toISOString())
+    
+    // Contar logins fallidos últimas 24h
+    const { count: loginFailedCount, error: e2 } = await supabase
+      .from('audit_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('action', 'auth.login.failed')
+      .gte('created_at', last24h.toISOString())
+
+    // Contar usuarios creados últimas 24h
+    const { count: usersCreatedCount, error: e3 } = await supabase
+      .from('audit_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('action', 'user.created')
+      .gte('created_at', last24h.toISOString())
+
+    // Contar cambios de rol últimas 24h
+    const { count: roleChangesCount, error: e4 } = await supabase
+      .from('audit_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('action', 'user.role_changed')
+      .gte('created_at', last24h.toISOString())
+
+    // Actividad reciente (últimos 10 eventos)
+    const { data: recentActivity, error: e5 } = await supabase
+      .from('audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const errors = [e1, e2, e3, e4, e5].filter(Boolean)
+    if (errors.length > 0) {
+      console.error('Errores en dashboard seguridad:', errors)
+    }
+
+    res.json({
+      success: true,
+      data: {
+        metrics: {
+          logins_success_24h: loginSuccessCount || 0,
+          logins_failed_24h: loginFailedCount || 0,
+          users_created_24h: usersCreatedCount || 0,
+          role_changes_24h: roleChangesCount || 0
+        },
+        recent_activity: recentActivity || []
+      }
+    })
+  } catch (error) {
+    console.error('Error en getSecurityDashboard:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo dashboard de seguridad'
+    })
+  }
+}
+
+/**
+ * Obtener logs de auditoría con paginación y filtros
+ */
+export async function getAuditLogs(req, res) {
+  try {
+    const { 
+      page = 1, 
+      limit = 50, 
+      action, 
+      actor_uid, 
+      entity_type,
+      start_date,
+      end_date
+    } = req.query
+
+    const offset = (Number(page) - 1) * Number(limit)
+
+    let query = supabase
+      .from('audit_log')
+      .select('*', { count: 'exact' })
+
+    // Aplicar filtros
+    if (action) query = query.eq('action', action)
+    if (actor_uid) query = query.eq('actor_uid', Number(actor_uid))
+    if (entity_type) query = query.eq('entity_type', entity_type)
+    if (start_date) query = query.gte('created_at', start_date)
+    if (end_date) query = query.lte('created_at', end_date)
+
+    // Paginación y orden
+    const { data, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + Number(limit) - 1)
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      data,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count || 0,
+        total_pages: Math.ceil((count || 0) / Number(limit))
+      }
+    })
+  } catch (error) {
+    console.error('Error en getAuditLogs:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo logs de auditoría'
+    })
+  }
+}
+
+/**
+ * Obtener historial de auditoría de un usuario específico
+ */
+export async function getUserAuditLogs(req, res) {
+  try {
+    const uid = Number(req.params.uid)
+    const { limit = 100 } = req.query
+
+    const { data, error } = await supabase
+      .from('audit_log')
+      .select('*')
+      .eq('actor_uid', uid)
+      .order('created_at', { ascending: false })
+      .limit(Number(limit))
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      data
+    })
+  } catch (error) {
+    console.error('Error en getUserAuditLogs:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo historial de usuario'
+    })
   }
 }
 

@@ -1,37 +1,85 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import CardIncidencia from '../../components/CardIncidencia'
+import AsignarTecnicoModal from '../../components/AsignarTecnicoModal'
 import { tecnicoApi } from '../../services/api'
+import { isSupervisor } from '../../utils/roleNames'
+import { UserPlusIcon } from '@heroicons/react/24/outline'
 
 export default function IncidenciasListaTecnico() {
-  const location = useLocation()
   const [incidencias, setIncidencias] = useState([])
+  const [proyectos, setProyectos] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState({ search: '', prioridad: '', asignacion: 'all', plazo: '' })
-  const [filtersCerradas, setFiltersCerradas] = useState({ search: '', prioridad: '', asignacion: 'all' })
-
-  // Derivar filtros iniciales desde la URL (?asignacion=asignadas&prioridad=alta)
-  const initialFromQuery = useMemo(() => {
-    const p = new URLSearchParams(location.search)
-    const asignacion = p.get('asignacion') || ''
-    const prioridad = p.get('prioridad') || ''
-    const plazo = p.get('plazo') || ''
-    const normalized = {
-      ...(asignacion ? { asignacion } : {}),
-      ...(prioridad ? { prioridad } : {}),
-      ...(plazo ? { plazo } : {})
+  
+  // Inicializar filtros - siempre empezar con valores por defecto
+  const initialFilters = useMemo(() => {
+    return {
+      proyecto: '',
+      prioridad: '',
+      asignacion: 'all',
+      plazo: ''
     }
-    return normalized
-  }, [location.search])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Sin dependencias - solo se calcula una vez
+  
+  const [filters, setFilters] = useState(initialFilters)
+  const [filtersCerradas, setFiltersCerradas] = useState({ proyecto: '', prioridad: '', asignacion: 'all' })
+  const [showAsignarModal, setShowAsignarModal] = useState(false)
+  const [selectedIncidencia, setSelectedIncidencia] = useState(null)
+
+  // Obtener rol del usuario desde localStorage
+  const userRole = useMemo(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      return user.rol || user.role
+    } catch {
+      return null
+    }
+  }, [])
+
+  const canAssign = isSupervisor(userRole)
+
+  // Cargar proyectos al montar
+  useEffect(() => {
+    loadProyectos()
+  }, [])
+
+  async function loadProyectos() {
+    try {
+      const response = await fetch('/api/admin/proyectos', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      const data = await response.json()
+      if (data.success) {
+        setProyectos(data.data || [])
+      }
+    } catch (err) {
+      console.error('Error cargando proyectos:', err)
+    }
+  }
 
   async function load(offset = 0) {
     setLoading(true); setError('')
     try {
-      const r = await tecnicoApi.listarIncidencias({ offset, search: filters.search, prioridad: filters.prioridad, asignacion: filters.asignacion })
+      // Solo enviar filtros si no son valores por defecto
+      const params = { offset }
+      if (filters.prioridad) params.prioridad = filters.prioridad
+      if (filters.asignacion && filters.asignacion !== 'all') params.asignacion = filters.asignacion
+      
+      const r = await tecnicoApi.listarIncidencias(params)
       let data = r.data || []
+      
+      // Filtrado client-side por proyecto
+      if (filters.proyecto) {
+        data = data.filter(inc => {
+          const idProyecto = inc.viviendas?.proyecto?.id_proyecto || inc.viviendas?.id_proyecto
+          return idProyecto === Number(filters.proyecto)
+        })
+      }
       
       // Filtrado client-side por estado_plazo
       if (filters.plazo) {
@@ -44,6 +92,10 @@ export default function IncidenciasListaTecnico() {
     } finally { setLoading(false) }
   }
 
+  function resetFilters() {
+    setFilters({ proyecto: '', prioridad: '', asignacion: 'all', plazo: '' })
+  }
+
   // Separar incidencias activas y cerradas
   const incidenciasActivas = useMemo(() => {
     return incidencias.filter(inc => !['cerrada', 'cancelada', 'descartada'].includes((inc.estado || '').toLowerCase()))
@@ -53,8 +105,11 @@ export default function IncidenciasListaTecnico() {
     let cerradas = incidencias.filter(inc => ['cerrada', 'cancelada', 'descartada'].includes((inc.estado || '').toLowerCase()))
     
     // Aplicar filtros de cerradas
-    if (filtersCerradas.search) {
-      cerradas = cerradas.filter(inc => (inc.descripcion || '').toLowerCase().includes(filtersCerradas.search.toLowerCase()))
+    if (filtersCerradas.proyecto) {
+      cerradas = cerradas.filter(inc => {
+        const idProyecto = inc.viviendas?.proyecto?.id_proyecto || inc.viviendas?.id_proyecto
+        return idProyecto === Number(filtersCerradas.proyecto)
+      })
     }
     if (filtersCerradas.prioridad) {
       cerradas = cerradas.filter(inc => inc.prioridad === filtersCerradas.prioridad)
@@ -68,16 +123,8 @@ export default function IncidenciasListaTecnico() {
     return cerradas
   }, [incidencias, filtersCerradas])
 
-  // Aplicar filtros de la URL una única vez por cambio de querystring
-  useEffect(() => {
-    if (Object.keys(initialFromQuery).length) {
-      setFilters(f => ({ ...f, ...initialFromQuery }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFromQuery])
-
   useEffect(() => { load(0) // eslint-disable-next-line
-  }, [filters.search, filters.prioridad, filters.asignacion, filters.plazo])
+  }, [filters.proyecto, filters.prioridad, filters.asignacion, filters.plazo])
 
   return (
     <DashboardLayout title='Incidencias' subtitle='Visión global' accent='orange'>
@@ -86,8 +133,15 @@ export default function IncidenciasListaTecnico() {
         <SectionPanel title='Filtros - Incidencias Activas' description='Refina la búsqueda'>
           <div className='flex flex-wrap items-end gap-4'>
             <div className='flex flex-col'>
-              <label className='text-xs font-medium text-techo-gray-600'>Buscar</label>
-              <input className='input' value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} placeholder='Texto en descripción' />
+              <label className='text-xs font-medium text-techo-gray-600'>Proyecto</label>
+              <select className='input' value={filters.proyecto} onChange={e => setFilters(f => ({ ...f, proyecto: e.target.value }))}>
+                <option value=''>Todos los proyectos</option>
+                {proyectos.map(p => (
+                  <option key={p.id_proyecto} value={p.id_proyecto}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className='flex flex-col'>
               <label className='text-xs font-medium text-techo-gray-600'>Prioridad</label>
@@ -104,6 +158,7 @@ export default function IncidenciasListaTecnico() {
                 <option value='all'>Todas</option>
                 <option value='asignadas'>Mis asignadas</option>
                 <option value='unassigned'>Sin asignar</option>
+                {canAssign && <option value='proyecto'>Del proyecto</option>}
               </select>
             </div>
             <div className='flex flex-col'>
@@ -115,7 +170,12 @@ export default function IncidenciasListaTecnico() {
                 <option value='dentro_plazo'>🟢 Dentro del plazo</option>
               </select>
             </div>
-            <button className='btn btn-secondary mt-4' onClick={() => load(0)} disabled={loading}>Refrescar</button>
+            <button className='btn btn-primary' onClick={() => load(0)} disabled={loading}>
+              {loading ? 'Cargando...' : 'Refrescar'}
+            </button>
+            <button className='btn btn-secondary' onClick={resetFilters} disabled={loading}>
+              Limpiar filtros
+            </button>
           </div>
         </SectionPanel>
 
@@ -125,19 +185,57 @@ export default function IncidenciasListaTecnico() {
           {error && <div className='text-sm text-red-600'>{error}</div>}
           <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
             {incidenciasActivas.map(i => (
-              <CardIncidencia key={i.id_incidencia} incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
+              <div key={i.id_incidencia} className='relative'>
+                <CardIncidencia incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
+                {/* 🆕 Botón Asignar (solo para supervisores) */}
+                {canAssign && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedIncidencia(i)
+                      setShowAsignarModal(true)
+                    }}
+                    className='absolute top-2 right-2 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg transition-colors'
+                    title={i.id_usuario_tecnico ? 'Reasignar técnico' : 'Asignar técnico'}
+                  >
+                    <UserPlusIcon className='w-5 h-5' />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
           {!loading && incidenciasActivas.length === 0 && <div className='text-sm text-techo-gray-500'>Sin incidencias activas.</div>}
         </SectionPanel>
+
+        {/* 🆕 Modal de Asignación */}
+        {showAsignarModal && selectedIncidencia && (
+          <AsignarTecnicoModal
+            incidenciaId={selectedIncidencia.id_incidencia}
+            incidencia={selectedIncidencia}
+            onClose={() => {
+              setShowAsignarModal(false)
+              setSelectedIncidencia(null)
+            }}
+            onSuccess={() => {
+              load(0) // Recargar lista
+            }}
+          />
+        )}
 
         {/* Filtros para Incidencias Cerradas */}
         <div className='mt-12 pt-8 border-t-4 border-slate-300 dark:border-slate-600'>
           <SectionPanel title='Filtros - Incidencias Cerradas/Terminadas' description='Filtra incidencias finalizadas'>
             <div className='flex flex-wrap items-end gap-4'>
               <div className='flex flex-col'>
-                <label className='text-xs font-medium text-techo-gray-600'>Buscar</label>
-                <input className='input' value={filtersCerradas.search} onChange={e => setFiltersCerradas(f => ({ ...f, search: e.target.value }))} placeholder='Texto en descripción' />
+                <label className='text-xs font-medium text-techo-gray-600'>Proyecto</label>
+                <select className='input' value={filtersCerradas.proyecto} onChange={e => setFiltersCerradas(f => ({ ...f, proyecto: e.target.value }))}>
+                  <option value=''>Todos los proyectos</option>
+                  {proyectos.map(p => (
+                    <option key={p.id_proyecto} value={p.id_proyecto}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className='flex flex-col'>
                 <label className='text-xs font-medium text-techo-gray-600'>Prioridad</label>

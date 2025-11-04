@@ -13,6 +13,7 @@ import IncidenciaDetalleTecnico from './pages/tecnico/IncidenciaDetalle';
 import FormularioPosventa from './pages/tecnico/FormularioPosventa';
 import FormulariosPosventa from './pages/tecnico/FormulariosPosventa';
 import ViviendasTecnico from './pages/tecnico/ViviendasTecnico';
+import HomeTecnicoCampo from './pages/tecnico/HomeTecnicoCampo';
 // Versión completa de gestión de proyectos
 import GestionProyectos from './pages/admin/GestionProyectos';
 import GestionViviendas from './pages/admin/GestionViviendas';
@@ -23,6 +24,7 @@ import MapaViviendas from './pages/admin/MapaViviendas';
 import GestionTemplatesPosventa from './pages/admin/GestionTemplatesPosventa';
 import Constructoras from './pages/admin/Constructoras';
 import SecurityDashboard from './pages/admin/SecurityDashboard';
+import RBACMockup from './pages/admin/RBACMockup';
 import PosventaFormPage from './pages/PosventaForm.jsx';
 import Registro from './pages/registrar.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
@@ -69,7 +71,7 @@ export default function AppRoutes() {
           <Route path="/beneficiario/incidencias" element={<IncidenciasHistorial />} />
           <Route path="/beneficiario/nueva-incidencia" element={<NuevaIncidencia />} />
 
-          <Route element={<RoleRoute allowed={['tecnico', 'administrador']} fallback="/home" />}>
+          <Route element={<RoleRoute allowed={['tecnico', 'tecnico_campo', 'administrador']} fallback="/home" />}>
             {/* Alias legacy path to new list path to avoid dead links */}
             <Route path="/tecnico/posventa" element={<Navigate to="/tecnico/posventa/formularios" replace />} />
             <Route path="/tecnico/incidencias" element={<IncidenciasListaTecnico />} />
@@ -77,6 +79,11 @@ export default function AppRoutes() {
             <Route path="/tecnico/posventa/formularios" element={<FormulariosPosventa />} />
             <Route path="/tecnico/posventa/formulario/:id" element={<FormularioPosventa />} />
             <Route path="/tecnico/viviendas" element={<ViviendasTecnico />} />
+          </Route>
+
+          {/* 🆕 Dashboard específico para técnico de campo */}
+          <Route element={<RoleRoute allowed={['tecnico_campo']} fallback="/home" />}>
+            <Route path="/tecnico-campo/dashboard" element={<HomeTecnicoCampo />} />
           </Route>
 
           <Route element={<RoleRoute allowed={['administrador']} fallback="/home" />}>
@@ -90,6 +97,7 @@ export default function AppRoutes() {
             <Route path="/admin/mapa-viviendas" element={<MapaViviendas />} />
             <Route path="/admin/templates-posventa" element={<GestionTemplatesPosventa />} />
             <Route path="/admin/seguridad" element={<SecurityDashboard />} />
+            <Route path="/admin/rbac-demo" element={<RBACMockup />} />
           </Route>
         </Route>
 

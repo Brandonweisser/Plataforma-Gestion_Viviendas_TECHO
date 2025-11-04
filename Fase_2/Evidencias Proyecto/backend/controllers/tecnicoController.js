@@ -28,6 +28,9 @@ export async function technicianHealth(req, res) {
 
 /**
  * Obtiene todas las incidencias asignadas al técnico o todas si es admin
+ * - tecnico_campo: SOLO sus incidencias asignadas
+ * - tecnico (supervisor): TODAS las incidencias de sus proyectos + puede ver sin asignar
+ * - administrador: TODAS las incidencias
  */
 export async function getIncidences(req, res) {
   try {
@@ -46,14 +49,36 @@ export async function getIncidences(req, res) {
     if (userRole === 'administrador') {
       // Los admins pueden ver todas las incidencias
       incidencias = await getAllIncidences()
+    } else if (userRole === 'tecnico_campo') {
+      // Técnico de Campo: solo ve sus incidencias asignadas
+      let query = supabase
+        .from('incidencias')
+        .select(`
+          *,
+          viviendas(id_vivienda, direccion, proyecto(id_proyecto, nombre, ubicacion)),
+          reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
+        `)
+        .eq('id_usuario_tecnico', tecnicoUid)
+        .order('fecha_reporte', { ascending: false })
+      
+      if (estadosList.length === 1) query = query.eq('estado', estadosList[0])
+      if (estadosList.length > 1) query = query.in('estado', estadosList)
+      if (categoriaFilter) query = query.eq('categoria', categoriaFilter)
+      if (prioridadFilter) query = query.eq('prioridad', prioridadFilter)
+      if (searchFilter) query = query.ilike('descripcion', `%${searchFilter}%`)
+      
+      const { data, error } = await query
+      if (error) throw error
+      incidencias = data || []
     } else {
-      // Técnicos: ver asignadas directamente o por proyectos asignados
-  const seeAllAssigned = asignacion === 'all' || asignacion === 'asignadas'
-  const seeProjectScoped = asignacion === 'all' || asignacion === 'proyecto'
-  const seeUnassigned = asignacion === 'unassigned'
+      // Técnico Supervisor: ver asignadas directamente o por proyectos asignados
+      const seeAllAssigned = !asignacion || asignacion === 'all' || asignacion === 'asignadas'
+      const seeProjectScoped = !asignacion || asignacion === 'all' || asignacion === 'proyecto'
+      const seeUnassigned = asignacion === 'unassigned'
 
       let results = []
 
+      // Ver incidencias asignadas directamente
       if (seeAllAssigned) {
         let query = supabase
           .from('incidencias')
@@ -64,8 +89,8 @@ export async function getIncidences(req, res) {
           `)
           .eq('id_usuario_tecnico', tecnicoUid)
           .order('fecha_reporte', { ascending: false })
-  if (estadosList.length === 1) query = query.eq('estado', estadosList[0])
-  if (estadosList.length > 1) query = query.in('estado', estadosList)
+        if (estadosList.length === 1) query = query.eq('estado', estadosList[0])
+        if (estadosList.length > 1) query = query.in('estado', estadosList)
         if (categoriaFilter) query = query.eq('categoria', categoriaFilter)
         if (prioridadFilter) query = query.eq('prioridad', prioridadFilter)
         if (searchFilter) query = query.ilike('descripcion', `%${searchFilter}%`)
@@ -307,34 +332,18 @@ export async function getTechnicianDashboardStats(req, res) {
       }
     }
 
-    // 1) Asignadas a mí este mes
-    // Considerar también incidencias que tienen asignación pero no registraron fecha_asignada,
-    // tomando como referencia fecha_reporte del mes
-    let qAsignadasA = supabase
+    // 1) Total de incidencias activas en proyectos del técnico (no finalizadas)
+    // Para supervisores: todas las incidencias abiertas de sus proyectos
+    let qAsignadas = supabase
       .from('incidencias')
-      .select('id_incidencia, id_vivienda, fecha_asignada, viviendas!inner(id_proyecto)')
-      .eq('id_usuario_tecnico', tecnicoUid)
-      .gte('fecha_asignada', start.toISOString())
-      .lt('fecha_asignada', end.toISOString())
-    if (userRole !== 'administrador') qAsignadasA = qAsignadasA.in('viviendas.id_proyecto', projectIds)
-    const { data: asignadasA, error: asgAErr } = await qAsignadasA
-    if (asgAErr) throw asgAErr
-
-    let qAsignadasB = supabase
-      .from('incidencias')
-      .select('id_incidencia, id_vivienda, fecha_asignada, fecha_reporte, viviendas!inner(id_proyecto)')
-      .eq('id_usuario_tecnico', tecnicoUid)
-      .is('fecha_asignada', null)
-      .gte('fecha_reporte', start.toISOString())
-      .lt('fecha_reporte', end.toISOString())
-    if (userRole !== 'administrador') qAsignadasB = qAsignadasB.in('viviendas.id_proyecto', projectIds)
-    const { data: asignadasB, error: asgBErr } = await qAsignadasB
-    if (asgBErr) throw asgBErr
-
-    const mapAsg = new Map()
-    ;(asignadasA || []).forEach(r => mapAsg.set(r.id_incidencia, true))
-    ;(asignadasB || []).forEach(r => mapAsg.set(r.id_incidencia, true))
-    const asignadas = mapAsg.size
+      .select('id_incidencia, estado, viviendas!inner(id_proyecto)')
+      .not('estado', 'in', '(cerrada,descartada,cancelada)')
+    if (userRole !== 'administrador') {
+      qAsignadas = qAsignadas.in('viviendas.id_proyecto', projectIds)
+    }
+    const { data: asignadasData, error: asgErr } = await qAsignadas
+    if (asgErr) throw asgErr
+    const asignadas = (asignadasData || []).length
 
   // 2) Pendientes este mes (abierta o en_proceso) reportadas este mes, en proyectos permitidos
     let qPend = supabase
@@ -545,6 +554,192 @@ export async function assignIncidenceToMe(req, res) {
     return res.status(500).json({ 
       success: false, 
       message: 'Error al asignar la incidencia' 
+    })
+  }
+}
+
+/**
+ * 🆕 Asignar incidencia a un técnico de campo (Solo para supervisores y admins)
+ * POST /api/tecnico/incidencias/:id/asignar
+ */
+export async function assignIncidenceToTechnician(req, res) {
+  try {
+    const incidenciaId = Number(req.params.id)
+    const { tecnico_uid } = req.body
+    const userRole = req.user?.rol || req.user?.role
+    const currentUserId = req.user?.uid || req.user?.sub
+
+    // Validar que solo supervisores o admins pueden asignar
+    if (userRole !== 'tecnico' && userRole !== 'administrador') {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo supervisores pueden asignar incidencias'
+      })
+    }
+
+    // Verificar que la incidencia existe
+    const { data: incidencia, error: errInc } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, estado, viviendas(id_proyecto)')
+      .eq('id_incidencia', incidenciaId)
+      .single()
+
+    if (errInc || !incidencia) {
+      return res.status(404).json({
+        success: false,
+        message: 'Incidencia no encontrada'
+      })
+    }
+
+    // Si tecnico_uid es null, desasignar
+    if (tecnico_uid === null || tecnico_uid === undefined) {
+      const { error: updateError } = await supabase
+        .from('incidencias')
+        .update({ 
+          id_usuario_tecnico: null,
+          estado: 'abierta'
+        })
+        .eq('id_incidencia', incidenciaId)
+
+      if (updateError) throw updateError
+
+      await logIncidenciaEvent(
+        incidenciaId,
+        'desasignacion',
+        'Incidencia desasignada por supervisor',
+        currentUserId
+      )
+
+      return res.json({
+        success: true,
+        message: 'Técnico desasignado correctamente',
+        data: {
+          incidencia_id: incidenciaId,
+          tecnico_asignado: null
+        }
+      })
+    }
+
+    // Verificar que el técnico a asignar existe y es tecnico o tecnico_campo
+    const { data: tecnico, error: errTec } = await supabase
+      .from('usuarios')
+      .select('uid, nombre, rol')
+      .eq('uid', tecnico_uid)
+      .single()
+
+    if (errTec || !tecnico) {
+      return res.status(404).json({
+        success: false,
+        message: 'Técnico no encontrado'
+      })
+    }
+
+    if (tecnico.rol !== 'tecnico' && tecnico.rol !== 'tecnico_campo') {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario seleccionado no es un técnico'
+      })
+    }
+
+    // Asignar la incidencia
+    const { error: updateError } = await supabase
+      .from('incidencias')
+      .update({ 
+        id_usuario_tecnico: tecnico_uid,
+        fecha_asignada: new Date().toISOString(),
+        estado: incidencia.estado === 'abierta' ? 'en_proceso' : incidencia.estado
+      })
+      .eq('id_incidencia', incidenciaId)
+
+    if (updateError) throw updateError
+
+    // Registrar en historial
+    await logIncidenciaEvent(
+      incidenciaId,
+      'asignacion',
+      `Incidencia asignada a ${tecnico.nombre} por supervisor`,
+      currentUserId
+    )
+
+    return res.json({
+      success: true,
+      message: `Incidencia asignada a ${tecnico.nombre}`,
+      data: {
+        incidencia_id: incidenciaId,
+        tecnico_asignado: {
+          uid: tecnico.uid,
+          nombre: tecnico.nombre,
+          rol: tecnico.rol
+        }
+      }
+    })
+
+  } catch (error) {
+    console.error('Error al asignar incidencia a técnico:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al asignar la incidencia' 
+    })
+  }
+}
+
+/**
+ * 🆕 Listar técnicos disponibles para asignar (Solo para supervisores)
+ * GET /api/tecnico/tecnicos-disponibles
+ */
+export async function listAvailableTechnicians(req, res) {
+  try {
+    const userRole = req.user?.rol || req.user?.role
+
+    // Solo supervisores y admins pueden ver la lista
+    if (userRole !== 'tecnico' && userRole !== 'administrador') {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permisos para ver técnicos'
+      })
+    }
+
+    // Obtener todos los técnicos (supervisores y campo)
+    const { data: tecnicos, error } = await supabase
+      .from('usuarios')
+      .select('uid, nombre, email, rol')
+      .in('rol', ['tecnico', 'tecnico_campo'])
+      .order('nombre')
+
+    if (error) throw error
+
+    // Contar incidencias asignadas a cada técnico
+    const { data: incidenciasCounts, error: errCounts } = await supabase
+      .from('incidencias')
+      .select('id_usuario_tecnico')
+      .in('estado', ['nuevo', 'en_proceso', 'en_revision'])
+
+    if (errCounts) throw errCounts
+
+    // Agrupar conteos
+    const counts = {}
+    incidenciasCounts.forEach(inc => {
+      if (inc.id_usuario_tecnico) {
+        counts[inc.id_usuario_tecnico] = (counts[inc.id_usuario_tecnico] || 0) + 1
+      }
+    })
+
+    // Agregar conteos a técnicos
+    const tecnicosConCarga = tecnicos.map(t => ({
+      ...t,
+      incidencias_activas: counts[t.uid] || 0
+    }))
+
+    return res.json({
+      success: true,
+      data: tecnicosConCarga
+    })
+
+  } catch (error) {
+    console.error('Error al listar técnicos disponibles:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener técnicos'
     })
   }
 }

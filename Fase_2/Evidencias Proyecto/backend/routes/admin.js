@@ -29,7 +29,10 @@ import {
   updateHousingById,
   deleteHousingById,
   assignBeneficiary,
-  unassignBeneficiary
+  unassignBeneficiary,
+  getSecurityDashboard,
+  getAuditLogs,
+  getUserAuditLogs
 } from '../controllers/adminController.js'
 import {
   listConstructoras,
@@ -71,6 +74,11 @@ router.get('/health', adminHealth)
 router.get('/dashboard/stats', getDashboardStats)
 router.get('/dashboard/activity', getDashboardActivity)
 router.get('/dashboard/analytics', getDashboardAnalytics)
+
+// ==================== SEGURIDAD Y AUDITORÍA ====================
+router.get('/security/dashboard', getSecurityDashboard)
+router.get('/audit-logs', getAuditLogs)
+router.get('/audit-logs/user/:uid', getUserAuditLogs)
 
 // ==================== GESTIÓN DE USUARIOS ====================
 router.get('/usuarios', getUsers)

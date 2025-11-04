@@ -116,7 +116,8 @@ export default function HomeAdministrador() {
       clearInterval(interval);
     };
   }, []);
-  const adminSections = [
+  // Secciones de Gestión de Proyectos y Viviendas
+  const projectManagementSections = [
     {
       title: "Gestión de Proyectos",
       description: "Crear proyectos y asignar técnicos responsables",
@@ -143,14 +144,6 @@ export default function HomeAdministrador() {
         handleNavigation("/admin/asignaciones", "Asignación de Viviendas"),
       icon: <UsersIcon className={iconSize} />,
       accent: "purple",
-    },
-    {
-      title: "Gestión de Usuarios",
-      description: "Crear, editar y bloquear cuentas del sistema",
-      badge: `${stats.usuarios.total} usuarios`,
-      action: () => handleNavigation("/admin/usuarios", "Gestión de Usuarios"),
-      icon: <UsersIcon className={iconSize} />,
-      accent: "orange",
     },
     {
       title: "Supervisión de Incidencias",
@@ -197,6 +190,18 @@ export default function HomeAdministrador() {
         handleNavigation("/admin/constructoras", "Constructoras"),
       icon: <ClipboardDocumentListIcon className={iconSize} />,
       accent: "teal",
+    },
+  ];
+
+  // Secciones de Gestión de Usuarios y Seguridad
+  const userSecuritySections = [
+    {
+      title: "Gestión de Usuarios",
+      description: "Crear, editar y bloquear cuentas del sistema",
+      badge: `${stats.usuarios.total} usuarios`,
+      action: () => handleNavigation("/admin/usuarios", "Gestión de Usuarios"),
+      icon: <UsersIcon className={iconSize} />,
+      accent: "orange",
     },
     {
       title: "Seguridad y Auditoría",
@@ -359,14 +364,16 @@ export default function HomeAdministrador() {
         {stats.error && (
           <div className="text-xs text-red-500">{stats.error}</div>
         )}
+
+        {/* Gestión de Proyectos y Viviendas */}
         <SectionPanel
-          title="Herramientas de Administración"
-          description="Accesos rápidos a módulos críticos"
+          title="Gestión de Proyectos y Viviendas"
+          description="Administración de proyectos, viviendas y operaciones"
           as="section"
           showBack={false}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {adminSections.map((s, i) => (
+            {projectManagementSections.map((s, i) => (
               <ActionCard
                 key={i}
                 title={s.title}
@@ -380,6 +387,31 @@ export default function HomeAdministrador() {
             ))}
           </div>
         </SectionPanel>
+
+        {/* Gestión de Usuarios y Seguridad */}
+        <SectionPanel
+          title="Gestión de Usuarios y Seguridad"
+          description="Administración de cuentas y monitoreo de seguridad"
+          as="section"
+          showBack={false}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {userSecuritySections.map((s, i) => (
+              <ActionCard
+                key={i}
+                title={s.title}
+                description={s.description}
+                badge={s.badge}
+                onClick={s.to ? undefined : s.action}
+                to={s.to}
+                icon={s.icon}
+                accent={s.accent}
+              />
+            ))}
+          </div>
+        </SectionPanel>
+
+        {/* Herramientas de Técnico */}
         <SectionPanel
           title="Herramientas de Técnico"
           description="Accesos rápidos a módulos técnicos (solo admin)"

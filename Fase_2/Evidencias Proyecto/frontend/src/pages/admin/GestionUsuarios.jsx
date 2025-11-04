@@ -6,6 +6,7 @@ import { adminApi } from "../../services/api";
 import { getMe } from "../../services/api";
 import { AuthContext } from "../../context/AuthContext";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { getRoleName, getRoleBadgeClass } from '../../utils/roleNames';
 
 // Gestión de Usuarios (Administrador):
 // - Listado de todos los usuarios (admin / técnico / beneficiario)
@@ -441,9 +442,10 @@ export default function GestionUsuarios() {
               }
               className="px-3 py-2 border rounded"
             >
-              <option value="beneficiario">Beneficiario</option>
-              <option value="tecnico">Técnico</option>
-              <option value="administrador">Administrador</option>
+              <option value="beneficiario">{getRoleName('beneficiario')}</option>
+              <option value="tecnico_campo">{getRoleName('tecnico_campo')}</option>
+              <option value="tecnico">{getRoleName('tecnico')}</option>
+              <option value="administrador">{getRoleName('administrador')}</option>
             </select>
             <button
               type="submit"
@@ -512,9 +514,10 @@ export default function GestionUsuarios() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500"
               >
                 <option value="todos">Todos</option>
-                <option value="administrador">Administrador</option>
-                <option value="tecnico">Técnico</option>
-                <option value="beneficiario">Beneficiario</option>
+                <option value="administrador">{getRoleName('administrador')}</option>
+                <option value="tecnico">{getRoleName('tecnico')}</option>
+                <option value="tecnico_campo">{getRoleName('tecnico_campo')}</option>
+                <option value="beneficiario">{getRoleName('beneficiario')}</option>
               </select>
             </div>
             <div>
@@ -607,16 +610,8 @@ export default function GestionUsuarios() {
                         {u.email}
                       </td>
                       <td className="py-2 px-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            u.rol === "administrador"
-                              ? "bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300"
-                              : u.rol === "tecnico"
-                              ? "bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
-                              : "bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300"
-                          }`}
-                        >
-                          {u.rol}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeClass(u.rol)}`}>
+                          {getRoleName(u.rol)}
                         </span>
                       </td>
                       <td className="py-2 px-4 text-xs">
@@ -738,9 +733,10 @@ export default function GestionUsuarios() {
                     onChange={handleFormChange}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                   >
-                    <option value="administrador">Administrador</option>
-                    <option value="tecnico">Técnico</option>
-                    <option value="beneficiario">Beneficiario</option>
+                    <option value="administrador">{getRoleName('administrador')}</option>
+                    <option value="tecnico">{getRoleName('tecnico')}</option>
+                    <option value="tecnico_campo">{getRoleName('tecnico_campo')}</option>
+                    <option value="beneficiario">{getRoleName('beneficiario')}</option>
                   </select>
                 </div>
                 <div>
