@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { adminApi } from '../../services/api'
 import { Modal } from '../../components/ui/Modal'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 export default function GestionTemplatesPosventa() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -150,7 +153,16 @@ export default function GestionTemplatesPosventa() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gestión de Templates de Postventa</h1>
               <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Crea, activa/desactiva y administra los ítems de las listas de chequeo por tipo de vivienda.</p>
             </div>
-            {loading && <span className="text-sm text-gray-500">Cargando…</span>}
+            <div className="flex gap-2 items-center">
+              <button 
+                onClick={() => navigate('/home')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+                Volver
+              </button>
+              {loading && <span className="text-sm text-gray-500">Cargando…</span>}
+            </div>
           </div>
         </div>
 

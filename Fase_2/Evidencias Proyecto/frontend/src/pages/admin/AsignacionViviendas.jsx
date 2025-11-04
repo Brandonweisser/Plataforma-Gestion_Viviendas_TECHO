@@ -4,6 +4,7 @@ import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { Modal } from '../../components/ui/Modal'
 import { adminApi } from '../../services/api'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 export default function AsignacionViviendas() {
   const navigate = useNavigate()
@@ -201,6 +202,13 @@ export default function AsignacionViviendas() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Asignación de Viviendas</h1>
               <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Gestionar asignaciones de viviendas a beneficiarios</p>
             </div>
+            <button 
+              onClick={() => navigate('/home')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Volver
+            </button>
           </div>
 
           {/* Estadísticas */}

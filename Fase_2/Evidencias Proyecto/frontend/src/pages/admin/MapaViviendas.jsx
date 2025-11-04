@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/ui/DashboardLayout';
 import { SectionPanel } from '../../components/ui/SectionPanel';
 import { adminApi } from '../../services/api';
-import { XMarkIcon, MapPinIcon, UserGroupIcon, CheckCircleIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/solid'
+import { XMarkIcon, MapPinIcon, UserGroupIcon, CheckCircleIcon, ClockIcon, ArrowPathIcon, ArrowLeftIcon } from '@heroicons/react/24/solid'
 
 // Carga dinámica de Leaflet solo cuando se monta (evita SSR y reduce bundle inicial)
 function useLeaflet() {
@@ -64,6 +65,7 @@ function estadoChip(estadoRaw) {
 }
 
 export default function MapaViviendas() {
+  const navigate = useNavigate();
   const L = useLeaflet();
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -249,6 +251,10 @@ export default function MapaViviendas() {
       <div className="space-y-6">
         <SectionPanel title="Mapa de Viviendas" description="Distribución geográfica y validación de direcciones (demo)" showBack={false} actions={
           <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/home')} className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm" aria-label="Volver al inicio">
+              <ArrowLeftIcon className="h-4 w-4" />
+              Volver
+            </button>
             <button onClick={zoomOut} className="px-2 py-1 text-sm border rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" aria-label="Alejar">−</button>
             <button onClick={zoomIn} className="px-2 py-1 text-sm border rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" aria-label="Acercar">+</button>
             <button onClick={resetView} className="px-2 py-1 text-sm border rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" aria-label="Restablecer vista">Reset</button>

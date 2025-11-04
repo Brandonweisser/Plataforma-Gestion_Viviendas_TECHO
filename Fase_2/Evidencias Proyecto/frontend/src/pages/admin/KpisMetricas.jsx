@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { normalizeRole } from '../../utils/roles';
 import { AuthContext } from '../../context/AuthContext';
 import { DashboardLayout } from '../../components/ui/DashboardLayout';
 import { StatCard } from '../../components/ui/StatCard';
 import DashboardCharts from '../../components/dashboard/DashboardCharts';
 import { adminApi } from '../../services/api';
-import { UsersIcon, HomeModernIcon, WrenchScrewdriverIcon, ArrowPathIcon, CloudArrowDownIcon, InformationCircleIcon, TagIcon, ChartPieIcon, ExclamationTriangleIcon, BuildingOffice2Icon, HomeIcon, UserGroupIcon, ArchiveBoxIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, HomeModernIcon, WrenchScrewdriverIcon, ArrowPathIcon, CloudArrowDownIcon, InformationCircleIcon, TagIcon, ChartPieIcon, ExclamationTriangleIcon, BuildingOffice2Icon, HomeIcon, UserGroupIcon, ArchiveBoxIcon, ShieldCheckIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import Chart from 'react-apexcharts';
 
 export default function KpisMetricas() {
+  const navigate = useNavigate();
   const { user, logout, isLoading } = useContext(AuthContext);
   const [stats, setStats] = useState({
     usuarios: { total: 0, administrador: 0, tecnico: 0, beneficiario: 0 },
@@ -244,6 +245,9 @@ export default function KpisMetricas() {
           <h2 className="text-2xl font-semibold tracking-tight text-techo-gray-800 dark:text-white">Panel Analítico</h2>
           <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Visualización consolidada de usuarios, incidencias y viviendas.</p>
           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+            <button onClick={() => navigate('/home')} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+              <ArrowLeftIcon className="h-4 w-4" /> Volver
+            </button>
             <button onClick={loadStats} disabled={stats.loading} className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
               <ArrowPathIcon className="h-4 w-4" /> Refrescar
             </button>

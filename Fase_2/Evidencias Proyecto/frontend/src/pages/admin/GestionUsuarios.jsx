@@ -5,6 +5,7 @@ import { SectionPanel } from '../../components/ui/SectionPanel';
 import { adminApi } from '../../services/api';
 import { getMe } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 // Gestión de Usuarios (Administrador):
 // - Listado de todos los usuarios (admin / técnico / beneficiario)
@@ -213,7 +214,10 @@ export default function GestionUsuarios() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Gestión de Usuarios</h1>
               </div>
               <div className="flex gap-2 items-center">
-                <button onClick={() => navigate(-1)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Volver</button>
+                <button onClick={() => navigate('/home')} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm">
+                  <ArrowLeftIcon className="h-4 w-4" />
+                  Volver
+                </button>
                 <button onClick={loadData} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Recargar</button>
               </div>
             </div>

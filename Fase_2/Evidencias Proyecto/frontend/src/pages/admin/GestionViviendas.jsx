@@ -4,6 +4,7 @@ import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { Modal } from '../../components/ui/Modal'
 import { adminApi } from '../../services/api'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 export default function GestionViviendas() {
   const navigate = useNavigate()
@@ -332,12 +333,21 @@ export default function GestionViviendas() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Gestión de Viviendas</h1>
               <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Administrar viviendas y asignar a beneficiarios</p>
             </div>
-            <button 
-              onClick={() => openModal('crear')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Nueva Vivienda
-            </button>
+            <div className="flex gap-2 items-center">
+              <button 
+                onClick={() => navigate('/home')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+                Volver
+              </button>
+              <button 
+                onClick={() => openModal('crear')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Nueva Vivienda
+              </button>
+            </div>
           </div>
         </div>
 

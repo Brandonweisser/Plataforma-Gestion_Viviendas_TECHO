@@ -396,3 +396,26 @@ export const setupApi = {
     return request('/api/setup/primer-admin', { method: 'POST', body: JSON.stringify({ email, password, nombre }) })
   }
 }
+
+// Seguridad y Auditoría
+export async function getSecurityDashboard() {
+  return request('/api/admin/security/dashboard');
+}
+
+export async function getAuditLogs(params = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.append('page', params.page);
+  if (params.limit) searchParams.append('limit', params.limit);
+  if (params.action) searchParams.append('action', params.action);
+  if (params.actor_uid) searchParams.append('actor_uid', params.actor_uid);
+  if (params.entity_type) searchParams.append('entity_type', params.entity_type);
+  if (params.start_date) searchParams.append('start_date', params.start_date);
+  if (params.end_date) searchParams.append('end_date', params.end_date);
+  
+  const queryString = searchParams.toString();
+  return request(`/api/admin/audit-logs${queryString ? '?' + queryString : ''}`);
+}
+
+export async function getUserAuditLogs(uid, limit = 100) {
+  return request(`/api/admin/audit-logs/user/${uid}?limit=${limit}`);
+}

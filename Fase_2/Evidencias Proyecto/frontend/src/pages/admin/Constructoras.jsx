@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { adminApi } from '../../services/api'
 import { AuthContext } from '../../context/AuthContext'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 export default function Constructoras() {
+  const navigate = useNavigate()
   const { logout } = useContext(AuthContext)
   const [constructoras, setConstructoras] = useState([])
   const [loading, setLoading] = useState(true)
@@ -86,6 +89,13 @@ export default function Constructoras() {
             <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Administra las empresas constructoras y asigna técnicos</p>
           </div>
           <div className="flex gap-2">
+            <button 
+              onClick={() => navigate('/home')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Volver
+            </button>
             <button onClick={openCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Nueva Constructora</button>
             <button onClick={load} className="px-4 py-2 border border-gray-300 rounded-lg">Recargar</button>
           </div>

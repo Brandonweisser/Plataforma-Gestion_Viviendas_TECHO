@@ -11,6 +11,7 @@ import {
   WrenchScrewdriverIcon,
   ClipboardDocumentListIcon,
   ChartBarIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import { ArrowPathIcon } from "@heroicons/react/24/solid";
 import { adminApi } from "../services/api";
@@ -196,6 +197,16 @@ export default function HomeAdministrador() {
         handleNavigation("/admin/constructoras", "Constructoras"),
       icon: <ClipboardDocumentListIcon className={iconSize} />,
       accent: "teal",
+    },
+    {
+      title: "Seguridad y Auditoría",
+      description: "Monitoreo de seguridad, logs de acceso y auditoría del sistema",
+      badge: "Nuevo",
+      to: "/admin/seguridad",
+      action: () =>
+        handleNavigation("/admin/seguridad", "Seguridad"),
+      icon: <ShieldCheckIcon className={iconSize} />,
+      accent: "red",
     },
   ];
   // Herramientas de técnico accesibles para admin

@@ -22,6 +22,7 @@ import KpisMetricas from './pages/admin/KpisMetricas';
 import MapaViviendas from './pages/admin/MapaViviendas';
 import GestionTemplatesPosventa from './pages/admin/GestionTemplatesPosventa';
 import Constructoras from './pages/admin/Constructoras';
+import SecurityDashboard from './pages/admin/SecurityDashboard';
 import PosventaFormPage from './pages/PosventaForm.jsx';
 import Registro from './pages/registrar.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
@@ -88,6 +89,7 @@ export default function AppRoutes() {
             <Route path="/admin/kpis" element={<KpisMetricas />} />
             <Route path="/admin/mapa-viviendas" element={<MapaViviendas />} />
             <Route path="/admin/templates-posventa" element={<GestionTemplatesPosventa />} />
+            <Route path="/admin/seguridad" element={<SecurityDashboard />} />
           </Route>
         </Route>
 
