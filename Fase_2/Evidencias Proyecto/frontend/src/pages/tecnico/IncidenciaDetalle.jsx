@@ -4,7 +4,7 @@ import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import { tecnicoApi } from '../../services/api'
 import ImageModal from '../../components/ui/ImageModal'
-import { ClockIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { ClockIcon, ExclamationTriangleIcon, CheckCircleIcon, PaperClipIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 export default function IncidenciaDetalleTecnico() {
   const { id } = useParams()
@@ -20,8 +20,10 @@ export default function IncidenciaDetalleTecnico() {
   const [editDescripcion, setEditDescripcion] = useState('')
   const [editPrioridad, setEditPrioridad] = useState('')
   const [comentarioNuevo, setComentarioNuevo] = useState('')
+  const [archivosComentario, setArchivosComentario] = useState([])
   const [subiendo, setSubiendo] = useState(false)
   const [preview, setPreview] = useState({ open: false, src: '', alt: '' })
+  const [mediaPorComentario, setMediaPorComentario] = useState({})
 
   console.log('🔍 IncidenciaDetalleTecnico - ID:', id)
   console.log('🔍 IncidenciaDetalleTecnico - Componente cargado')
@@ -39,7 +41,25 @@ export default function IncidenciaDetalleTecnico() {
       console.log('📡 Llamando a tecnicoApi.historialIncidencia...')
       const hist = await tecnicoApi.historialIncidencia(id)
       console.log('✅ Historial obtenido:', hist)
-      setHistorial(hist.data || [])
+      const historialData = hist.data || []
+      setHistorial(historialData)
+      
+      // Cargar media de cada comentario
+      const mediaMap = {}
+      for (const h of historialData) {
+        if (h.tipo_evento === 'comentario' && h.id) {
+          try {
+            const mediaRes = await tecnicoApi.obtenerMediaComentario(h.id)
+            if (mediaRes.data && mediaRes.data.length > 0) {
+              mediaMap[h.id] = mediaRes.data
+            }
+          } catch (err) {
+            console.warn(`No se pudo cargar media para comentario ${h.id}`)
+          }
+        }
+      }
+      setMediaPorComentario(mediaMap)
+      
       setNuevoEstado(det.data?.estado || '')
       setEditDescripcion(det.data?.descripcion || '')
       setEditPrioridad(det.data?.prioridad || '')
@@ -71,11 +91,24 @@ export default function IncidenciaDetalleTecnico() {
 
   async function handleComentar() {
     if (!comentarioNuevo.trim()) return
+    setSubiendo(true)
     try {
-      await tecnicoApi.comentarIncidencia(id, comentarioNuevo.trim())
+      if (archivosComentario.length > 0) {
+        // Usar endpoint con media
+        await tecnicoApi.comentarConMedia(id, comentarioNuevo.trim(), archivosComentario)
+      } else {
+        // Usar endpoint simple
+        await tecnicoApi.comentarIncidencia(id, comentarioNuevo.trim())
+      }
       setComentarioNuevo('')
+      setArchivosComentario([])
       loadAll()
-    } catch(e){ setAccionMsg(e.message) }
+      setAccionMsg('Comentario agregado')
+    } catch(e){ 
+      setAccionMsg(e.message) 
+    } finally {
+      setSubiendo(false)
+    }
   }
 
   async function handleSubirMedia(e) {
@@ -216,23 +249,139 @@ export default function IncidenciaDetalleTecnico() {
           {historial.length === 0 && <div className='text-xs text-techo-gray-500'>Sin eventos</div>}
           <ul className='divide-y divide-techo-gray-100'>
             {historial.map(h => (
-              <li key={h.id} className='py-2 text-xs flex justify-between gap-4'>
-                <div>
-                  <span className='font-medium'>{h.tipo_evento}</span>{' '}
-                  {h.estado_anterior && h.estado_nuevo && (
-                    <span>({h.estado_anterior} → {h.estado_nuevo})</span>
-                  )}
-                  {h.comentario && <span className='italic text-techo-gray-500 ml-1'>“{h.comentario}”</span>}
+              <li key={h.id} className='py-3 text-xs'>
+                <div className='flex justify-between items-start gap-4 mb-1'>
+                  <div className='flex-1'>
+                    <span className='font-medium text-blue-600'>{h.tipo_evento}</span>
+                    {h.actor && (
+                      <span className='text-gray-600 ml-2'>
+                        por <strong>{h.actor.nombre}</strong> ({h.actor.rol})
+                      </span>
+                    )}
+                  </div>
+                  <time className='text-techo-gray-400 text-[10px]'>{(h.created_at||'').replace('T',' ').substring(0,16)}</time>
                 </div>
-                <time className='text-techo-gray-400'>{(h.created_at||'').replace('T',' ').substring(0,16)}</time>
+                {h.estado_anterior && h.estado_nuevo && (
+                  <div className='text-gray-500 ml-0 mt-1'>
+                    Estado: <span className='font-medium'>{h.estado_anterior}</span> → <span className='font-medium text-green-600'>{h.estado_nuevo}</span>
+                  </div>
+                )}
+                {h.comentario && (
+                  <div className='italic text-gray-600 ml-0 mt-1 bg-gray-50 dark:bg-gray-800 p-2 rounded border-l-2 border-blue-300'>
+                    "{h.comentario}"
+                  </div>
+                )}
+                {/* Mostrar fotos/videos adjuntos al comentario */}
+                {mediaPorComentario[h.id] && mediaPorComentario[h.id].length > 0 && (
+                  <div className='mt-2 flex gap-2 flex-wrap'>
+                    {mediaPorComentario[h.id].map((media, idx) => (
+                      <div key={idx} className='relative'>
+                        {media.mime?.startsWith('video/') ? (
+                          <video 
+                            src={media.url} 
+                            className='h-20 w-20 object-cover rounded border cursor-pointer'
+                            controls
+                          />
+                        ) : (
+                          <img
+                            src={media.url}
+                            alt={`Adjunto ${idx + 1}`}
+                            className='h-20 w-20 object-cover rounded border cursor-zoom-in hover:opacity-90'
+                            onClick={() => setPreview({ open: true, src: media.url, alt: `Comentario #${h.id}` })}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
           <div className='mt-4'>
-            <h4 className='font-semibold mb-2'>Agregar comentario</h4>
-            <div className='flex gap-2 flex-wrap items-start'>
-              <textarea className='input w-80 h-24' value={comentarioNuevo} onChange={e=>setComentarioNuevo(e.target.value)} placeholder='Comentario técnico...' />
-              <button className='btn btn-secondary' onClick={handleComentar}>Enviar</button>
+            <h4 className='font-semibold mb-2 flex items-center gap-2'>
+              Agregar comentario
+              {archivosComentario.length > 0 && (
+                <span className='text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full'>
+                  {archivosComentario.length} archivo(s)
+                </span>
+              )}
+            </h4>
+            <div className='space-y-2'>
+              <textarea 
+                className='input w-full h-24' 
+                value={comentarioNuevo} 
+                onChange={e=>setComentarioNuevo(e.target.value)} 
+                placeholder='Comentario técnico...' 
+              />
+              
+              {/* Preview de archivos seleccionados */}
+              {archivosComentario.length > 0 && (
+                <div className='flex gap-2 flex-wrap p-2 bg-gray-50 dark:bg-gray-800 rounded'>
+                  {archivosComentario.map((file, idx) => (
+                    <div key={idx} className='relative group'>
+                      {file.type.startsWith('image/') && (
+                        <img 
+                          src={URL.createObjectURL(file)} 
+                          alt={file.name}
+                          className='h-16 w-16 object-cover rounded border'
+                        />
+                      )}
+                      {file.type.startsWith('video/') && (
+                        <div className='h-16 w-16 bg-gray-200 rounded border flex items-center justify-center'>
+                          <PhotoIcon className='h-8 w-8 text-gray-500' />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setArchivosComentario(prev => prev.filter((_, i) => i !== idx))}
+                        className='absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity'
+                      >
+                        <XMarkIcon className='h-3 w-3' />
+                      </button>
+                      <p className='text-[10px] text-gray-500 mt-1 truncate w-16'>{file.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className='flex gap-2 flex-wrap items-center'>
+                <button 
+                  className='btn btn-secondary' 
+                  onClick={handleComentar}
+                  disabled={subiendo || !comentarioNuevo.trim()}
+                >
+                  {subiendo ? 'Enviando...' : 'Enviar comentario'}
+                </button>
+                
+                <label className='btn btn-sm cursor-pointer'>
+                  <PaperClipIcon className='h-4 w-4 mr-1' />
+                  Adjuntar fotos/videos
+                  <input 
+                    type='file' 
+                    className='hidden' 
+                    multiple
+                    accept='image/*,video/*'
+                    disabled={subiendo}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || [])
+                      if (files.length + archivosComentario.length > 5) {
+                        setAccionMsg('Máximo 5 archivos por comentario')
+                        return
+                      }
+                      setArchivosComentario(prev => [...prev, ...files])
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                
+                {archivosComentario.length > 0 && (
+                  <button
+                    className='text-xs text-red-600 hover:underline'
+                    onClick={() => setArchivosComentario([])}
+                  >
+                    Limpiar archivos
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </SectionPanel>

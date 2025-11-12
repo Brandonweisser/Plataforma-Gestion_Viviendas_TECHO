@@ -4,6 +4,8 @@ export const NORMALIZED_ROLES = {
   admin: 'administrador',
   técnico: 'tecnico',
   tecnico: 'tecnico',
+  tecnico_campo: 'tecnico_campo',
+  'tecnico campo': 'tecnico_campo',
   beneficiario: 'beneficiario'
 }
 
@@ -20,6 +22,8 @@ export function dashboardPathFor(role) {
       return '/home'  // Cambiado de '/admin' a '/home' donde está HomeAdministrador
     case 'tecnico':
       return '/home'  // Cambiado de '/tecnico' a '/home' donde está HomeTecnico
+    case 'tecnico_campo':
+      return '/home'  // Dashboard de técnico de campo
     case 'beneficiario':
       return '/home'  // Cambiado de '/beneficiario' a '/home' donde está HomeBeneficiario
     default:

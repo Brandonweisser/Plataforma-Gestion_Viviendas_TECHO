@@ -684,13 +684,14 @@ export async function createUser(req, res) {
 export async function updateUserById(req, res) {
   try {
     const uid = Number(req.params.uid);
-    const { nombre, rol, password, rut, direccion } = req.body || {};
+    const { nombre, rol, password, rut, direccion, telefono } = req.body || {};
 
     const updates = {};
     if (nombre) updates.nombre = nombre;
     if (rol) updates.rol = rol;
     if (rut) updates.rut = rut;
     if (direccion) updates.direccion = direccion;
+    if (telefono !== undefined) updates.telefono = telefono; // Permite vacío para borrar
     if (password)
       updates.password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -731,6 +732,7 @@ export async function updateUserById(req, res) {
         rol: updatedUser.rol,
         rut: updatedUser.rut,
         direccion: updatedUser.direccion,
+        telefono: updatedUser.telefono,
       },
     });
   } catch (error) {

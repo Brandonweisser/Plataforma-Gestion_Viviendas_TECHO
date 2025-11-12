@@ -13,6 +13,9 @@ import {
   getIncidences,
   getIncidenceDetail,
   updateIncidenceStatus,
+  addIncidenceComment,
+  addCommentWithMedia,
+  getCommentMedia,
   assignIncidenceToMe,
   assignIncidenceToTechnician,
   listAvailableTechnicians,
@@ -25,7 +28,8 @@ import {
   listTechnicianHousings,
   deliverTechnicianHousing,
   getTechnicianDashboardStats,
-  listPosventaFormPlans
+  listPosventaFormPlans,
+  getVisitasSugeridas
 } from '../controllers/tecnicoController.js'
 
 const router = express.Router()
@@ -41,13 +45,19 @@ router.get('/health', technicianHealth)
 router.get('/incidencias', getIncidences)
 router.get('/incidencias/:id', getIncidenceDetail)
 router.put('/incidencias/:id/estado', updateIncidenceStatus)
+router.post('/incidencias/:id/comentar', addIncidenceComment)  // Agregar comentario simple
+router.post('/incidencias/:id/comentar-con-media', addCommentWithMedia)  // 🆕 Agregar comentario con fotos/videos
+router.get('/comentarios/:comentarioId/media', getCommentMedia)  // 🆕 Obtener media de un comentario
 router.post('/incidencias/:id/asignar-a-mi', assignIncidenceToMe)  // Auto-asignarse
-router.post('/incidencias/:id/asignar', isSupervisor, assignIncidenceToTechnician)  // 🆕 Asignar a otro (solo supervisores)
+router.post('/incidencias/:id/asignar', isSupervisor, assignIncidenceToTechnician)  // Asignar a otro (solo supervisores)
 router.get('/incidencias/:id/media', listIncidenceMedia)
 router.post('/incidencias/:id/media', uploadIncidenceMedia)
 
 // 🆕 Listar técnicos disponibles (solo supervisores)
 router.get('/tecnicos-disponibles', isSupervisor, listAvailableTechnicians)
+
+// 🆕 Visitas sugeridas para hoy (técnicos de campo y supervisores)
+router.get('/visitas-sugeridas', getVisitasSugeridas)
 
 // Estadísticas del técnico
 router.get('/stats', getTechnicianStats)

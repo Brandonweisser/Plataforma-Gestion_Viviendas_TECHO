@@ -6,14 +6,15 @@
  */
 
 import { supabase } from '../supabaseClient.js'
+import { calcularEstadoPlazos } from '../utils/plazosLegales.js'
 import { listTemplatePlans } from '../services/MediaService.js'
 import { getAllIncidences, updateIncidence, logIncidenciaEvent, createIncidence, computePriority } from '../models/Incidence.js'
 import { calcularFechasLimite, obtenerGarantiaPorCategoria, calcularVencimientoGarantia, estaGarantiaVigente, computePriorityFromCategory } from '../utils/posventaConfig.js'
-import { calcularEstadoPlazos } from '../utils/plazosLegales.js'
 import multer from 'multer'
 import { listMediaForIncidencias, uploadIncidenciaMedia } from '../services/MediaService.js'
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+const uploadMultiple = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 5 } })
 
 /**
  * Health check para rutas de técnico
@@ -56,7 +57,7 @@ export async function getIncidences(req, res) {
         .select(`
           *,
           viviendas(id_vivienda, direccion, proyecto(id_proyecto, nombre, ubicacion)),
-          reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
+          reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email, telefono)
         `)
         .eq('id_usuario_tecnico', tecnicoUid)
         .order('fecha_reporte', { ascending: false })
@@ -113,7 +114,7 @@ export async function getIncidences(req, res) {
             .select(`
               *,
               viviendas!inner(id_vivienda, direccion, id_proyecto, proyecto(id_proyecto, nombre, ubicacion)),
-              reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email)
+              reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email, telefono)
             `)
             .in('viviendas.id_proyecto', projectIds)
             .order('fecha_reporte', { ascending: false })
@@ -228,10 +229,28 @@ export async function getIncidenceDetail(req, res) {
     const { data: historial, error: errorHistorial } = await supabase
       .from('incidencia_historial')
       .select('*')
-  .eq('incidencia_id', incidenciaId)
-  .order('created_at', { ascending: true })
+      .eq('incidencia_id', incidenciaId)
+      .order('created_at', { ascending: true })
       
     if (errorHistorial) throw errorHistorial
+
+    // Enriquecer con información del actor
+    if (historial && historial.length > 0) {
+      const actorUids = [...new Set(historial.map(h => h.actor_uid).filter(Boolean))]
+      if (actorUids.length > 0) {
+        const { data: actors } = await supabase
+          .from('usuarios')
+          .select('uid, nombre, email, rol')
+          .in('uid', actorUids)
+        
+        const actorMap = new Map((actors || []).map(a => [a.uid, a]))
+        historial.forEach(h => {
+          if (h.actor_uid) {
+            h.actor = actorMap.get(h.actor_uid) || null
+          }
+        })
+      }
+    }
 
     // Media asociada
     const mediaBy = await listMediaForIncidencias([incidenciaId])
@@ -493,6 +512,265 @@ export async function updateIncidenceStatus(req, res) {
 }
 
 /**
+ * Agrega un comentario a una incidencia sin cambiar su estado
+ */
+export async function addIncidenceComment(req, res) {
+  try {
+    const incidenciaId = Number(req.params.id)
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    const { comentario } = req.body || {}
+
+    if (!comentario || !comentario.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'El comentario es obligatorio' 
+      })
+    }
+
+    // Obtener incidencia para validar permisos
+    const { data: incidencia, error: errorIncidencia } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, estado, id_usuario_tecnico, viviendas!inner(id_proyecto)')
+      .eq('id_incidencia', incidenciaId)
+      .single()
+      
+    if (errorIncidencia) {
+      if (errorIncidencia.code === 'PGRST116') {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Incidencia no encontrada o no tienes acceso' 
+        })
+      }
+      throw errorIncidencia
+    }
+
+    // Validar permisos: admin siempre, técnico si está asignado o pertenece al proyecto
+    if (userRole !== 'administrador') {
+      const assignedToMe = incidencia.id_usuario_tecnico === tecnicoUid
+      if (!assignedToMe) {
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const allowed = (projects || []).some(p => p.id_proyecto === incidencia.viviendas.id_proyecto)
+        if (!allowed) {
+          return res.status(403).json({ 
+            success: false, 
+            message: 'No tienes permisos para comentar en esta incidencia' 
+          })
+        }
+      }
+    }
+
+    // Registrar comentario en historial
+    await logIncidenciaEvent({
+      incidenciaId,
+      actorUid: tecnicoUid,
+      actorRol: userRole,
+      tipo: 'comentario',
+      comentario: comentario.trim()
+    })
+
+    return res.json({
+      success: true,
+      message: 'Comentario agregado exitosamente'
+    })
+    
+  } catch (error) {
+    console.error('Error al agregar comentario:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al agregar el comentario' 
+    })
+  }
+}
+
+/**
+ * Agrega un comentario con archivos adjuntos (fotos/videos)
+ * Acepta hasta 5 archivos de 10MB cada uno
+ */
+export async function addCommentWithMedia(req, res) {
+  try {
+    // Procesar archivos con multer
+    await new Promise((resolve, reject) => {
+      uploadMultiple.array('files', 5)(req, res, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+
+    const incidenciaId = Number(req.params.id)
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    const { comentario } = req.body || {}
+    const files = req.files || []
+
+    if (!comentario || !comentario.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'El comentario es obligatorio' 
+      })
+    }
+
+    // Obtener incidencia para validar permisos
+    const { data: incidencia, error: errorIncidencia } = await supabase
+      .from('incidencias')
+      .select('id_incidencia, estado, id_usuario_tecnico, viviendas!inner(id_proyecto)')
+      .eq('id_incidencia', incidenciaId)
+      .single()
+      
+    if (errorIncidencia) {
+      if (errorIncidencia.code === 'PGRST116') {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Incidencia no encontrada o no tienes acceso' 
+        })
+      }
+      throw errorIncidencia
+    }
+
+    // Validar permisos
+    if (userRole !== 'administrador') {
+      const assignedToMe = incidencia.id_usuario_tecnico === tecnicoUid
+      if (!assignedToMe) {
+        const { data: projects, error: errP } = await supabase
+          .from('proyecto_tecnico')
+          .select('id_proyecto')
+          .eq('tecnico_uid', tecnicoUid)
+        if (errP) throw errP
+        const allowed = (projects || []).some(p => p.id_proyecto === incidencia.viviendas.id_proyecto)
+        if (!allowed) {
+          return res.status(403).json({ 
+            success: false, 
+            message: 'No tienes permisos para comentar en esta incidencia' 
+          })
+        }
+      }
+    }
+
+    // Insertar el comentario en historial y obtener su ID
+    const { data: historialData, error: historialError } = await supabase
+      .from('incidencia_historial')
+      .insert([{
+        incidencia_id: incidenciaId,
+        actor_uid: tecnicoUid,
+        actor_rol: userRole,
+        tipo_evento: 'comentario',
+        comentario: comentario.trim()
+      }])
+      .select('id')
+      .single()
+
+    if (historialError) throw historialError
+
+    const comentarioId = historialData.id
+
+    // Subir archivos adjuntos asociados al comentario
+    const mediaUploaded = []
+    for (const file of files) {
+      try {
+        const timestamp = Date.now()
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const fileName = `comentario_${comentarioId}_${timestamp}_${safeName}`
+        const filePath = `incidencias/${incidenciaId}/comentarios/${fileName}`
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media-incidencias')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          })
+
+        if (uploadError) throw uploadError
+
+        // Registrar en tabla media
+        const { error: mediaError } = await supabase
+          .from('media')
+          .insert([{
+            entity_type: 'comentario',
+            entity_id: comentarioId,
+            path: filePath,
+            mime: file.mimetype,
+            bytes: file.size,
+            uploaded_by: tecnicoUid
+          }])
+
+        if (mediaError) throw mediaError
+        mediaUploaded.push(fileName)
+      } catch (fileErr) {
+        console.error(`Error subiendo archivo ${file.originalname}:`, fileErr)
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Comentario agregado exitosamente',
+      data: {
+        comentarioId,
+        archivosSubidos: mediaUploaded.length
+      }
+    })
+    
+  } catch (error) {
+    console.error('Error al agregar comentario con media:', error)
+    return res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Error al agregar el comentario' 
+    })
+  }
+}
+
+/**
+ * Obtiene los archivos adjuntos de un comentario específico
+ */
+export async function getCommentMedia(req, res) {
+  try {
+    const comentarioId = Number(req.params.comentarioId)
+
+    const { data: mediaList, error } = await supabase
+      .from('media')
+      .select('*')
+      .eq('entity_type', 'comentario')
+      .eq('entity_id', comentarioId)
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+
+    // Generar URLs firmadas para cada archivo
+    const mediaWithUrls = await Promise.all(
+      (mediaList || []).map(async (m) => {
+        try {
+          const { data: urlData } = await supabase.storage
+            .from('media-incidencias')
+            .createSignedUrl(m.path, 3600) // 1 hora
+
+          return {
+            ...m,
+            url: urlData?.signedUrl || null
+          }
+        } catch (err) {
+          console.error(`Error generando URL para ${m.path}:`, err)
+          return { ...m, url: null }
+        }
+      })
+    )
+
+    return res.json({
+      success: true,
+      data: mediaWithUrls
+    })
+  } catch (error) {
+    console.error('Error obteniendo media de comentario:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener archivos del comentario'
+    })
+  }
+}
+
+/**
  * Asigna una incidencia al técnico actual (solo para admins)
  */
 export async function assignIncidenceToMe(req, res) {
@@ -565,7 +843,7 @@ export async function assignIncidenceToMe(req, res) {
 export async function assignIncidenceToTechnician(req, res) {
   try {
     const incidenciaId = Number(req.params.id)
-    const { tecnico_uid } = req.body
+    const { tecnico_uid, fecha_visita_sugerida } = req.body
     const userRole = req.user?.rol || req.user?.role
     const currentUserId = req.user?.uid || req.user?.sub
 
@@ -597,7 +875,8 @@ export async function assignIncidenceToTechnician(req, res) {
         .from('incidencias')
         .update({ 
           id_usuario_tecnico: null,
-          estado: 'abierta'
+          estado: 'abierta',
+          fecha_visita_sugerida: null
         })
         .eq('id_incidencia', incidenciaId)
 
@@ -641,31 +920,53 @@ export async function assignIncidenceToTechnician(req, res) {
       })
     }
 
+    // Preparar actualización con fecha sugerida opcional
+    const updates = { 
+      id_usuario_tecnico: tecnico_uid,
+      fecha_asignada: new Date().toISOString(),
+      estado: incidencia.estado === 'abierta' ? 'en_proceso' : incidencia.estado
+    }
+
+    // Si se proporciona fecha_visita_sugerida, validarla y agregarla
+    if (fecha_visita_sugerida) {
+      const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fecha_visita_sugerida)
+      if (!fechaValida) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de fecha inválido. Use YYYY-MM-DD'
+        })
+      }
+      updates.fecha_visita_sugerida = fecha_visita_sugerida
+    }
+
     // Asignar la incidencia
     const { error: updateError } = await supabase
       .from('incidencias')
-      .update({ 
-        id_usuario_tecnico: tecnico_uid,
-        fecha_asignada: new Date().toISOString(),
-        estado: incidencia.estado === 'abierta' ? 'en_proceso' : incidencia.estado
-      })
+      .update(updates)
       .eq('id_incidencia', incidenciaId)
 
     if (updateError) throw updateError
 
     // Registrar en historial
+    const comentario = fecha_visita_sugerida 
+      ? `Incidencia asignada a ${tecnico.nombre} por supervisor con visita sugerida para ${fecha_visita_sugerida}`
+      : `Incidencia asignada a ${tecnico.nombre} por supervisor`
+    
     await logIncidenciaEvent(
       incidenciaId,
       'asignacion',
-      `Incidencia asignada a ${tecnico.nombre} por supervisor`,
+      comentario,
       currentUserId
     )
 
     return res.json({
       success: true,
-      message: `Incidencia asignada a ${tecnico.nombre}`,
+      message: fecha_visita_sugerida 
+        ? `Incidencia asignada a ${tecnico.nombre} con visita programada para ${fecha_visita_sugerida}`
+        : `Incidencia asignada a ${tecnico.nombre}`,
       data: {
         incidencia_id: incidenciaId,
+        fecha_visita_sugerida: fecha_visita_sugerida || null,
         tecnico_asignado: {
           uid: tecnico.uid,
           nombre: tecnico.nombre,
@@ -709,25 +1010,58 @@ export async function listAvailableTechnicians(req, res) {
     if (error) throw error
 
     // Contar incidencias asignadas a cada técnico
-    const { data: incidenciasCounts, error: errCounts } = await supabase
+    const { data: incidenciasActivas, error: errCounts } = await supabase
       .from('incidencias')
-      .select('id_usuario_tecnico')
-      .in('estado', ['nuevo', 'en_proceso', 'en_revision'])
+      .select('id_incidencia, id_usuario_tecnico, id_vivienda, descripcion, estado, prioridad, fecha_reporte')
+      .in('estado', ['abierta', 'en_proceso', 'en_espera'])
 
     if (errCounts) throw errCounts
 
-    // Agrupar conteos
-    const counts = {}
-    incidenciasCounts.forEach(inc => {
+    // Obtener direcciones de viviendas para las incidencias
+    const viviendaIds = [...new Set(incidenciasActivas.map(inc => inc.id_vivienda).filter(Boolean))]
+    let viviendasMap = {}
+    
+    if (viviendaIds.length > 0) {
+      const { data: viviendas } = await supabase
+        .from('viviendas')
+        .select('id_vivienda, direccion')
+        .in('id_vivienda', viviendaIds)
+      
+      if (viviendas) {
+        viviendas.forEach(v => {
+          viviendasMap[v.id_vivienda] = v.direccion
+        })
+      }
+    }
+
+    // Agrupar incidencias por técnico
+    const incidenciasPorTecnico = {}
+    incidenciasActivas.forEach(inc => {
       if (inc.id_usuario_tecnico) {
-        counts[inc.id_usuario_tecnico] = (counts[inc.id_usuario_tecnico] || 0) + 1
+        if (!incidenciasPorTecnico[inc.id_usuario_tecnico]) {
+          incidenciasPorTecnico[inc.id_usuario_tecnico] = []
+        }
+        
+        // Calcular plazos legales
+        const plazos = calcularEstadoPlazos(inc)
+        
+        incidenciasPorTecnico[inc.id_usuario_tecnico].push({
+          id: inc.id_incidencia,
+          titulo: inc.descripcion?.substring(0, 50) || 'Sin descripción',
+          descripcion: inc.descripcion,
+          estado: inc.estado,
+          prioridad: inc.prioridad,
+          direccion: viviendasMap[inc.id_vivienda] || 'Sin dirección',
+          plazos_legales: plazos
+        })
       }
     })
 
-    // Agregar conteos a técnicos
+    // Agregar conteos y lista de incidencias a técnicos
     const tecnicosConCarga = tecnicos.map(t => ({
       ...t,
-      incidencias_activas: counts[t.uid] || 0
+      incidencias_activas: (incidenciasPorTecnico[t.uid] || []).length,
+      incidencias: incidenciasPorTecnico[t.uid] || []
     }))
 
     return res.json({
@@ -1373,5 +1707,209 @@ export async function deliverTechnicianHousing(req, res) {
   } catch (error) {
     console.error('Error entregando vivienda:', error)
     return res.status(500).json({ success:false, message:'Error al marcar la vivienda como entregada' })
+  }
+}
+
+/**
+ * 🆕 Obtiene visitas sugeridas para hoy del técnico de campo
+ * Algoritmo inteligente que ordena por:
+ * 1. Fecha sugerida por supervisor (si es hoy)
+ * 2. Plazos vencidos
+ * 3. Próximos a vencer (≤3 días)
+ * 4. Prioridad alta
+ * 5. Antigüedad del reporte
+ * 
+ * GET /api/tecnico/visitas-sugeridas
+ * Query params: fecha (opcional, default: hoy)
+ */
+export async function getVisitasSugeridas(req, res) {
+  try {
+    const tecnicoUid = req.user?.uid || req.user?.sub
+    const userRole = req.user?.rol || req.user?.role
+    
+    // Fecha a consultar (default: hoy en formato YYYY-MM-DD)
+    const fechaStr = req.query.fecha || new Date().toISOString().split('T')[0]
+    const hoy = new Date().toISOString().split('T')[0]
+    
+    console.log(`📅 Consultando visitas sugeridas para ${fechaStr} - Técnico: ${tecnicoUid}`)
+
+    // Solo técnicos de campo y supervisores pueden ver sus visitas
+    if (!['tecnico', 'tecnico_campo', 'administrador'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permisos para ver visitas sugeridas'
+      })
+    }
+
+    // Query base: incidencias asignadas al técnico que están activas
+    let query = supabase
+      .from('incidencias')
+      .select(`
+        id_incidencia,
+        descripcion,
+        categoria,
+        estado,
+        prioridad,
+        fecha_reporte,
+        fecha_visita_sugerida,
+        id_vivienda,
+        viviendas!inner(
+          id_vivienda,
+          direccion,
+          id_proyecto,
+          proyecto(
+            id_proyecto,
+            nombre,
+            ubicacion
+          )
+        ),
+        reporta:usuarios!incidencias_id_usuario_reporta_fkey(nombre, email, telefono)
+      `)
+      .eq('id_usuario_tecnico', tecnicoUid)
+      .in('estado', ['abierta', 'en_proceso', 'en_espera'])
+      .order('fecha_reporte', { ascending: true })
+
+    const { data: incidencias, error } = await query
+
+    if (error) {
+      console.error('❌ Error consultando incidencias:', error)
+      throw error
+    }
+
+    console.log(`📋 Total incidencias activas del técnico: ${incidencias?.length || 0}`)
+
+    if (!incidencias || incidencias.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          fecha: fechaStr,
+          total: 0,
+          con_fecha_sugerida: 0,
+          sin_fecha_sugerida: 0
+        }
+      })
+    }
+
+    // Enriquecer con plazos legales
+    const incidenciasEnriquecidas = incidencias.map(inc => {
+      try {
+        const plazos = calcularEstadoPlazos(inc)
+        return { ...inc, plazos_legales: plazos }
+      } catch (err) {
+        console.error(`Error calculando plazos para incidencia ${inc.id_incidencia}:`, err)
+        return { ...inc, plazos_legales: null }
+      }
+    })
+
+    // Algoritmo de priorización inteligente
+    const incidenciasOrdenadas = incidenciasEnriquecidas.sort((a, b) => {
+      // 1️⃣ Prioridad MÁXIMA: Si supervisor puso fecha_visita_sugerida para hoy
+      const fechaSugeridaA = a.fecha_visita_sugerida?.split('T')[0]
+      const fechaSugeridaB = b.fecha_visita_sugerida?.split('T')[0]
+      
+      if (fechaSugeridaA === fechaStr && fechaSugeridaB !== fechaStr) return -1
+      if (fechaSugeridaB === fechaStr && fechaSugeridaA !== fechaStr) return 1
+      
+      // 2️⃣ Plazos VENCIDOS → urgencia crítica
+      const plazoA = a.plazos_legales?.estado_plazo
+      const plazoB = b.plazos_legales?.estado_plazo
+      
+      if (plazoA === 'vencido' && plazoB !== 'vencido') return -1
+      if (plazoB === 'vencido' && plazoA !== 'vencido') return 1
+      
+      // 3️⃣ PRÓXIMOS A VENCER (≤3 días)
+      if (plazoA === 'proximo_vencer' && plazoB !== 'proximo_vencer') return -1
+      if (plazoB === 'proximo_vencer' && plazoA !== 'proximo_vencer') return 1
+      
+      // Si ambos próximos a vencer, ordenar por días restantes (menos días primero)
+      if (plazoA === 'proximo_vencer' && plazoB === 'proximo_vencer') {
+        const diasA = a.plazos_legales?.dias_restantes ?? 999
+        const diasB = b.plazos_legales?.dias_restantes ?? 999
+        if (diasA !== diasB) return diasA - diasB
+      }
+      
+      // 4️⃣ PRIORIDAD del reporte (alta > media > baja)
+      const prioridadPeso = { 'alta': 3, 'media': 2, 'baja': 1 }
+      const pesoA = prioridadPeso[(a.prioridad || '').toLowerCase()] || 0
+      const pesoB = prioridadPeso[(b.prioridad || '').toLowerCase()] || 0
+      if (pesoA !== pesoB) return pesoB - pesoA
+      
+      // 5️⃣ ANTIGÜEDAD: más antiguas primero (FIFO)
+      const fechaA = new Date(a.fecha_reporte).getTime()
+      const fechaB = new Date(b.fecha_reporte).getTime()
+      return fechaA - fechaB
+    })
+
+    // Filtrar y mapear resultados
+    const visitasSugeridas = incidenciasOrdenadas.map(inc => ({
+      id_incidencia: inc.id_incidencia,
+      descripcion: inc.descripcion || 'Sin descripción',
+      categoria: inc.categoria || 'General',
+      estado: inc.estado,
+      prioridad: inc.prioridad || 'media',
+      fecha_reporte: inc.fecha_reporte,
+      fecha_visita_sugerida: inc.fecha_visita_sugerida,
+      es_visita_programada: inc.fecha_visita_sugerida === fechaStr,
+      vivienda: {
+        id: inc.viviendas?.id_vivienda,
+        direccion: inc.viviendas?.direccion || 'Sin dirección',
+        proyecto: {
+          id: inc.viviendas?.proyecto?.id_proyecto,
+          nombre: inc.viviendas?.proyecto?.nombre || 'Sin proyecto',
+          ubicacion: inc.viviendas?.proyecto?.ubicacion
+        }
+      },
+      reporta: inc.reporta ? {
+        nombre: inc.reporta.nombre,
+        email: inc.reporta.email,
+        telefono: inc.reporta.telefono
+      } : null,
+      plazos_legales: inc.plazos_legales,
+      urgencia_nivel: 
+        inc.plazos_legales?.estado_plazo === 'vencido' ? 'critica' :
+        inc.plazos_legales?.estado_plazo === 'proximo_vencer' ? 'alta' :
+        (inc.prioridad || '').toLowerCase() === 'alta' ? 'media' : 'normal'
+    }))
+
+    // Estadísticas
+    const conFechaSugerida = visitasSugeridas.filter(v => v.fecha_visita_sugerida).length
+    const sinFechaSugerida = visitasSugeridas.length - conFechaSugerida
+    const paraHoy = visitasSugeridas.filter(v => v.es_visita_programada).length
+    const vencidas = visitasSugeridas.filter(v => v.urgencia_nivel === 'critica').length
+    const urgentes = visitasSugeridas.filter(v => v.urgencia_nivel === 'alta').length
+
+    console.log(`✅ Visitas procesadas:`)
+    console.log(`   - Total: ${visitasSugeridas.length}`)
+    console.log(`   - Programadas para hoy: ${paraHoy}`)
+    console.log(`   - Con fecha sugerida: ${conFechaSugerida}`)
+    console.log(`   - Vencidas: ${vencidas}`)
+    console.log(`   - Urgentes: ${urgentes}`)
+
+    return res.json({
+      success: true,
+      data: visitasSugeridas,
+      meta: {
+        fecha: fechaStr,
+        es_hoy: fechaStr === hoy,
+        total: visitasSugeridas.length,
+        con_fecha_sugerida: conFechaSugerida,
+        sin_fecha_sugerida: sinFechaSugerida,
+        para_hoy: paraHoy,
+        por_urgencia: {
+          critica: vencidas,
+          alta: urgentes,
+          media: visitasSugeridas.filter(v => v.urgencia_nivel === 'media').length,
+          normal: visitasSugeridas.filter(v => v.urgencia_nivel === 'normal').length
+        }
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Error al obtener visitas sugeridas:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener visitas sugeridas'
+    })
   }
 }

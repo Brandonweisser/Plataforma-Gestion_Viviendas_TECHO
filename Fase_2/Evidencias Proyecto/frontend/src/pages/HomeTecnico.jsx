@@ -90,7 +90,7 @@ export default function HomeTecnico() {
     { title: 'Panel de Mis Asignaciones', description: 'Gestionar viviendas e incidencias asignadas', badge: `${stats.asignadas} asignadas`, action: () => navigate('/tecnico/incidencias?asignacion=asignadas'), icon: <ClipboardDocumentListIcon className={iconSize} />, accent: 'orange' },
     { title: 'Formularios de Posventa', description: 'Revisar formularios enviados por beneficiarios', badge: 'pendientes', action: () => navigate('/tecnico/posventa/formularios'), icon: <DocumentTextIcon className={iconSize} />, accent: 'blue' },
     { title: 'Incidencias Críticas', description: 'Atender reportes urgentes inmediatamente', badge: 'urgente', action: () => navigate('/tecnico/incidencias?prioridad=alta'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red', urgent: true },
-    { title: 'Plazos Vencidos', description: 'Incidencias con plazo legal vencido', badge: '⚠️ legal', action: () => navigate('/tecnico/incidencias?plazo=vencido'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red' },
+    { title: 'Plazos Vencidos', description: 'Incidencias con plazo legal vencido', badge: 'legal', action: () => navigate('/tecnico/incidencias?plazo=vencido'), icon: <ExclamationTriangleIcon className={iconSize} />, accent: 'red' },
     { title: 'Inspecciones Programadas', description: 'Inspecciones preventivas de la jornada', badge: 'hoy', action: () => console.log('Inspecciones'), icon: <CalendarDaysIcon className={iconSize} />, accent: 'green' },
   ];
 
@@ -100,11 +100,8 @@ export default function HomeTecnico() {
     'Baja': 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
   }[p] || 'bg-techo-gray-100 text-techo-gray-600 dark:bg-techo-gray-700 dark:text-techo-gray-300');
 
-  const agenda = [
-    { id: 1, hora: '09:00', titulo: 'Inspección Casa #23', detalle: 'Verificar reparación eléctrica', color: 'from-blue-500 via-cyan-400 to-techo-accent-400' },
-    { id: 2, hora: '11:30', titulo: 'Reparación Casa #45', detalle: 'Filtración de agua', color: 'from-orange-500 via-amber-400 to-yellow-300' },
-    { id: 3, hora: '14:00', titulo: 'Entrega materiales Casa #67', detalle: 'Puerta nueva', color: 'from-green-500 via-emerald-400 to-lime-300' }
-  ];
+  // Nota: La agenda de visitas ahora se maneja dinámicamente por técnico de campo
+  // Los supervisores pueden ver el estado general desde el panel de incidencias
 
   return (
     <DashboardLayout
@@ -130,7 +127,8 @@ export default function HomeTecnico() {
               onClick={() => monthInputRef.current?.showPicker?.() || monthInputRef.current?.focus()}
             >
               <span className="inline-flex items-center gap-1">
-                <span className="opacity-70">📅</span> {monthLabel}
+                <CalendarDaysIcon className="w-4 h-4 opacity-70" />
+                {monthLabel}
               </span>
             </button>
             <input
@@ -183,7 +181,7 @@ export default function HomeTecnico() {
                 key={i.id_incidencia} 
                 className="card-surface p-4 flex flex-col sm:flex-row sm:items-start gap-4 border-l-4 border-orange-500 dark:border-orange-400 hover:bg-gray-50 dark:hover:bg-techo-gray-700 transition-colors cursor-pointer group" 
                 onClick={() => {
-                  console.log('🖱️ Clic en incidencia:', i.id_incidencia);
+                  console.log('[CLICK] Incidencia:', i.id_incidencia);
                   console.log('🔍 Estado antes de navegar:');
                   console.log('  - user en contexto:', user);
                   console.log('  - localStorage user:', localStorage.getItem('user'));
@@ -205,7 +203,7 @@ export default function HomeTecnico() {
                     className="btn btn-primary text-xs px-3 py-1 group-hover:bg-orange-600 group-hover:border-orange-600 transition-colors" 
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log('🖱️ Clic en botón Ver Detalle:', i.id_incidencia);
+                      console.log('[CLICK] Botón Ver Detalle:', i.id_incidencia);
                       console.log('🔍 Estado antes de navegar:');
                       console.log('  - user en contexto:', user);
                       console.log('  - localStorage user:', localStorage.getItem('user'));
@@ -223,20 +221,10 @@ export default function HomeTecnico() {
             <button className="btn btn-secondary text-xs" onClick={() => navigate('/tecnico/incidencias?prioridad=alta')}>Ver urgentes</button>
           </div>
         </SectionPanel>
-  <SectionPanel title="Agenda de Hoy" description="Actividades programadas" as="section" showBack={false}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {agenda.map(item => (
-              <div key={item.id} className="relative overflow-hidden rounded-xl p-4 bg-white dark:bg-techo-gray-800 border border-techo-gray-100 dark:border-techo-gray-700 shadow-soft">
-                <div className={`absolute inset-0 opacity-10 bg-gradient-to-br ${item.color}`} aria-hidden></div>
-                <div className="relative">
-                  <time className="text-xs font-medium text-techo-gray-600 dark:text-techo-gray-300">{item.hora}</time>
-                  <h4 className="mt-1 text-sm font-semibold text-techo-gray-800 dark:text-white">{item.titulo}</h4>
-                  <p className="text-xs text-techo-gray-600 dark:text-techo-gray-300">{item.detalle}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionPanel>
+
+        {/* Nota: La agenda de visitas ahora es dinámica por técnico de campo */}
+        {/* Los supervisores asignan fechas sugeridas al asignar incidencias */}
+
   <SectionPanel title="Acciones Rápidas" description="Atajos inmediatos" as="section" variant='highlight' showBack={false}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button className="btn btn-secondary flex items-center justify-center gap-2 text-sm"><PhoneIcon className="h-4 w-4" /> Llamar Coordinador</button>

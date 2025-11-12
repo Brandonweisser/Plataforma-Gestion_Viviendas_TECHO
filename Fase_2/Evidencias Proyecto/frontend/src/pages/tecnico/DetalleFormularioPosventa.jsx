@@ -326,7 +326,6 @@ export default function DetalleFormularioPosventa() {
                     
                     {!item.ok && item.crear_incidencia && (
                       <div className="mt-2 flex items-center text-sm text-purple-600">
-                        <span className="mr-1">🎯</span>
                         {item.incidencia_id ? 
                           `Incidencia #${item.incidencia_id} creada` : 
                           'Se creará incidencia automáticamente'

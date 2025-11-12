@@ -189,15 +189,26 @@ export const tecnicoApi = {
     return request(`/api/tecnico/incidencias/${id}/asignar-a-mi`, { method: 'POST', body: JSON.stringify({}) })
   },
   // 🆕 Asignar incidencia a otro técnico (solo supervisores)
-  asignarIncidenciaATecnico(incidenciaId, tecnicoUid) {
+  // payload puede ser: string (tecnico_uid) o objeto { tecnico_uid, fecha_visita_sugerida }
+  asignarIncidenciaATecnico(incidenciaId, payload) {
+    // Si payload es string, convertir a objeto
+    const body = typeof payload === 'string' || payload === null
+      ? { tecnico_uid: payload }
+      : payload
+    
     return request(`/api/tecnico/incidencias/${incidenciaId}/asignar`, { 
       method: 'POST', 
-      body: JSON.stringify({ tecnico_uid: tecnicoUid }) 
+      body: JSON.stringify(body) 
     })
   },
   // 🆕 Listar técnicos disponibles para asignar (solo supervisores)
   listarTecnicosDisponibles() {
     return request(`/api/tecnico/tecnicos-disponibles`)
+  },
+  // 🆕 Obtener visitas sugeridas para hoy (técnicos de campo y supervisores)
+  obtenerVisitasSugeridas(fecha = null) {
+    const params = fecha ? `?fecha=${fecha}` : ''
+    return request(`/api/tecnico/visitas-sugeridas${params}`)
   },
   cambiarEstadoIncidencia(id, nuevo_estado, comentario) {
     // Backend espera PUT y el campo 'estado' en el payload
@@ -211,6 +222,28 @@ export const tecnicoApi = {
   },
   comentarIncidencia(id, comentario) {
     return request(`/api/tecnico/incidencias/${id}/comentar`, { method: 'POST', body: JSON.stringify({ comentario }) })
+  },
+  async comentarConMedia(id, comentario, files) {
+    const form = new FormData()
+    form.append('comentario', comentario)
+    for (const file of files) {
+      form.append('files', file)
+    }
+    const res = await fetch(`${BASE_URL}/api/tecnico/incidencias/${id}/comentar-con-media`, { 
+      method: 'POST', 
+      headers: { ...authHeaders() }, 
+      body: form 
+    })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || data.success === false) { 
+      const err = new Error(data.message || 'Error agregando comentario con media')
+      err.data = data
+      throw err
+    }
+    return data
+  },
+  obtenerMediaComentario(comentarioId) {
+    return request(`/api/tecnico/comentarios/${comentarioId}/media`)
   },
   async subirMediaIncidencia(id, file) {
     const form = new FormData()
@@ -399,13 +432,30 @@ export const invitationApi = {
   }
 }
 
-// Setup inicial
+// Setup inicial (sin autenticación)
 export const setupApi = {
   estado() {
-    return request('/api/setup/estado')
+    // No enviar token para verificar estado de setup
+    return fetch(`${BASE_URL}/api/setup/estado`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    }).then(res => res.json())
   },
   crearPrimerAdmin({ email, password, nombre }) {
-    return request('/api/setup/primer-admin', { method: 'POST', body: JSON.stringify({ email, password, nombre }) })
+    // No enviar token para crear primer admin
+    return fetch(`${BASE_URL}/api/setup/primer-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, nombre })
+    }).then(async res => {
+      const data = await res.json()
+      if (!res.ok || data.success === false) {
+        const error = new Error(data.message || 'Error creando admin')
+        error.status = res.status
+        throw error
+      }
+      return data
+    })
   }
 }
 

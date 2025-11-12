@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '../../components/ui/DashboardLayout'
 import { SectionPanel } from '../../components/ui/SectionPanel'
 import CardIncidencia from '../../components/CardIncidencia'
@@ -8,6 +9,7 @@ import { isSupervisor } from '../../utils/roleNames'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 
 export default function IncidenciasListaTecnico() {
+  const navigate = useNavigate()
   const [incidencias, setIncidencias] = useState([])
   const [proyectos, setProyectos] = useState([])
   const [loading, setLoading] = useState(false)
@@ -186,7 +188,7 @@ export default function IncidenciasListaTecnico() {
           <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
             {incidenciasActivas.map(i => (
               <div key={i.id_incidencia} className='relative'>
-                <CardIncidencia incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
+                <CardIncidencia incidencia={i} onOpen={() => navigate(`/tecnico/incidencias/${i.id_incidencia}`)} />
                 {/* 🆕 Botón Asignar (solo para supervisores) */}
                 {canAssign && (
                   <button
@@ -270,7 +272,7 @@ export default function IncidenciasListaTecnico() {
             </div>
             <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-75'>
               {incidenciasCerradas.map(i => (
-                <CardIncidencia key={i.id_incidencia} incidencia={i} onOpen={() => window.location.href = `/tecnico/incidencias/${i.id_incidencia}`} />
+                <CardIncidencia key={i.id_incidencia} incidencia={i} onOpen={() => navigate(`/tecnico/incidencias/${i.id_incidencia}`)} />
               ))}
             </div>
             {incidenciasCerradas.length === 0 && <div className='text-sm text-slate-500 dark:text-slate-400 text-center py-8'>📭 Sin incidencias cerradas en este momento.</div>}

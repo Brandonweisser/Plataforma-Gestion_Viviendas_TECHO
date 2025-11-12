@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "../../components/ui/DashboardLayout";
 import { SectionPanel } from "../../components/ui/SectionPanel";
+import { Modal } from "../../components/ui/Modal";
 import { adminApi } from "../../services/api";
 import { getMe } from "../../services/api";
 import { AuthContext } from "../../context/AuthContext";
@@ -30,11 +31,15 @@ export default function GestionUsuarios() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("crear"); // crear | editar
   const [selectedUser, setSelectedUser] = useState(null);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const usuariosPorPagina = 30;
   const [form, setForm] = useState({
     nombre: "",
     email: "",
     password: "",
     rol: "beneficiario",
+    telefono: "",
+    constructora_id: "",
   });
   const [invite, setInvite] = useState({
     email: "",
@@ -47,6 +52,11 @@ export default function GestionUsuarios() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [buscar, rolFiltro, proyectoFiltro, soloSinVivienda]);
 
   async function loadData() {
     setLoading(true);
@@ -132,7 +142,9 @@ export default function GestionUsuarios() {
       nombre: user.nombre || "",
       email: user.email || "",
       password: "",
-      rol: user.rol,
+      rol: user.rol || "beneficiario",
+      telefono: user.telefono || "",
+      constructora_id: "",
     };
 
     // Si es técnico, intentar obtener su constructora asignada
@@ -159,6 +171,15 @@ export default function GestionUsuarios() {
   function closeModal() {
     setShowModal(false);
     setSelectedUser(null);
+    // Resetear el formulario a valores iniciales
+    setForm({
+      nombre: "",
+      email: "",
+      password: "",
+      rol: "beneficiario",
+      telefono: "",
+      constructora_id: "",
+    });
   }
 
   function handleFormChange(e) {
@@ -170,6 +191,12 @@ export default function GestionUsuarios() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    
+    console.log("=== handleSubmit ===");
+    console.log("modalMode:", modalMode);
+    console.log("selectedUser:", selectedUser);
+    console.log("form:", form);
+    
     if (!form.nombre.trim() || !form.email.trim()) {
       setError("Nombre y email son obligatorios");
       return;
@@ -190,9 +217,15 @@ export default function GestionUsuarios() {
           });
           setSuccess("Usuario creado");
         } else if (selectedUser) {
-          const payload = { nombre: form.nombre.trim(), rol: form.rol };
+          const payload = { 
+            nombre: form.nombre.trim(), 
+            rol: form.rol,
+            telefono: form.telefono.trim() || null
+          };
+          console.log("Payload para actualizar:", payload);
           if (form.password.trim()) payload.password = form.password.trim();
-          await adminApi.actualizarUsuario(selectedUser.uid, payload);
+          const response = await adminApi.actualizarUsuario(selectedUser.uid, payload);
+          console.log("Respuesta de actualización:", response);
 
           // Si es técnico, manejar la asignación de constructora
           if (form.rol === "tecnico") {
@@ -316,6 +349,12 @@ export default function GestionUsuarios() {
       ("" + u.uid).includes(q)
     );
   });
+
+  // Paginación
+  const totalPaginas = Math.ceil(filtrados.length / usuariosPorPagina);
+  const indiceInicio = (paginaActual - 1) * usuariosPorPagina;
+  const indiceFin = indiceInicio + usuariosPorPagina;
+  const usuariosPaginados = filtrados.slice(indiceInicio, indiceFin);
 
   const stats = {
     total: usuarios.length,
@@ -579,8 +618,8 @@ export default function GestionUsuarios() {
                   <th className="py-2 px-4 font-semibold">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {filtrados.length === 0 && (
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {usuariosPaginados.length === 0 && (
                   <tr>
                     <td
                       colSpan={6}
@@ -590,7 +629,7 @@ export default function GestionUsuarios() {
                     </td>
                   </tr>
                 )}
-                {filtrados.map((u) => {
+                {usuariosPaginados.map((u) => {
                   const v =
                     u.rol === "beneficiario"
                       ? viviendasPorBeneficiario.get(u.uid)
@@ -650,35 +689,21 @@ export default function GestionUsuarios() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-4 space-x-2">
-                        <button
-                          onClick={() => openEdit(u)}
-                          className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u)}
-                          className="text-xs px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          Eliminar
-                        </button>
-                        {u.rol === "beneficiario" &&
-                          (v ? (
-                            <button
-                              onClick={() => navigate("/admin/viviendas")}
-                              className="text-xs px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white"
-                            >
-                              Ver Vivienda
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => navigate("/admin/asignaciones")}
-                              className="text-xs px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              Asignar
-                            </button>
-                          ))}
+                      <td className="py-2 px-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openEdit(u)}
+                            className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u)}
+                            className="text-xs px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -686,124 +711,161 @@ export default function GestionUsuarios() {
               </tbody>
             </table>
           </div>
+
+          {/* Controles de paginación */}
+          {filtrados.length > usuariosPorPagina && (
+            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 px-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Mostrando {indiceInicio + 1} - {Math.min(indiceFin, filtrados.length)} de {filtrados.length} usuarios
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+                  disabled={paginaActual === 1}
+                  className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Página {paginaActual} de {totalPaginas}
+                </span>
+                <button
+                  onClick={() => setPaginaActual(prev => Math.min(totalPaginas, prev + 1))}
+                  disabled={paginaActual === totalPaginas}
+                  className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </SectionPanel>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {modalMode === "crear" ? "Crear Usuario" : "Editar Usuario"}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal isOpen={showModal} onClose={closeModal} maxWidth="max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            {modalMode === "crear" ? "Crear Usuario" : "Editar Usuario"}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                Nombre
+              </label>
+              <input
+                name="nombre"
+                value={form.nombre}
+                onChange={handleFormChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                Email
+              </label>
+              <input
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleFormChange}
+                disabled={modalMode === "editar"}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm disabled:opacity-60"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                Teléfono
+              </label>
+              <input
+                name="telefono"
+                type="tel"
+                value={form.telefono}
+                onChange={handleFormChange}
+                placeholder="+56 9 1234 5678"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Opcional. Formato: +56 9 1234 5678
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                  Nombre
+                  Rol
                 </label>
-                <input
-                  name="nombre"
-                  value={form.nombre}
+                <select
+                  name="rol"
+                  value={form.rol}
                   onChange={handleFormChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                  required
-                />
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="administrador">{getRoleName('administrador')}</option>
+                  <option value="tecnico">{getRoleName('tecnico')}</option>
+                  <option value="tecnico_campo">{getRoleName('tecnico_campo')}</option>
+                  <option value="beneficiario">{getRoleName('beneficiario')}</option>
+                </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handleFormChange}
-                  disabled={modalMode === "editar"}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm disabled:opacity-60"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {modalMode === "crear" && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                    Rol
-                  </label>
-                  <select
-                    name="rol"
-                    value={form.rol}
-                    onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                  >
-                    <option value="administrador">{getRoleName('administrador')}</option>
-                    <option value="tecnico">{getRoleName('tecnico')}</option>
-                    <option value="tecnico_campo">{getRoleName('tecnico_campo')}</option>
-                    <option value="beneficiario">{getRoleName('beneficiario')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                    Contraseña{" "}
-                    {modalMode === "editar" && (
-                      <span className="text-gray-400">(opcional)</span>
-                    )}
+                    Contraseña
                   </label>
                   <input
                     name="password"
                     type="password"
                     value={form.password}
                     onChange={handleFormChange}
-                    placeholder={
-                      modalMode === "editar"
-                        ? "Dejar en blanco para no cambiar"
-                        : ""
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                    required
                   />
                 </div>
-              </div>
-              {form.rol === "tecnico" && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                    Constructora
-                  </label>
-                  <select
-                    name="constructora_id"
-                    value={form.constructora_id || ""}
-                    onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                  >
-                    <option value="">Sin asignar</option>
-                    {constructoras.map((c) => (
-                      <option key={c.id} value={String(c.id)}>
-                        {c.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               )}
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 min-w-[140px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+            </div>
+            {form.rol === "tecnico" && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Constructora
+                </label>
+                <select
+                  name="constructora_id"
+                  value={form.constructora_id || ""}
+                  onChange={handleFormChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
                 >
-                  {loading
-                    ? "Guardando..."
-                    : modalMode === "crear"
-                    ? "Crear"
-                    : "Actualizar"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  Cancelar
-                </button>
+                  <option value="">Sin asignar</option>
+                  {constructoras.map((c) => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </form>
-          </div>
+            )}
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 min-w-[140px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+              >
+                {loading
+                  ? "Guardando..."
+                  : modalMode === "crear"
+                  ? "Crear"
+                  : "Actualizar"}
+              </button>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
     </DashboardLayout>
   );
 }

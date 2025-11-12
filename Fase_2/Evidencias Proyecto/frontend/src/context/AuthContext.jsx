@@ -57,6 +57,19 @@ export function AuthProvider({ children }) {
           // Normalizar role
           if (parsed.role) parsed.role = normalizeRole(parsed.role);
           if (parsed.rol) parsed.role = normalizeRole(parsed.rol);
+          
+          // 🆕 Si no hay role, intentar reconstruir desde el token
+          if (!parsed.role && savedToken) {
+            console.log('AuthProvider - Role faltante, reconstruyendo desde token...');
+            const decoded = decodeJwt(savedToken);
+            if (decoded?.role || decoded?.rol) {
+              parsed.role = normalizeRole(decoded.role || decoded.rol);
+              console.log('AuthProvider - Role reconstruido:', parsed.role);
+              // Actualizar localStorage con el role corregido
+              localStorage.setItem("user", JSON.stringify(parsed));
+            }
+          }
+          
           // Validar expiración si existe token
           const saved = localStorage.getItem('token');
           if (saved) {

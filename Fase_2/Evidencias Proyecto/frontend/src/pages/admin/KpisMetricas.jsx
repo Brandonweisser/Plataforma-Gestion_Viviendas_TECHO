@@ -240,61 +240,117 @@ export default function KpisMetricas() {
       accent="pink"
       footer={`© ${new Date().getFullYear()} TECHO – KPIs`}
     >
-      <div className="space-y-10 bg-slate-900/40 p-6 md:p-8 rounded-xl" role="region" aria-label="KPIs y métricas administrativas">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-semibold tracking-tight text-techo-gray-800 dark:text-white">Panel Analítico</h2>
-          <p className="text-sm text-techo-gray-600 dark:text-techo-gray-300">Visualización consolidada de usuarios, incidencias y viviendas.</p>
-          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            <button onClick={() => navigate('/home')} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-              <ArrowLeftIcon className="h-4 w-4" /> Volver
-            </button>
-            <button onClick={loadStats} disabled={stats.loading} className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
-              <ArrowPathIcon className="h-4 w-4" /> Refrescar
-            </button>
-            <button onClick={exportCsv} disabled={!statsHistory.length} className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-pink-400 text-pink-500 hover:bg-pink-500/10 disabled:opacity-40">
-              <CloudArrowDownIcon className="h-4 w-4" /> CSV histórico
-            </button>
-            <button onClick={exportAnalyticsCsv} disabled={!analytics} className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-blue-400 text-blue-500 hover:bg-blue-500/10 disabled:opacity-40">
-              <CloudArrowDownIcon className="h-4 w-4" /> CSV Analytics
-            </button>
-            <button onClick={() => setShowAdvanced(s => !s)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-gray-500 hover:bg-gray-700/40">
-              <InformationCircleIcon className="h-4 w-4" /> {showAdvanced ? 'Ocultar Detalle' : 'Ver Detalle'}
-            </button>
-            {lastUpdated && <span>Actualizado: {lastUpdated.toLocaleTimeString()}</span>}
+      <div className="space-y-6" role="region" aria-label="KPIs y métricas administrativas">
+        {/* Header Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Panel Analítico</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Visualización consolidada de usuarios, incidencias y viviendas.</p>
+              </div>
+              <button 
+                onClick={() => navigate('/home')} 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors font-medium"
+              >
+                <ArrowLeftIcon className="h-5 w-5" /> Volver
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <button 
+                onClick={loadStats} 
+                disabled={stats.loading} 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                <ArrowPathIcon className="h-4 w-4" /> Refrescar
+              </button>
+              <button 
+                onClick={exportCsv} 
+                disabled={!statsHistory.length} 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-pink-300 dark:border-pink-500 bg-white dark:bg-transparent text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-500/10 disabled:opacity-40 transition-colors text-sm font-medium"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" /> CSV histórico
+              </button>
+              <button 
+                onClick={exportAnalyticsCsv} 
+                disabled={!analytics} 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-300 dark:border-blue-500 bg-white dark:bg-transparent text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 disabled:opacity-40 transition-colors text-sm font-medium"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" /> CSV Analytics
+              </button>
+              <button 
+                onClick={() => setShowAdvanced(s => !s)} 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+              >
+                <InformationCircleIcon className="h-4 w-4" /> {showAdvanced ? 'Ocultar Detalle' : 'Ver Detalle'}
+              </button>
+              {lastUpdated && (
+                <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+                  Actualizado: {lastUpdated.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {stats.error && <div className="text-xs text-red-500">{stats.error}</div>}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <StatCard icon={<UsersIcon className={iconSize} />} label="Usuarios" value={stats.loading ? '—' : stats.usuarios.total} subtitle={stats.loading ? 'Cargando' : `${stats.usuarios.administrador || 0} Admin / ${stats.usuarios.tecnico || 0} Tec / ${stats.usuarios.beneficiario || 0} Ben`} accent='blue' />
-          <StatCard icon={<HomeModernIcon className={iconSize} />} label="Viviendas" value={stats.loading ? '—' : stats.viviendas.total} subtitle={stats.loading ? 'Cargando' : 'Registradas'} accent='green' />
-          <StatCard icon={<WrenchScrewdriverIcon className={iconSize} />} label="Incidencias" value={stats.loading ? '—' : stats.incidencias.abiertas} subtitle={stats.loading ? 'Cargando' : 'Abiertas'} accent='orange' />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-200">Visualizaciones</h3>
-            <span className="text-xs text-gray-500">Auto‑refresh 60s</span>
+        {stats.error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-sm text-red-600 dark:text-red-400">{stats.error}</p>
           </div>
-            <DashboardCharts stats={stats} loading={stats.loading} />
+        )}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <StatCard 
+            icon={<UsersIcon className={iconSize} />} 
+            label="Usuarios" 
+            value={stats.loading ? '—' : stats.usuarios.total} 
+            subtitle={stats.loading ? 'Cargando' : `${stats.usuarios.administrador || 0} Admin / ${stats.usuarios.tecnico || 0} Tec / ${stats.usuarios.beneficiario || 0} Ben`} 
+            accent='blue' 
+          />
+          <StatCard 
+            icon={<HomeModernIcon className={iconSize} />} 
+            label="Viviendas" 
+            value={stats.loading ? '—' : stats.viviendas.total} 
+            subtitle={stats.loading ? 'Cargando' : 'Registradas'} 
+            accent='green' 
+          />
+          <StatCard 
+            icon={<WrenchScrewdriverIcon className={iconSize} />} 
+            label="Incidencias" 
+            value={stats.loading ? '—' : stats.incidencias.abiertas} 
+            subtitle={stats.loading ? 'Cargando' : 'Abiertas'} 
+            accent='orange' 
+          />
         </div>
 
-        {/* Métricas avanzadas con tarjetas modernas y ApexCharts */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-200">Métricas avanzadas (90 días)</h3>
-            {!analytics && <span className="text-xs text-gray-500">cargando…</span>}
+        {/* Charts Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Visualizaciones</h3>
+            <span className="text-xs px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
+              Auto‑refresh 60s
+            </span>
+          </div>
+          <DashboardCharts stats={stats} loading={stats.loading} />
+        </div>
+
+        {/* Advanced Metrics */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Métricas avanzadas (90 días)</h3>
+            {!analytics && <span className="text-xs text-gray-500 dark:text-gray-400">cargando…</span>}
           </div>
           {analytics && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Distribución por estado - Dona */}
-              <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-400 uppercase tracking-wider">
-                  <ChartPieIcon className="h-5 w-5" />
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  <ChartPieIcon className="h-5 w-5 text-blue-500" />
                   Distribución por estado
                 </div>
-                <div className="mt-2 text-3xl font-bold text-white">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
                   {(analytics.totals.abiertas + analytics.totals.cerradas) || 0}
                 </div>
                 <div className="mt-4">
@@ -338,12 +394,12 @@ export default function KpisMetricas() {
               </div>
 
               {/* Distribución por prioridad - Barras horizontal */}
-              <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-400 uppercase tracking-wider">
-                  <ExclamationTriangleIcon className="h-5 w-5" />
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-orange-500" />
                   Distribución por prioridad
                 </div>
-                <div className="mt-2 text-3xl font-bold text-white">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
                   {analytics.prioridades.reduce((a,b)=>a + (b.value||0), 0)}
                 </div>
                 {(() => {
@@ -373,12 +429,12 @@ export default function KpisMetricas() {
               </div>
 
               {/* Backlog - Barras vertical */}
-              <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-400 uppercase tracking-wider">
-                  <ArchiveBoxIcon className="h-5 w-5" />
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  <ArchiveBoxIcon className="h-5 w-5 text-purple-500" />
                   Backlog (antigüedad)
                 </div>
-                <div className="mt-2 text-3xl font-bold text-white">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
                   {Object.values(analytics.backlog.buckets).reduce((a,b)=>a+b,0)}
                 </div>
                 {(() => {
