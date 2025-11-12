@@ -28,6 +28,7 @@ import {
   uploadIncidenciaMediaBeneficiario,
   listIncidenciaMediaBeneficiario
 } from '../controllers/mediaIncidenciasBeneficiario.js'
+import { uploadPosventaItemFoto } from '../controllers/posventaMediaController.js'
 
 const router = express.Router()
 
@@ -60,5 +61,7 @@ router.post('/posventa/form/enviar', sendPosventaForm)
 router.get('/posventa/planos', getPosventaPlans)
 // Dev only: resetear y recrear el formulario desde el template activo
 router.post('/posventa/form/reset', resetPosventaForm)
+// Subida de fotos por ítem del formulario de posventa (máx. 15 por ítem)
+router.post('/posventa/form/items/:itemId/foto', uploadPosventaItemFoto)
 
 export default router

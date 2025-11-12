@@ -4,6 +4,15 @@ import { supabase } from '../supabaseClient.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import fetch from 'node-fetch';
+
+function escapeHtmlAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -186,12 +195,11 @@ class PosventaPDFService {
       .badge-ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
       .badge-problema { background: var(--err-bg); color: var(--err); border-color: var(--err-border); }
       .sev { font-size: 11px; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; padding: 2px 8px; border-radius: 999px; }
-      .comment { margin-top: 8px; padding: 10px; background: #f1f5f9; color: #475569; border-radius: 8px; font-size: 12px; }
-      .comment .ico { margin-right: 6px; }
+  .comment { margin-top: 8px; padding: 10px; background: #f1f5f9; color: #475569; border-radius: 8px; font-size: 12px; }
       .photos { margin-top: 10px; }
       .photos-title { font-weight: 700; font-size: 12px; color: #374151; }
-      .photos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; margin-top: 8px; }
-      .photo-ph { height: 70px; border: 2px dashed #cbd5e1; border-radius: 8px; display:flex; align-items:center; justify-content:center; color: #64748b; font-size: 12px; background: #f8fafc; }
+      .photos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 8px; align-items: center; }
+      .photo-img { width: 100%; height: auto; max-height: 180px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; padding: 6px; box-sizing: border-box; }
       .auto-inc { margin-top: 8px; font-size: 12px; color: #7c3aed; }
 
       /* Footer fijo */
@@ -291,16 +299,16 @@ class PosventaPDFService {
                   ${item.severidad ? `<span class="sev">${String(item.severidad).toUpperCase()}</span>` : ''}
                 </div>
               </div>
-              ${item.comentario ? `<div class="comment"><span class="ico">💬</span>${item.comentario}</div>` : ''}
-              ${(item.fotos_json && Array.isArray(item.fotos_json) && item.fotos_json.length > 0) ? `
+              ${item.comentario ? `<div class="comment">${item.comentario}</div>` : ''}
+              ${(item.fotos_markup && item.fotos_markup.length > 0) ? `
                 <div class="photos">
                   <div class="photos-title">Fotos adjuntas</div>
                   <div class="photos-grid">
-                    ${item.fotos_json.map((_, idx) => `<div class="photo-ph">📷 Foto ${idx + 1}</div>`).join('')}
+                    ${item.fotos_markup}
                   </div>
                 </div>
               ` : ''}
-              ${item.crear_incidencia ? `<div class="auto-inc">🎯 Se creará incidencia automáticamente</div>` : ''}
+              ${item.crear_incidencia ? `<div class="auto-inc">Se creará incidencia automáticamente</div>` : ''}
             </div>
           `).join('')}
         </div>
@@ -315,17 +323,68 @@ class PosventaPDFService {
   </html>`;
   }
 
+  async _prepareFotos(items) {
+    const bucket = process.env.POSTVENTA_BUCKET || 'posventa';
+    const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+    const publicBase = supabaseUrl
+      ? `${supabaseUrl}/storage/v1/object/public/${bucket}/`
+      : '';
+
+    const toAbsoluteUrl = (value) => {
+      if (!value) return null;
+      const url = String(value);
+      if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+      if (publicBase) return publicBase + url.replace(/^\/+/, '');
+      return url;
+    };
+
+    const prepared = [];
+
+    for (const item of items || []) {
+      let fotos = [];
+      try {
+        if (Array.isArray(item.fotos_json)) fotos = item.fotos_json;
+        else if (typeof item.fotos_json === 'string') fotos = JSON.parse(item.fotos_json || '[]');
+      } catch (_) {
+        fotos = [];
+      }
+
+      const absoluteUrls = fotos.map(toAbsoluteUrl).filter(Boolean).slice(0, 15);
+      const inline = [];
+
+      for (const url of absoluteUrls) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`fetch status ${response.status}`);
+          const mime = response.headers.get('content-type') || 'image/jpeg';
+          const buffer = Buffer.from(await response.arrayBuffer());
+          inline.push(`data:${mime};base64,${buffer.toString('base64')}`);
+        } catch (error) {
+          console.warn('No se pudo incrustar foto de posventa, se usará URL directa:', error?.message || error);
+          inline.push(url);
+        }
+      }
+
+      const fotosMarkup = inline.map(src => `<img class="photo-img" src="${escapeHtmlAttr(src)}" alt="Foto" />`).join('');
+      prepared.push({ ...item, fotos_inline: inline, fotos_markup: fotosMarkup });
+    }
+
+    return prepared;
+  }
+
   async generarPDF(formId) {
     let page = null;
     let browser = null;
     try {
       console.log(`🔄 Obteniendo datos del formulario ${formId}...`);
       // Obtener datos
-      const { form, items } = await this.obtenerDatosFormulario(formId);
-      
-      console.log(`🔄 Generando HTML para formulario ${formId}...`);
-      // Generar HTML
-      const html = this.generarHTMLFormulario(form, items);
+  const { form, items } = await this.obtenerDatosFormulario(formId);
+
+  const itemsPrepared = await this._prepareFotos(items);
+
+  console.log(`🔄 Generando HTML para formulario ${formId}...`);
+  // Generar HTML
+  const html = this.generarHTMLFormulario(form, itemsPrepared);
       
       console.log(`🔄 Inicializando browser para formulario ${formId}...`);
       // Crear PDF - Usar nueva instancia del browser cada vez para mayor estabilidad
@@ -341,7 +400,15 @@ class PosventaPDFService {
       page = await browser.newPage();
       
       console.log(`🔄 Configurando contenido HTML para formulario ${formId}...`);
-      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      try {
+        await page.evaluate(async () => {
+          const images = Array.from(document.images || []);
+          await Promise.all(images.map(img => img.decode().catch(() => {})));
+        });
+      } catch (_) {
+        // Continuar aunque la decodificación falle
+      }
       // Asegurar estilos consistentes para PDF
       await page.emulateMediaType('screen');
       
