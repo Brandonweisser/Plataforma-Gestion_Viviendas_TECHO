@@ -4,7 +4,7 @@ Plataforma web para la gestión integral de proyectos habitacionales sociales ba
 
 ## Descripción del Proyecto
 
-Este sistema permite gestionar el ciclo completo de las viviendas sociales, desde la planificación del proyecto hasta el seguimiento posterior a la entrega. Incluye módulos especializados para la gestión de incidencias, formularios de recepción y evaluaciones de postventa, facilitando la trazabilidad y el control de calidad en todos los procesos.
+Este sistema permite gestionar el ciclo completo de las viviendas sociales, desde la planificación del proyecto hasta el seguimiento posterior a la entrega. Incluye módulos especializados para la gestión de incidencias, formularios de recepción y evaluaciones de postventa, facilitando la trazabilidad y el control de calidad en todos los procesos de TECHO.
 
 ## Funcionalidades Principales
 
